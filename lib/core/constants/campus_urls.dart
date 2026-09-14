@@ -60,6 +60,12 @@ abstract final class CampusUrls {
   static const String jwcNotices = 'https://dean.xjtu.edu.cn';
   static const String schoolHome = 'https://www.xjtu.edu.cn';
   static const String webVpn = 'https://webvpn.xjtu.edu.cn';
+  static const String webVpnLogin =
+      'https://webvpn.xjtu.edu.cn/login?vpn-0';
+  static const String deanNotices =
+      'https://dean.xjtu.edu.cn/jxxx/jxtz2.htm';
+  static const String dueNotices =
+      'https://due.xjtu.edu.cn/jxxx/jxtz2.htm';
 
   static const userAgent =
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';

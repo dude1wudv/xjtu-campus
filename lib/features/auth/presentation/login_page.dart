@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/di/core_providers.dart';
 import '../../../core/l10n/app_strings.dart';
 import '../../../core/theme/app_theme.dart';
 import 'auth_controller.dart';
@@ -21,6 +22,17 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   bool _obscure = true;
   String? _accountLabel;
+  bool _webVpn = false;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(() async {
+      final session = ref.read(campusSessionProvider);
+      await session.restore();
+      if (mounted) setState(() => _webVpn = session.useWebVpn);
+    });
+  }
 
   @override
   void dispose() {
@@ -85,7 +97,20 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         padding: const EdgeInsets.all(20),
         children: [
           const Text(AppStrings.loginHint),
-          const SizedBox(height: 20),
+          const SizedBox(height: 12),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text(AppStrings.webVpnLabel),
+            subtitle: const Text(AppStrings.webVpnHint),
+            value: _webVpn,
+            onChanged: auth.busy
+                ? null
+                : (v) async {
+                    setState(() => _webVpn = v);
+                    await ref.read(campusSessionProvider).setUseWebVpn(v);
+                  },
+          ),
+          const SizedBox(height: 12),
           Form(
             key: _formKey,
             child: Column(

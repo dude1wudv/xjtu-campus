@@ -74,9 +74,17 @@ flutter test
 
 **Web / 部分桌面**：浏览器通常无法可靠预约未来通知。请在 Android 或 iOS 客户端使用一键闹钟。Web 预览仍可浏览课表与登录界面。
 
+## WebVPN（校外）
+
+登录页可打开「校外使用 WebVPN」。开启后，课表 / 教室请求会改写到 `webvpn.xjtu.edu.cn`（AES-CFB 默认密钥）。请先完成统一认证；WebVPN 若另需滑块/短信，请在学校网页完成后再回应用。
+
+## 教务通知
+
+通知页会抓取教务处公开「教学通知」列表（`dean.xjtu.edu.cn`），按标题自动归类，并支持点开原文。失败时回退演示数据。
+
 ## 学校门户限制（请先阅读）
 
-- **校园网 / WebVPN**：jwxt、ehall、一网通办在校外常需 [WebVPN](https://webvpn.xjtu.edu.cn)。本应用目前走直连域名，校外失败时会回退演示数据，而不是自动改写 WebVPN 路径。
+- **校园网 / WebVPN**：jwxt、ehall、一网通办在校外常需 [WebVPN](https://webvpn.xjtu.edu.cn)。可在登录页开启 WebVPN；未开启或 WebVPN 失败时回退演示数据。
 - **MFA**：只走学校官方短信验证。无法代收验证码，也不会跳过安全验证页。
 - **验证码**：必须由使用者看图输入。
 - **研究生课表**：本科走 jwxt `xskcb`；研究生培养系统（gmis 等）未接入，失败时显示演示数据。

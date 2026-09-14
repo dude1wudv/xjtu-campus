@@ -379,6 +379,7 @@ class CasAuthRepository implements AuthRepository {
   }
 
   Future<void> _establishDownstreamSessions() async {
+    await _session.ensureWebVpnSession();
     try {
       await _session.get(CampusUrls.jwxtHome);
     } on Object {

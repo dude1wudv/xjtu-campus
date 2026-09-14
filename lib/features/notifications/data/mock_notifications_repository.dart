@@ -54,6 +54,11 @@ class MockNotificationsRepository implements NotificationsRepository {
 
   @override
   Future<List<SchoolNotice>> fetchNotices({NoticeFilterRule? rule}) async {
+    return (await load(rule: rule)).notices;
+  }
+
+  @override
+  Future<NoticesSnapshot> load({NoticeFilterRule? rule}) async {
     await Future<void>.delayed(const Duration(milliseconds: 120));
     final filtered = notices.where((notice) => rule?.matches(notice) ?? true);
     final list = filtered.toList()
@@ -61,6 +66,10 @@ class MockNotificationsRepository implements NotificationsRepository {
         if (a.pinned != b.pinned) return a.pinned ? -1 : 1;
         return b.publishedAt.compareTo(a.publishedAt);
       });
-    return list;
+    return NoticesSnapshot(
+      notices: list,
+      live: false,
+      banner: null,
+    );
   }
 }

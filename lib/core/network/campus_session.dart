@@ -5,12 +5,14 @@ import 'package:cookie_jar/cookie_jar.dart';
 import 'package:dio/dio.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 
+import '../constants/app_constants.dart';
 import '../constants/campus_urls.dart';
 import '../logging/app_logger.dart';
 import '../storage/credential_store.dart';
 import 'secure_cookie_storage.dart';
+import 'webvpn_url.dart';
 
-/// 带 Cookie 的校园 HTTP 客户端。仅允许学校域名。
+/// 带 Cookie 的校园 HTTP 客户端。仅允许学校相关域名。
 class CampusSession {
   CampusSession(this._store) {
     _jar = PersistCookieJar(
@@ -23,7 +25,7 @@ class CampusSession {
         connectTimeout: const Duration(seconds: 20),
         receiveTimeout: const Duration(seconds: 30),
         followRedirects: true,
-        maxRedirects: 8,
+        maxRedirects: 10,
         validateStatus: (status) => status != null && status < 500,
         headers: {
           'User-Agent': CampusUrls.userAgent,
@@ -42,14 +44,25 @@ class CampusSession {
   CookieJar get jar => _jar;
 
   String? ywtbIdToken;
+  bool useWebVpn = false;
 
   Future<void> restore() async {
     try {
       await _jar.forceInit().timeout(const Duration(seconds: 3));
       ywtbIdToken = await _store.read('session.ywtb_id_token');
+      useWebVpn =
+          (await _store.read(AppConstants.webVpnEnabledKey)) == '1';
     } on Object {
       AppLogger.warn('校园 Cookie 恢复失败，将以未登录会话继续');
     }
+  }
+
+  Future<void> setUseWebVpn(bool enabled) async {
+    useWebVpn = enabled;
+    await _store.write(
+      key: AppConstants.webVpnEnabledKey,
+      value: enabled ? '1' : '0',
+    );
   }
 
   Future<bool> hasCasCookie() async {
@@ -61,15 +74,31 @@ class CampusSession {
     }
   }
 
+  /// 登录后建立 WebVPN 会话（校外访问 jwxt/ehall 时需要）。
+  Future<void> ensureWebVpnSession() async {
+    if (!useWebVpn) return;
+    try {
+      await get(CampusUrls.webVpnLogin);
+      AppLogger.info('已尝试建立 WebVPN 会话');
+    } on Object {
+      AppLogger.warn('WebVPN 会话建立失败，将继续直连并在失败时回退');
+    }
+  }
+
+  String _resolve(String url) =>
+      WebVpnUrl.maybeConvert(url, enabled: useWebVpn);
+
   Future<Response<dynamic>> get(
     String url, {
     Map<String, dynamic>? query,
     Map<String, String>? headers,
     ResponseType? responseType,
+    bool rewrite = true,
   }) {
-    _assertAllowed(url);
+    final target = rewrite ? _resolve(url) : url;
+    _assertAllowed(target);
     return _dio.get<dynamic>(
-      url,
+      target,
       queryParameters: query,
       options: Options(headers: headers, responseType: responseType),
     );
@@ -88,10 +117,12 @@ class CampusSession {
     Object? data,
     Map<String, String>? headers,
     bool jsonBody = false,
+    bool rewrite = true,
   }) {
-    _assertAllowed(url);
+    final target = rewrite ? _resolve(url) : url;
+    _assertAllowed(target);
     return _dio.post<dynamic>(
-      url,
+      target,
       data: data,
       options: Options(
         headers: headers,
@@ -136,11 +167,13 @@ class CampusSession {
       'jwxt.xjtu.edu.cn',
       'authx-service.xjtu.edu.cn',
       'dean.xjtu.edu.cn',
+      'due.xjtu.edu.cn',
       'www.xjtu.edu.cn',
       'org.xjtu.edu.cn',
+      'webvpn.xjtu.edu.cn',
     };
     if (!allowed.contains(host)) {
-      throw ArgumentError('拒绝访问未列入校园域名白名单的地址');
+      throw ArgumentError('拒绝访问未列入校园域名白名单的地址: $host');
     }
   }
 }

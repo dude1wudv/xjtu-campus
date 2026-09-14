@@ -4,6 +4,9 @@ abstract final class AppStrings {
   static const String appSubtitle = '西安交通大学校园服务';
   static const String mockBanner = '当前为本地模拟数据，尚未连接学校服务器';
   static const String liveBanner = '当前为学校实时数据（需已登录统一认证）。';
+  static const String noticesLiveBanner = '当前为教务处公开教学通知（已自动归类）。';
+  static const String webVpnLabel = '校外使用 WebVPN';
+  static const String webVpnHint = '不在校园网时请打开，登录后通过 webvpn.xjtu.edu.cn 访问课表/教室';
   static const String liveFallbackBanner = '实时接口不可用，以下为演示数据，仅供浏览界面。';
 
   static const String navHome = '首页';
@@ -68,11 +71,11 @@ abstract final class AppStrings {
   static const String freeNow = '当前空闲';
 
   static const String noticesTitle = '教务通知';
-  static const String noticesSubtitle = '规则过滤占位，后续接入教务推送';
+  static const String noticesSubtitle = '教务处教学通知，可按分类过滤';
   static const String filterAll = '全部';
   static const String emptyNotices = '暂无通知';
   static const String personalizedAlert = '个性化提醒';
-  static const String filterRulesHint = '可按关键词、课程名、考试周自动归类（骨架阶段仅本地规则）';
+  static const String filterRulesHint = '按分类过滤；标题含考试/选课等关键词会自动归类';
 
   static const String alarmsTitle = '上课提醒';
   static const String alarmsSubtitle = '根据课表一键生成起床闹钟与课前提醒';

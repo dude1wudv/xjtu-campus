@@ -9,6 +9,7 @@ import '../../features/auth/domain/auth_repository.dart';
 import '../../features/classroom/data/live_classroom_repository.dart';
 import '../../features/classroom/data/mock_classroom_repository.dart';
 import '../../features/classroom/domain/classroom_repository.dart';
+import '../../features/notifications/data/live_notifications_repository.dart';
 import '../../features/notifications/data/mock_notifications_repository.dart';
 import '../../features/notifications/domain/notifications_repository.dart';
 import '../../features/schedule/data/live_schedule_repository.dart';
@@ -68,8 +69,15 @@ final classroomRepositoryProvider = Provider<ClassroomRepository>(
   ),
 );
 
-final notificationsRepositoryProvider = Provider<NotificationsRepository>(
+final mockNotificationsRepositoryProvider = Provider<MockNotificationsRepository>(
   (ref) => MockNotificationsRepository(),
+);
+
+final notificationsRepositoryProvider = Provider<NotificationsRepository>(
+  (ref) => LiveNotificationsRepository(
+    session: ref.watch(campusSessionProvider),
+    mock: ref.watch(mockNotificationsRepositoryProvider),
+  ),
 );
 
 final alarmPlannerProvider = Provider<AlarmPlanner>(

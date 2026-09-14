@@ -24,6 +24,7 @@ abstract final class AppConstants {
   static const String cookiePrefix = 'cj.';
 
   static const String modeDemo = 'demo';
+  static const String webVpnEnabledKey = 'settings.webvpn_enabled';
   static const String modeCas = 'cas';
 
   /// 凭据存储中禁止使用的键：明文密码不得长期驻留。
