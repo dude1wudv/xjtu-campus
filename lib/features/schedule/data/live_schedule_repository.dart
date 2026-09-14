@@ -28,7 +28,12 @@ class LiveScheduleRepository implements ScheduleRepository {
 
   @override
   Future<ScheduleSnapshot> load({DateTime? now}) async {
-    final loggedIn = await _session.hasCasCookie();
+    var loggedIn = false;
+    try {
+      loggedIn = await _session.hasCasCookie();
+    } on Object {
+      loggedIn = false;
+    }
     if (!loggedIn) {
       return _demo(AppStrings.mockBanner);
     }

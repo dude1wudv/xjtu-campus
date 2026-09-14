@@ -48,6 +48,12 @@ void main() {
     expect(find.text(AppStrings.loginAction), findsOneWidget);
     expect(find.text(AppStrings.loginDemo), findsOneWidget);
     expect(find.text(AppStrings.loginTitle), findsWidgets);
+
+    await tester.tap(find.text(AppStrings.loginDemo));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.textContaining('同学 demo'), findsWidgets);
   });
 
   testWidgets('闹钟页展示一键创建按钮与建议起床时间', (tester) async {

@@ -5,7 +5,7 @@ import 'credential_store.dart';
 import 'memory_credential_store.dart';
 
 /// 基于 [FlutterSecureStorage] 的实现。
-/// 平台插件失败时静默回退到内存，避免在日志中暴露写入内容。
+/// 插件失败、超时或 Web 非安全上下文时回退到内存，避免登录按钮一直转圈。
 class SecureCredentialStore implements CredentialStore {
   SecureCredentialStore({
     FlutterSecureStorage? storage,
@@ -13,64 +13,55 @@ class SecureCredentialStore implements CredentialStore {
   }) : _storage = storage ?? const FlutterSecureStorage(),
        _fallback = fallback ?? MemoryCredentialStore();
 
+  static const _timeout = Duration(milliseconds: 1500);
+
   final FlutterSecureStorage _storage;
   final CredentialStore _fallback;
   bool _useFallback = false;
 
-  @override
-  Future<void> write({required String key, required String value}) async {
-    if (_useFallback) {
-      await _fallback.write(key: key, value: value);
-      return;
-    }
+  Future<T> _guard<T>(
+    Future<T> Function() secure,
+    Future<T> Function() fallback,
+  ) async {
+    if (_useFallback) return fallback();
     try {
-      await _storage.write(key: key, value: value);
+      return await secure().timeout(_timeout);
     } on Object {
       _useFallback = true;
-      AppLogger.warn('安全存储不可用，会话仅保存在内存中');
-      await _fallback.write(key: key, value: value);
+      AppLogger.warn('安全存储不可用或超时，会话仅保存在内存中');
+      return fallback();
     }
   }
 
   @override
-  Future<String?> read(String key) async {
-    if (_useFallback) {
-      return _fallback.read(key);
-    }
-    try {
-      return await _storage.read(key: key);
-    } on Object {
-      _useFallback = true;
-      AppLogger.warn('安全存储读取失败，已回退到内存');
-      return _fallback.read(key);
-    }
+  Future<void> write({required String key, required String value}) {
+    return _guard<void>(
+      () => _storage.write(key: key, value: value),
+      () => _fallback.write(key: key, value: value),
+    );
   }
 
   @override
-  Future<void> delete(String key) async {
-    if (_useFallback) {
-      await _fallback.delete(key);
-      return;
-    }
-    try {
-      await _storage.delete(key: key);
-    } on Object {
-      _useFallback = true;
-      await _fallback.delete(key);
-    }
+  Future<String?> read(String key) {
+    return _guard<String?>(
+      () => _storage.read(key: key),
+      () => _fallback.read(key),
+    );
   }
 
   @override
-  Future<void> deleteAll() async {
-    if (_useFallback) {
-      await _fallback.deleteAll();
-      return;
-    }
-    try {
-      await _storage.deleteAll();
-    } on Object {
-      _useFallback = true;
-      await _fallback.deleteAll();
-    }
+  Future<void> delete(String key) {
+    return _guard<void>(
+      () => _storage.delete(key: key),
+      () => _fallback.delete(key),
+    );
+  }
+
+  @override
+  Future<void> deleteAll() {
+    return _guard<void>(
+      () => _storage.deleteAll(),
+      () => _fallback.deleteAll(),
+    );
   }
 }

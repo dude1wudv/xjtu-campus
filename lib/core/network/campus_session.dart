@@ -44,13 +44,21 @@ class CampusSession {
   String? ywtbIdToken;
 
   Future<void> restore() async {
-    await _jar.forceInit();
-    ywtbIdToken = await _store.read('session.ywtb_id_token');
+    try {
+      await _jar.forceInit().timeout(const Duration(seconds: 3));
+      ywtbIdToken = await _store.read('session.ywtb_id_token');
+    } on Object {
+      AppLogger.warn('校园 Cookie 恢复失败，将以未登录会话继续');
+    }
   }
 
   Future<bool> hasCasCookie() async {
-    final cookies = await _jar.loadForRequest(Uri.parse(CampusUrls.casLogin));
-    return cookies.any((cookie) => cookie.name.toUpperCase().contains('TGC'));
+    try {
+      final cookies = await _jar.loadForRequest(Uri.parse(CampusUrls.casLogin));
+      return cookies.any((cookie) => cookie.name.toUpperCase().contains('TGC'));
+    } on Object {
+      return false;
+    }
   }
 
   Future<Response<dynamic>> get(

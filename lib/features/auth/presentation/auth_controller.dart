@@ -25,7 +25,7 @@ class AuthState extends Equatable {
   const AuthState.loading()
     : initialized = false,
       user = AuthUser.guest,
-      busy = true,
+      busy = false,
       errorMessage = null,
       captchaImage = null,
       maskedPhone = null,
@@ -102,9 +102,13 @@ class AuthController extends Notifier<AuthState> {
 
   Future<void> restore() async {
     try {
-      final user = await _repo.restoreSession();
+      final user = await _repo.restoreSession().timeout(
+        const Duration(seconds: 4),
+      );
+      if (!ref.mounted) return;
       state = AuthState(initialized: true, user: user ?? AuthUser.guest);
     } on Object {
+      if (!ref.mounted) return;
       state = const AuthState(initialized: true, user: AuthUser.guest);
     }
   }

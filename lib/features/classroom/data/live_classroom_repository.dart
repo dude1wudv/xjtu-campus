@@ -18,7 +18,12 @@ class LiveClassroomRepository implements ClassroomRepository {
 
   @override
   Future<ClassroomPageData> findFree(ClassroomQuery query) async {
-    final loggedIn = await _session.hasCasCookie();
+    var loggedIn = false;
+    try {
+      loggedIn = await _session.hasCasCookie();
+    } on Object {
+      loggedIn = false;
+    }
     if (!loggedIn) {
       final demo = await _mock.findFree(query);
       return ClassroomPageData(
