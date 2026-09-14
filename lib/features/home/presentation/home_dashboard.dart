@@ -11,9 +11,11 @@ import '../../../core/widgets/app_feedback.dart';
 import '../../../core/widgets/app_surface_card.dart';
 import '../../about/presentation/about_sheet.dart';
 import '../../auth/presentation/auth_controller.dart';
+import '../../campus_card/presentation/campus_card_providers.dart';
 import '../../notifications/domain/school_notice.dart';
 import '../../schedule/domain/course.dart';
 import '../../schedule/presentation/schedule_providers.dart';
+import '../domain/greeting.dart';
 
 /// Lightweight peek — mock/local only, no WebView / Dio on home open.
 final homeNoticesPeekProvider = FutureProvider<List<SchoolNotice>>((ref) async {
@@ -210,14 +212,7 @@ class _GreetingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hour = now.hour;
-    final hello = hour < 11
-        ? '早上好'
-        : hour < 14
-            ? '中午好'
-            : hour < 19
-                ? '下午好'
-                : '晚上好';
+    final hello = greetingForHour(now.hour);
     final name = auth.isLoggedIn ? auth.user.displayName : AppStrings.guestName;
     final date = DateFormat('M月d日 EEEE', 'zh_CN').format(now);
 
@@ -872,11 +867,29 @@ class _CalendarShortcutCard extends StatelessWidget {
   }
 }
 
-class _CampusCardShortcutCard extends StatelessWidget {
+class _CampusCardShortcutCard extends ConsumerWidget {
   const _CampusCardShortcutCard();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final snap = ref.watch(campusCardSnapshotProvider);
+    final data = snap.asData?.value;
+    final card = data?.card;
+
+    String subtitle = AppStrings.campusCardSubtitle;
+    String? caption;
+    if (card != null && data != null) {
+      subtitle =
+          '${card.balanceLabel} ${AppStrings.campusCardYuan}';
+      if (data.fromCache && data.cachedAt != null) {
+        caption = '缓存 · ${AppStrings.updatedAtLabel(data.cachedAt!)}';
+      } else if (data.live) {
+        caption = AppStrings.freshUpdatedLabel(data.fetchedAt);
+      } else if (data.fetchedAt != null) {
+        caption = AppStrings.updatedAtLabel(data.fetchedAt!);
+      }
+    }
+
     return AppSurfaceCard(
       onTap: () => context.push('/campus-card'),
       child: Row(
@@ -894,11 +907,11 @@ class _CampusCardShortcutCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: AppTokens.spaceMd),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   AppStrings.campusCardTitle,
                   style: TextStyle(
                     fontWeight: FontWeight.w700,
@@ -906,11 +919,21 @@ class _CampusCardShortcutCard extends StatelessWidget {
                     color: AppColors.ink,
                   ),
                 ),
-                SizedBox(height: AppTokens.spaceXs),
+                const SizedBox(height: AppTokens.spaceXs),
                 Text(
-                  AppStrings.campusCardSubtitle,
-                  style: TextStyle(fontSize: 12, color: AppColors.inkSoft),
+                  subtitle,
+                  style: const TextStyle(fontSize: 12, color: AppColors.inkSoft),
                 ),
+                if (caption != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    caption,
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      color: AppColors.inkSoft,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

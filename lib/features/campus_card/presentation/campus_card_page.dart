@@ -38,6 +38,7 @@ class _CampusCardPageState extends ConsumerState<CampusCardPage> {
         live: false,
         failed: false,
         banner: AppStrings.campusCardSoftDemoBanner,
+        fetchedAt: DateTime.now(),
         totalCount: demo.totalCount,
       );
     });
@@ -69,7 +70,11 @@ class _CampusCardPageState extends ConsumerState<CampusCardPage> {
           padding: AppTokens.pagePadding,
           children: [
             if (demo != null)
-              DataSourceBanner(live: false, message: demo.banner)
+              DataSourceBanner(
+                live: false,
+                message: demo.banner,
+                fetchedAt: demo.fetchedAt ?? DateTime.now(),
+              )
             else
               snap.when(
                 data: (data) => DataSourceBanner(
@@ -105,6 +110,7 @@ class _CampusCardPageState extends ConsumerState<CampusCardPage> {
               _SnapshotBody(
                 data: demo,
                 showSoftDemo: false,
+                softDemoActive: true,
                 onRetry: _reload,
                 onSoftDemo: _showSoftDemo,
               )
@@ -115,6 +121,7 @@ class _CampusCardPageState extends ConsumerState<CampusCardPage> {
                 builder: (data) => _SnapshotBody(
                   data: data,
                   showSoftDemo: data.failed && data.card == null,
+                  softDemoActive: false,
                   onRetry: _reload,
                   onSoftDemo: _showSoftDemo,
                 ),
@@ -130,12 +137,14 @@ class _SnapshotBody extends StatelessWidget {
   const _SnapshotBody({
     required this.data,
     required this.showSoftDemo,
+    required this.softDemoActive,
     required this.onRetry,
     required this.onSoftDemo,
   });
 
   final CampusCardSnapshot data;
   final bool showSoftDemo;
+  final bool softDemoActive;
   final Future<void> Function() onRetry;
   final Future<void> Function() onSoftDemo;
 
@@ -181,7 +190,15 @@ class _SnapshotBody extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (card != null) _BalanceHero(card: card),
+        if (card != null)
+          _BalanceHero(
+            card: card,
+            fromCache: data.fromCache,
+            cachedAt: data.cachedAt,
+            fetchedAt: data.fetchedAt,
+            live: data.live,
+            softDemo: softDemoActive,
+          ),
         const SizedBox(height: AppTokens.spaceLg),
         Text(
           AppStrings.campusCardTurnoverTitle,
@@ -203,12 +220,45 @@ class _SnapshotBody extends StatelessWidget {
 }
 
 class _BalanceHero extends StatelessWidget {
-  const _BalanceHero({required this.card});
+  const _BalanceHero({
+    required this.card,
+    required this.fromCache,
+    required this.cachedAt,
+    required this.fetchedAt,
+    required this.live,
+    this.softDemo = false,
+  });
 
   final CampusCardInfo card;
+  final bool fromCache;
+  final DateTime? cachedAt;
+  final DateTime? fetchedAt;
+  final bool live;
+  final bool softDemo;
+
+  String? get _updateCaption {
+    if (softDemo) {
+      final when = fetchedAt ?? DateTime.now();
+      return '演示数据 · ${AppStrings.updatedAtLabel(when)}';
+    }
+    if (fromCache && cachedAt != null) {
+      return '缓存 · ${AppStrings.updatedAtLabel(cachedAt!)}';
+    }
+    if (live) {
+      return AppStrings.freshUpdatedLabel(fetchedAt);
+    }
+    if (fetchedAt != null) {
+      return AppStrings.updatedAtLabel(fetchedAt!);
+    }
+    if (cachedAt != null) {
+      return '缓存 · ${AppStrings.updatedAtLabel(cachedAt!)}';
+    }
+    return null;
+  }
 
   @override
   Widget build(BuildContext context) {
+    final caption = _updateCaption;
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(AppTokens.radiusXl),
@@ -267,6 +317,17 @@ class _BalanceHero extends StatelessWidget {
                 ),
               ],
             ),
+            if (caption != null) ...[
+              const SizedBox(height: AppTokens.spaceXs),
+              Text(
+                caption,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.70),
+                  fontSize: 12,
+                  height: 1.3,
+                ),
+              ),
+            ],
             if (card.pendingCents != 0) ...[
               const SizedBox(height: AppTokens.spaceSm),
               Text(
