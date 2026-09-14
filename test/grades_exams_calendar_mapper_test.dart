@@ -36,6 +36,23 @@ void main() {
     expect(exams.first.dateTimeLabel, contains('2026-06-20'));
   });
 
+
+  test('ExamsMapper 空 wdksap.rows 解析为空列表', () {
+    final exams = ExamsMapper.fromJson({
+      'code': '0',
+      'msg': '',
+      'datas': {
+        'wdksap': {
+          'totalSize': 0,
+          'pageNumber': 1,
+          'pageSize': 50,
+          'rows': [],
+        },
+      },
+    });
+    expect(exams, isEmpty);
+  });
+
   test('One2020CalendarMapper 解析学期与重要日期', () {
     final terms = One2020CalendarMapper.termsFromJson(
       jsonDecode(File('docs/one2020-terms-sample.json').readAsStringSync()),

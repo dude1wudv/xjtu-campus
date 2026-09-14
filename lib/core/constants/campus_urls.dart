@@ -113,6 +113,10 @@ abstract final class CampusUrls {
   static const String jwxtExams =
       'https://jwxt.xjtu.edu.cn/jwapp/sys/studentWdksapApp/modules/wdksap/wdksap.do';
 
+  /// 我的课表模块首页（soft-warm dqxnxq / cxjcs）。
+  static const String jwxtWdkbIndex =
+      'https://jwxt.xjtu.edu.cn/jwapp/sys/wdkb/*default/index.do';
+
   /// 校历（one2020 公开页；优先于 ywtb portal-api JWT）。
   static const String one2020Origin = 'http://one2020.xjtu.edu.cn';
   static const String one2020CalendarPage =
@@ -121,6 +125,13 @@ abstract final class CampusUrls {
       'http://one2020.xjtu.edu.cn/EIP/schoolcalendar/terms.htm';
   static const String one2020TermById =
       'http://one2020.xjtu.edu.cn/EIP/edu/education/schoolcalendar/queryTermById.htm';
+  static const String one2020OriginHttps = 'https://one2020.xjtu.edu.cn';
+  static const String one2020CalendarPageHttps =
+      'https://one2020.xjtu.edu.cn/EIP/edu/education/schoolcalendar/showCalendar.htm';
+  static const String one2020TermsHttps =
+      'https://one2020.xjtu.edu.cn/EIP/schoolcalendar/terms.htm';
+  static const String one2020TermByIdHttps =
+      'https://one2020.xjtu.edu.cn/EIP/edu/education/schoolcalendar/queryTermById.htm';
 
   /// 校园卡（本 sprint 不实现；仅保留 URL 备忘）。
   // TODO(ncard): 校园卡余额/流水 — https://ncard.xjtu.edu.cn/plat

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import '../domain/school_calendar.dart';
 
 abstract final class One2020CalendarMapper {
@@ -68,6 +70,56 @@ abstract final class One2020CalendarMapper {
     }
     events.sort((a, b) => a.startDate.compareTo(b.startDate));
     return (term: term, events: events);
+  }
+
+  /// Best-effort parse of showCalendar.htm (embedded JSON / date pairs).
+  static List<SchoolTermInfo> termsFromHtml(String html) {
+    final dataMatch = RegExp(
+      r'"data"\s*:\s*(\[[\s\S]*?\])\s*[,}]',
+      multiLine: true,
+    ).firstMatch(html);
+    if (dataMatch != null) {
+      try {
+        final slice = dataMatch.group(1)!;
+        if (slice.contains('start_date') || slice.contains('term_num')) {
+          final decoded = jsonDecode(slice);
+          if (decoded is List) {
+            final terms = termsFromJson({'code': 200, 'data': decoded});
+            if (terms.isNotEmpty) return terms;
+          }
+        }
+      } on Object {
+        // fall through
+      }
+    }
+
+    final dates = RegExp(r'(20\d{2}-\d{2}-\d{2})')
+        .allMatches(html)
+        .map((m) => DateTime.tryParse(m.group(1)!))
+        .whereType<DateTime>()
+        .toList();
+    if (dates.length >= 2) {
+      final start = dates.first;
+      var end = start;
+      for (final d in dates.skip(1)) {
+        if (d.isAfter(start)) {
+          end = d;
+          break;
+        }
+      }
+      if (!end.isAfter(start)) {
+        end = start.add(const Duration(days: 120));
+      }
+      return [
+        SchoolTermInfo(
+          id: 'scraped',
+          label: '${start.year}校历',
+          startDate: start,
+          endDate: end,
+        ),
+      ];
+    }
+    return const [];
   }
 
   static List<dynamic> _dataList(Object? root) {

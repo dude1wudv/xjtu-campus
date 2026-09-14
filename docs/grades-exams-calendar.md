@@ -1,4 +1,4 @@
-# Grades · Exams · Calendar (v1.3.0)
+# Grades · Exams · Calendar (v1.3.1)
 
 Read-only student features. No抢课. Do **not** log full grade/exam rows (may contain student id).
 
@@ -12,6 +12,7 @@ Read-only student features. No抢课. Do **not** log full grade/exam rows (may c
 | Fields used | `XNXQDM`, `KCM`, `XF`, `XFJD`, `ZCJ`, `PSCJ`/`QMCJ`/`QZCJ`, `KSLXDM_DISPLAY`, `KCXZDM_DISPLAY`, `KCH` |
 | App routes | `/grades` (also via `/academics`) |
 | Fixture | `docs/grades-sample-redacted.json` (`XH` redacted) |
+| GPA | 绩点加权平均 `Σ(XFJD×XF)/Σ(XF)`；学期 FilterChip + 全部 |
 
 ## 考试安排（jwxt wdksap）
 
@@ -21,7 +22,8 @@ Read-only student features. No抢课. Do **not** log full grade/exam rows (may c
 | API | `POST .../modules/wdksap/wdksap.do` body `XNXQDM=<term>&*order=-KSRQ,-KSSJMS` |
 | Term | `POST .../wdkb/modules/jshkcb/dqxnxq.do` → `datas.dqxnxq.rows[0].DM` |
 | Fields used | `KCM`, `KSRQ`, `KSSJMS`, `JASMC`, `XXXQMC`, `XNXQDM`, `KCH`, `ZWH` |
-| Empty copy | 「本学期暂无考试安排」 |
+| Empty copy | 「本学期暂无考试安排」；`code=0` + 空 rows = 实时成功，不回落演示假考试 |
+| Fetch | 对齐成绩：WebView Cookie → soft-warm（home / wdkb / wdksap）→ Dio |
 | App routes | `/exams` |
 | Fixture | `docs/exams-sample-redacted.json` |
 
@@ -34,7 +36,8 @@ Prefer public one2020 over ywtb `portal-api` (JWT/`没有访问权限01`).
 | Page | `http://one2020.xjtu.edu.cn/EIP/edu/education/schoolcalendar/showCalendar.htm` |
 | Terms | `POST .../EIP/schoolcalendar/terms.htm` → `{code:200,data:[{id,term_num,start_date,end_date,...}]}` |
 | Detail | `POST .../queryTermById.htm` body `id=` → term + `holidays[]` |
-| Fallback | If terms empty: jwxt `dqxnxq` + `cxjcs` term start → teaching week; else bundled sample |
+| Primary | When logged in: jwxt `dqxnxq` + `cxjcs` term start (no fake 国庆/期末 demos) |
+| Fallback | one2020 HTTP/HTTPS + showCalendar scrape; if terms `data:[]`, use schedule week as live; demo sample only when fully offline |
 | Week sync | Calendar uses schedule snapshot week when available (home ClassPeriod week) |
 | App routes | `/calendar` |
 | Fixtures | `docs/one2020-terms-sample.json`, `docs/one2020-term-detail-sample.json` |

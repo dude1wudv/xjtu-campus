@@ -150,6 +150,9 @@ abstract final class AppStrings {
   static const String emptyGrades = '暂无成绩记录';
   static const String gradesCredit = '学分';
   static const String gradesGpaPoints = '绩点';
+  static const String gradesWeightedGpa = '加权绩点';
+  static const String gradesCountedCredits = '计入学分';
+  static const String gradesFilterAll = '全部';
   static const String gradesCourseUnit = '门课';
 
   static const String examsTitle = '考试安排';
@@ -159,11 +162,15 @@ abstract final class AppStrings {
   static const String examsSyncFailedBanner =
       '考试安排接口未同步成功，请重新网页登录；校外请开启 WebVPN。以下为演示数据。';
   static const String emptyExams = '本学期暂无考试安排';
+  static const String examsTermUnknownBanner =
+      '已登录但未能解析当前学期；未展示演示考试。请下拉刷新或重新网页登录。';
 
   static const String calendarTitle = '校历';
   static const String calendarHubSubtitle = '教学周与重要日期（one2020 公开校历）';
   static const String calendarLiveBanner = '当前为 one2020 公开校历。';
   static const String calendarJwxtBanner = '当前为教务学期起止推算的教学周。';
+  static const String calendarWeekOnlyBanner =
+      '公开校历暂无学期明细；教学周已与课表同步。';
   static const String calendarPublicFallbackBanner =
       '公开校历暂无数据，以下为本地样例；教学周已尽量与课表同步。';
   static const String calendarImportantDates = '重要日期';

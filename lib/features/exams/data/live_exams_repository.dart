@@ -8,6 +8,8 @@ import 'exams_mapper.dart';
 import 'exams_webview_fetcher.dart';
 import 'mock_exams_repository.dart';
 
+/// 考试安排：对齐成绩仓库路径（WebView Cookie → soft-warm + Dio）。
+/// `code=0` + 空 `wdksap.rows` 视为成功的实时空列表，不回落演示假数据。
 class LiveExamsRepository implements ExamsRepository {
   LiveExamsRepository({
     required this._session,
@@ -33,19 +35,28 @@ class LiveExamsRepository implements ExamsRepository {
     try {
       final term = termCode ?? await _resolveTerm();
       if (term == null || term.isEmpty) {
-        AppLogger.warn('考试安排：未能解析当前学期');
-        return await _demo(AppStrings.examsSyncFailedBanner, termCode);
+        AppLogger.warn('考试安排：未能解析当前学期（不展示演示假考试）');
+        return ExamsSnapshot(
+          exams: const [],
+          live: true,
+          banner: AppStrings.examsTermUnknownBanner,
+          termCode: termCode,
+        );
       }
       final json = await _fetchLiveJson(term);
       if (json == null) {
+        AppLogger.warn('考试安排接口未返回有效 JSON，回退演示数据');
         return await _demo(AppStrings.examsSyncFailedBanner, term);
       }
       final exams = ExamsMapper.fromJson(json);
       AppLogger.info('考试安排拉取成功：${exams.length} 场（不记录明细）');
+      final banner = exams.isEmpty
+          ? AppStrings.emptyExams
+          : AppStrings.liveBanner;
       return ExamsSnapshot(
         exams: exams,
         live: true,
-        banner: AppStrings.liveBanner,
+        banner: banner,
         termCode: term,
       );
     } on Object catch (error) {
@@ -66,6 +77,11 @@ class LiveExamsRepository implements ExamsRepository {
 
   Future<String?> _resolveTerm() async {
     for (final rewrite in _rewriteModes()) {
+      try {
+        await _softWarm(rewrite: rewrite, includeTermModule: true);
+      } on Object {
+        // continue trying
+      }
       for (final url in [
         CampusUrls.jwxtCurrentTerm,
         CampusUrls.ehallCurrentTerm,
@@ -78,11 +94,13 @@ class LiveExamsRepository implements ExamsRepository {
               rewrite: rewrite,
               headers: {
                 'Accept': 'application/json, text/javascript, */*; q=0.01',
+                'X-Requested-With': 'XMLHttpRequest',
+                'Referer': CampusUrls.jwxtWdkbIndex,
               },
             ),
           );
-          final term = json?['datas']?['dqxnxq']?['rows']?[0]?['DM']
-              ?.toString();
+          final term =
+              json?['datas']?['dqxnxq']?['rows']?[0]?['DM']?.toString();
           if (term != null && term.isNotEmpty) return term;
         } on Object catch (error) {
           AppLogger.warn('解析当前学期失败 ($url rewrite=$rewrite): $error');
@@ -107,7 +125,7 @@ class LiveExamsRepository implements ExamsRepository {
     Object? last;
     for (final rewrite in _rewriteModes()) {
       try {
-        await _softWarm(rewrite: rewrite);
+        await _softWarm(rewrite: rewrite, includeTermModule: false);
         final response = await _session.post(
           CampusUrls.jwxtExams,
           data: {
@@ -136,11 +154,13 @@ class LiveExamsRepository implements ExamsRepository {
     return null;
   }
 
+  /// Accept `code=0` with empty `wdksap.rows` as live success.
   bool _looksOk(Map<String, dynamic> json) {
     final code = json['code']?.toString();
     if (code != null && code != '0' && code != '200') return false;
     final datas = json['datas'];
     if (datas is Map && datas['wdksap'] != null) return true;
+    // Empty-but-shaped / code-only success (mirror grades).
     return code == '0';
   }
 
@@ -149,12 +169,17 @@ class LiveExamsRepository implements ExamsRepository {
     return const [false];
   }
 
-  Future<void> _softWarm({required bool rewrite}) async {
+  Future<void> _softWarm({
+    required bool rewrite,
+    required bool includeTermModule,
+  }) async {
     if (rewrite) await _session.ensureWebVpnSession();
-    for (final url in [
+    final urls = <String>[
       CampusUrls.jwxtHome,
+      if (includeTermModule) CampusUrls.jwxtWdkbIndex,
       CampusUrls.jwxtWdksapIndex,
-    ]) {
+    ];
+    for (final url in urls) {
       try {
         await _session.get(
           url,

@@ -9,13 +9,22 @@ import '../../../core/widgets/app_feedback.dart';
 import '../../../core/widgets/app_surface_card.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../domain/grade_record.dart';
+import '../domain/grade_stats.dart';
 import 'grades_providers.dart';
 
-class GradesPage extends ConsumerWidget {
+class GradesPage extends ConsumerStatefulWidget {
   const GradesPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<GradesPage> createState() => _GradesPageState();
+}
+
+class _GradesPageState extends ConsumerState<GradesPage> {
+  /// null = 全部
+  String? _selectedTerm;
+
+  @override
+  Widget build(BuildContext context) {
     final snap = ref.watch(gradesSnapshotProvider);
     final auth = ref.watch(authControllerProvider);
 
@@ -64,22 +73,78 @@ class GradesPage extends ConsumerWidget {
               value: snap,
               onRetry: () => ref.invalidate(gradesSnapshotProvider),
               builder: (data) {
-                if (data.groupedByTerm.isEmpty) {
+                if (data.records.isEmpty) {
                   return const AppSurfaceCard(
                     child: Text(AppStrings.emptyGrades),
                   );
                 }
+                final terms = data.groupedByTerm.keys.toList();
+                // Keep selection valid when data refreshes.
+                final selected = _selectedTerm != null &&
+                        data.groupedByTerm.containsKey(_selectedTerm)
+                    ? _selectedTerm
+                    : null;
+                final visible = selected == null
+                    ? data.records
+                    : (data.groupedByTerm[selected] ?? const <GradeRecord>[]);
+                final overallGpa = GradeStats.weightedGpa(data.records);
+                final filterGpa = GradeStats.weightedGpa(visible);
+                final filterCredits = GradeStats.countedCredits(visible);
+
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    for (final entry in data.groupedByTerm.entries) ...[
-                      _TermHeader(term: entry.key, count: entry.value.length),
+                    _GpaSummaryCard(
+                      filterLabel: selected ?? AppStrings.gradesFilterAll,
+                      filterGpa: filterGpa,
+                      filterCredits: filterCredits,
+                      overallGpa: selected == null ? null : overallGpa,
+                    ),
+                    const SizedBox(height: AppTokens.spaceMd),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          FilterChip(
+                            label: const Text(AppStrings.gradesFilterAll),
+                            selected: selected == null,
+                            onSelected: (_) =>
+                                setState(() => _selectedTerm = null),
+                          ),
+                          const SizedBox(width: AppTokens.spaceSm),
+                          for (final term in terms) ...[
+                            FilterChip(
+                              label: Text(term),
+                              selected: selected == term,
+                              onSelected: (_) =>
+                                  setState(() => _selectedTerm = term),
+                            ),
+                            const SizedBox(width: AppTokens.spaceSm),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: AppTokens.spaceMd),
+                    if (selected == null)
+                      for (final entry in data.groupedByTerm.entries) ...[
+                        _TermHeader(
+                          term: entry.key,
+                          count: entry.value.length,
+                        ),
+                        const SizedBox(height: AppTokens.spaceSm),
+                        for (final g in entry.value) ...[
+                          _GradeTile(record: g),
+                          const SizedBox(height: AppTokens.spaceSm),
+                        ],
+                        const SizedBox(height: AppTokens.spaceMd),
+                      ]
+                    else ...[
+                      _TermHeader(term: selected, count: visible.length),
                       const SizedBox(height: AppTokens.spaceSm),
-                      for (final g in entry.value) ...[
+                      for (final g in visible) ...[
                         _GradeTile(record: g),
                         const SizedBox(height: AppTokens.spaceSm),
                       ],
-                      const SizedBox(height: AppTokens.spaceMd),
                     ],
                   ],
                 );
@@ -88,6 +153,95 @@ class GradesPage extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _GpaSummaryCard extends StatelessWidget {
+  const _GpaSummaryCard({
+    required this.filterLabel,
+    required this.filterGpa,
+    required this.filterCredits,
+    this.overallGpa,
+  });
+
+  final String filterLabel;
+  final double? filterGpa;
+  final double filterCredits;
+  final double? overallGpa;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppSurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            filterLabel,
+            style: TextStyle(
+              color: AppColors.navy.withValues(alpha: 0.9),
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
+            ),
+          ),
+          const SizedBox(height: AppTokens.spaceSm),
+          Row(
+            children: [
+              Expanded(
+                child: _metric(
+                  AppStrings.gradesWeightedGpa,
+                  filterGpa == null ? '—' : filterGpa!.toStringAsFixed(2),
+                ),
+              ),
+              Expanded(
+                child: _metric(
+                  AppStrings.gradesCountedCredits,
+                  filterCredits <= 0
+                      ? '—'
+                      : filterCredits.toStringAsFixed(
+                          filterCredits.truncateToDouble() == filterCredits
+                              ? 0
+                              : 1,
+                        ),
+                ),
+              ),
+            ],
+          ),
+          if (overallGpa != null) ...[
+            const SizedBox(height: AppTokens.spaceSm),
+            Text(
+              '${AppStrings.gradesFilterAll}${AppStrings.gradesWeightedGpa} '
+              '${overallGpa!.toStringAsFixed(2)}',
+              style: const TextStyle(
+                fontSize: 12.5,
+                color: AppColors.inkSoft,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _metric(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(fontSize: 12.5, color: AppColors.inkSoft),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w800,
+            color: AppColors.navy,
+            letterSpacing: -0.3,
+          ),
+        ),
+      ],
     );
   }
 }

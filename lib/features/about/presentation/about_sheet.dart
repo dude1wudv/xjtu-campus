@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -199,9 +200,50 @@ Future<void> showUpdateAvailableDialog(
               ),
               if (update.releaseNotes.isNotEmpty) ...[
                 const SizedBox(height: 12),
-                Text(
-                  update.releaseNotes,
-                  style: const TextStyle(height: 1.4, fontSize: 13.5),
+                MarkdownBody(
+                  data: update.releaseNotes,
+                  selectable: true,
+                  shrinkWrap: true,
+                  styleSheet: MarkdownStyleSheet(
+                    p: const TextStyle(
+                      height: 1.4,
+                      fontSize: 13.5,
+                      color: AppColors.ink,
+                    ),
+                    h1: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.ink,
+                      height: 1.3,
+                    ),
+                    h2: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.ink,
+                      height: 1.3,
+                    ),
+                    h3: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.ink,
+                      height: 1.3,
+                    ),
+                    listBullet: const TextStyle(
+                      fontSize: 13.5,
+                      color: AppColors.ink,
+                    ),
+                    strong: const TextStyle(fontWeight: FontWeight.w700),
+                    em: const TextStyle(fontStyle: FontStyle.italic),
+                    blockSpacing: 6,
+                    listIndent: 20,
+                    horizontalRuleDecoration: BoxDecoration(
+                      border: Border(
+                        top: BorderSide(
+                          color: AppColors.inkSoft.withValues(alpha: 0.35),
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ],
