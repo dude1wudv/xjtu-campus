@@ -49,3 +49,4 @@ app.*.map.json
 
 # Local agent scratch
 agent-tools/
+android/build/
