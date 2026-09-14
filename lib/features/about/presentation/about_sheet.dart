@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
-import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -114,29 +113,6 @@ class _AboutSheetBodyState extends State<_AboutSheetBody> {
                   ),
             ),
             const SizedBox(height: 12),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.school_outlined, color: AppColors.navy),
-              title: const Text(AppStrings.academicsTitle),
-              subtitle: const Text(AppStrings.academicsSubtitle),
-              trailing: const Icon(Icons.chevron_right_rounded),
-              onTap: () {
-                Navigator.of(context).maybePop();
-                context.push('/academics');
-              },
-            ),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.calendar_month_outlined,
-                  color: AppColors.navy),
-              title: const Text(AppStrings.calendarTitle),
-              subtitle: const Text(AppStrings.calendarHubSubtitle),
-              trailing: const Icon(Icons.chevron_right_rounded),
-              onTap: () {
-                Navigator.of(context).maybePop();
-                context.push('/calendar');
-              },
-            ),
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.system_update_alt_rounded,

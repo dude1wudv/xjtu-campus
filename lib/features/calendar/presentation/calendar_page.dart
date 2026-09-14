@@ -9,8 +9,11 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/app_feedback.dart';
 import '../../../core/widgets/app_surface_card.dart';
+import '../../schedule/domain/course.dart';
+import '../../schedule/presentation/schedule_providers.dart';
 import '../domain/school_calendar.dart';
 import 'calendar_providers.dart';
+import 'school_month_calendar.dart';
 
 class CalendarPage extends ConsumerWidget {
   const CalendarPage({super.key});
@@ -18,6 +21,7 @@ class CalendarPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final snap = ref.watch(calendarSnapshotProvider);
+    final schedule = ref.watch(scheduleSnapshotProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -49,7 +53,10 @@ class CalendarPage extends ConsumerWidget {
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: () async => ref.invalidate(calendarSnapshotProvider),
+        onRefresh: () async {
+          ref.invalidate(calendarSnapshotProvider);
+          ref.invalidate(scheduleSnapshotProvider);
+        },
         child: ListView(
           padding: AppTokens.pagePadding,
           children: [
@@ -65,34 +72,37 @@ class CalendarPage extends ConsumerWidget {
               onRetry: () => ref.invalidate(calendarSnapshotProvider),
               builder: (data) {
                 final term = data.currentTerm;
+                final courses = schedule.asData?.value.courses ?? const <Course>[];
+                final scheduleWeek = schedule.asData?.value.week;
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _WeekHero(
+                    _CompactWeekHeader(
                       week: data.teachingWeek,
                       termLabel: term?.label ?? AppStrings.termLabel,
+                      term: term,
                       synced: data.syncedWithScheduleWeek != null,
                     ),
                     const SizedBox(height: AppTokens.spaceMd),
-                    if (term != null) _TermCard(term: term),
-                    const SizedBox(height: AppTokens.spaceLg),
-                    Text(
-                      AppStrings.calendarImportantDates,
-                      style: Theme.of(context).textTheme.titleMedium,
+                    SchoolMonthCalendar(
+                      courses: courses,
+                      events: data.events,
+                      term: term,
+                      fallbackWeek: scheduleWeek,
+                      teachingWeek: data.teachingWeek,
                     ),
-                    const SizedBox(height: AppTokens.spaceSm),
-                    if (data.events.isEmpty)
-                      const AppSurfaceCard(
-                        child: Text(
-                          AppStrings.emptyCalendarEvents,
-                          style: TextStyle(color: AppColors.inkSoft),
-                        ),
-                      )
-                    else
+                    if (data.events.isNotEmpty) ...[
+                      const SizedBox(height: AppTokens.spaceLg),
+                      Text(
+                        AppStrings.calendarImportantDates,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: AppTokens.spaceSm),
                       for (final e in data.events) ...[
                         _EventTile(event: e),
                         const SizedBox(height: AppTokens.spaceSm),
                       ],
+                    ],
                   ],
                 );
               },
@@ -104,19 +114,22 @@ class CalendarPage extends ConsumerWidget {
   }
 }
 
-class _WeekHero extends StatelessWidget {
-  const _WeekHero({
+class _CompactWeekHeader extends StatelessWidget {
+  const _CompactWeekHeader({
     required this.week,
     required this.termLabel,
     required this.synced,
+    this.term,
   });
 
   final int week;
   final String termLabel;
   final bool synced;
+  final SchoolTermInfo? term;
 
   @override
   Widget build(BuildContext context) {
+    final fmt = DateFormat('yyyy-MM-dd');
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(AppTokens.radiusXl),
@@ -126,71 +139,66 @@ class _WeekHero extends StatelessWidget {
           colors: [AppColors.navyDeep, AppColors.navy, Color(0xFF2A5A8C)],
         ),
       ),
-      padding: const EdgeInsets.all(AppTokens.spaceXl),
+      padding: const EdgeInsets.fromLTRB(
+        AppTokens.spaceLg,
+        AppTokens.spaceMd + 2,
+        AppTokens.spaceLg,
+        AppTokens.spaceMd + 2,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '${AppStrings.weekPrefix}$week${AppStrings.weekSuffix}',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 28,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.4,
-            ),
+          Row(
+            children: [
+              Text(
+                '${AppStrings.weekPrefix}$week${AppStrings.weekSuffix}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.3,
+                ),
+              ),
+              if (synced) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.18),
+                    borderRadius: AppTokens.borderPill,
+                  ),
+                  child: Text(
+                    AppStrings.calendarWeekSyncedShort,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.9),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ),
-          const SizedBox(height: AppTokens.spaceSm),
+          const SizedBox(height: 4),
           Text(
             termLabel,
             style: TextStyle(
               color: Colors.white.withValues(alpha: 0.85),
-              height: 1.35,
-            ),
-          ),
-          if (synced) ...[
-            const SizedBox(height: AppTokens.spaceSm),
-            Text(
-              AppStrings.calendarWeekSynced,
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.7),
-                fontSize: 12.5,
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _TermCard extends StatelessWidget {
-  const _TermCard({required this.term});
-
-  final SchoolTermInfo term;
-
-  @override
-  Widget build(BuildContext context) {
-    final fmt = DateFormat('yyyy-MM-dd');
-    return AppSurfaceCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            AppStrings.calendarTermRange,
-            style: TextStyle(
-              color: AppColors.navy.withValues(alpha: 0.9),
-              fontWeight: FontWeight.w600,
+              height: 1.3,
               fontSize: 13,
             ),
           ),
-          const SizedBox(height: AppTokens.spaceSm),
-          Text(
-            '${fmt.format(term.startDate)}  —  ${fmt.format(term.endDate)}',
-            style: const TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 15,
+          if (term != null) ...[
+            const SizedBox(height: 2),
+            Text(
+              '${AppStrings.calendarTermRange} ${fmt.format(term!.startDate)} — ${fmt.format(term!.endDate)}',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.68),
+                fontSize: 12,
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );

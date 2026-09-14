@@ -178,6 +178,13 @@ abstract final class AppStrings {
   static const String calendarWeekSynced = '教学周已与首页课表周次同步';
   static const String calendarOpenWeb = '打开网页校历';
   static const String emptyCalendarEvents = '暂无校历事件';
+  static const String calendarLegendHasClass = '有课';
+  static const String calendarLegendNoClass = '无课';
+  static const String calendarLegendHoliday = '节假日';
+  static const String calendarDayCourses = '当天课程';
+  static const String calendarDayEvents = '当天校历';
+  static const String calendarNoClassThatDay = '当天无课';
+  static const String calendarWeekSyncedShort = '已与课表同步';
 
   static const String campusCardDeferredNote =
       '校园卡余额/流水功能本版本暂缓（ncard 独立认证链），后续迭代再接入。';
