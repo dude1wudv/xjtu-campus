@@ -47,7 +47,7 @@ abstract final class AppStrings {
   static const String loginDemoSuccess = '已进入演示会话';
   static const String loginRequired = '请输入学号';
   static const String guestName = '未登录';
-  static const String guestHint = '登录后可同步课表、空闲教室与上课提醒';
+  static const String guestHint = '登录后可同步课表、成绩、考试、空闲教室与上课提醒';
   static const String loggedInAs = '当前学号';
   static const String captchaLabel = '验证码';
   static const String captchaLead = '学校要求输入图形验证码。请按图片填写，应用不会自动识别。';
@@ -138,6 +138,42 @@ abstract final class AppStrings {
   static const String weekPrefix = '第';
   static const String weekSuffix = '周';
   static const String termLabel = '2026-2027 学年 第一学期';
+
+
+  static const String academicsTitle = '学业';
+  static const String academicsSubtitle = '成绩、考试安排与校历入口';
+  static const String gradesTitle = '成绩查询';
+  static const String gradesHubSubtitle = '按学期查看课程成绩、学分与绩点';
+  static const String gradesLoginHint = '登录统一认证后可查询本人成绩（只读）。';
+  static const String gradesSyncFailedBanner =
+      '成绩接口未同步成功，请重新网页登录；校外请开启 WebVPN。以下为演示数据。';
+  static const String emptyGrades = '暂无成绩记录';
+  static const String gradesCredit = '学分';
+  static const String gradesGpaPoints = '绩点';
+  static const String gradesCourseUnit = '门课';
+
+  static const String examsTitle = '考试安排';
+  static const String examsSubtitle = '本学期我的考试（教务发布后显示）';
+  static const String examsHubSubtitle = '考试日期、时间与地点';
+  static const String examsLoginHint = '登录统一认证后可查询本人考试安排（只读）。';
+  static const String examsSyncFailedBanner =
+      '考试安排接口未同步成功，请重新网页登录；校外请开启 WebVPN。以下为演示数据。';
+  static const String emptyExams = '本学期暂无考试安排';
+
+  static const String calendarTitle = '校历';
+  static const String calendarHubSubtitle = '教学周与重要日期（one2020 公开校历）';
+  static const String calendarLiveBanner = '当前为 one2020 公开校历。';
+  static const String calendarJwxtBanner = '当前为教务学期起止推算的教学周。';
+  static const String calendarPublicFallbackBanner =
+      '公开校历暂无数据，以下为本地样例；教学周已尽量与课表同步。';
+  static const String calendarImportantDates = '重要日期';
+  static const String calendarTermRange = '本学期起止';
+  static const String calendarWeekSynced = '教学周已与首页课表周次同步';
+  static const String calendarOpenWeb = '打开网页校历';
+  static const String emptyCalendarEvents = '暂无校历事件';
+
+  static const String campusCardDeferredNote =
+      '校园卡余额/流水功能本版本暂缓（ncard 独立认证链），后续迭代再接入。';
 
   static const List<String> weekdays = ['一', '二', '三', '四', '五', '六', '日'];
   static const List<String> weekdayFull = [

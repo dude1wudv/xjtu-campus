@@ -117,6 +117,7 @@ class CampusSession {
       'ywtb.xjtu.edu.cn',
       'ehall.xjtu.edu.cn',
       'workflow.xjtu.edu.cn',
+      'jwxt.xjtu.edu.cn',
     ];
 
     void addCookie(
@@ -294,6 +295,8 @@ class CampusSession {
       'www.xjtu.edu.cn',
       'org.xjtu.edu.cn',
       'webvpn.xjtu.edu.cn',
+      'one2020.xjtu.edu.cn',
+      'ncard.xjtu.edu.cn',
     };
     if (!allowed.contains(host)) {
       throw ArgumentError('拒绝访问未列入校园域名白名单的地址: $host');

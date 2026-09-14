@@ -1,0 +1,55 @@
+{
+  "code": "0",
+  "msg": "",
+  "datas": {
+    "xscjcx": {
+      "totalSize": 3,
+      "pageNumber": 1,
+      "pageSize": 50,
+      "rows": [
+        {
+          "XNXQDM": "2025-2026-2",
+          "KCM": "线性代数",
+          "XF": "3.0",
+          "XFJD": "4.0",
+          "ZCJ": "90",
+          "PSCJ": "88",
+          "QMCJ": "91",
+          "QZCJ": "",
+          "KSLXDM_DISPLAY": "正常考试",
+          "KCXZDM_DISPLAY": "必修",
+          "KCH": "MATH0001",
+          "XH": "REDACTED"
+        },
+        {
+          "XNXQDM": "2025-2026-2",
+          "KCM": "大学物理实验",
+          "XF": "1.5",
+          "XFJD": "3.7",
+          "ZCJ": "85",
+          "PSCJ": "80",
+          "QMCJ": "88",
+          "QZCJ": "",
+          "KSLXDM_DISPLAY": "正常考试",
+          "KCXZDM_DISPLAY": "必修",
+          "KCH": "PHYS0002",
+          "XH": "REDACTED"
+        },
+        {
+          "XNXQDM": "2024-2025-1",
+          "KCM": "工程与社会",
+          "XF": "2.0",
+          "XFJD": "4.3",
+          "ZCJ": "95",
+          "PSCJ": "96",
+          "QMCJ": "94",
+          "QZCJ": "",
+          "KSLXDM_DISPLAY": "正常考试",
+          "KCXZDM_DISPLAY": "选修",
+          "KCH": "GEN0003",
+          "XH": "REDACTED"
+        }
+      ]
+    }
+  }
+}

@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.2.0+3
+version: 1.3.0+4
 
 environment:
   sdk: ^3.13.3
@@ -78,6 +78,10 @@ flutter:
   assets:
     - docs/jwxt-campus-codes.json
     - docs/jwxt-building-codes.json
+    - docs/grades-sample-redacted.json
+    - docs/exams-sample-redacted.json
+    - docs/one2020-terms-sample.json
+    - docs/one2020-term-detail-sample.json
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

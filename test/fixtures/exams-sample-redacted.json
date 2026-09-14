@@ -1,0 +1,35 @@
+{
+  "code": "0",
+  "msg": "",
+  "datas": {
+    "wdksap": {
+      "totalSize": 2,
+      "pageNumber": 1,
+      "pageSize": 50,
+      "rows": [
+        {
+          "XNXQDM": "2025-2026-2",
+          "KCM": "线性代数",
+          "KSRQ": "2026-06-20",
+          "KSSJMS": "08:30-10:30",
+          "JASMC": "主楼A-203",
+          "XXXQMC": "兴庆校区",
+          "KCH": "MATH0001",
+          "XH": "REDACTED",
+          "ZWH": "**"
+        },
+        {
+          "XNXQDM": "2025-2026-2",
+          "KCM": "大学物理",
+          "KSRQ": "2026-06-22",
+          "KSSJMS": "14:00-16:00",
+          "JASMC": "西1东-101",
+          "XXXQMC": "兴庆校区",
+          "KCH": "PHYS0001",
+          "XH": "REDACTED",
+          "ZWH": "**"
+        }
+      ]
+    }
+  }
+}

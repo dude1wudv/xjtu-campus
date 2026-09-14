@@ -50,3 +50,7 @@ app.*.map.json
 # Local agent scratch
 agent-tools/
 android/build/
+
+# Local release APK copies (publish via GitHub Releases)
+xjtu-campus-arm64-release.apk
+xjtu-campus-release.apk

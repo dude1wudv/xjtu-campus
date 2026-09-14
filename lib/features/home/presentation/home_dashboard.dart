@@ -105,6 +105,10 @@ class _HomeDashboardState extends ConsumerState<HomeDashboard> {
           _NoticesPeek(value: noticesPeek),
           const SizedBox(height: AppTokens.spaceMd),
           const _ClassroomShortcutCard(),
+          const SizedBox(height: AppTokens.spaceMd),
+          const _AcademicsShortcutCard(),
+          const SizedBox(height: AppTokens.spaceMd),
+          const _CalendarShortcutCard(),
           const SizedBox(height: AppTokens.spaceXl),
           Text(
             AppStrings.quickActions,
@@ -727,6 +731,105 @@ class _ClassroomShortcutCard extends StatelessWidget {
   }
 }
 
+
+class _AcademicsShortcutCard extends StatelessWidget {
+  const _AcademicsShortcutCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return AppSurfaceCard(
+      onTap: () => context.push('/academics'),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: const BoxDecoration(
+              color: AppColors.chip,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.school_outlined,
+              color: AppColors.navy,
+            ),
+          ),
+          const SizedBox(width: AppTokens.spaceMd),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  AppStrings.academicsTitle,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                    color: AppColors.ink,
+                  ),
+                ),
+                SizedBox(height: AppTokens.spaceXs),
+                Text(
+                  AppStrings.academicsSubtitle,
+                  style: TextStyle(fontSize: 12, color: AppColors.inkSoft),
+                ),
+              ],
+            ),
+          ),
+          const Icon(Icons.chevron_right_rounded, color: AppColors.inkSoft),
+        ],
+      ),
+    );
+  }
+}
+
+class _CalendarShortcutCard extends StatelessWidget {
+  const _CalendarShortcutCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return AppSurfaceCard(
+      onTap: () => context.push('/calendar'),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: const BoxDecoration(
+              color: AppColors.chip,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.calendar_month_outlined,
+              color: AppColors.navy,
+            ),
+          ),
+          const SizedBox(width: AppTokens.spaceMd),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  AppStrings.calendarTitle,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                    color: AppColors.ink,
+                  ),
+                ),
+                SizedBox(height: AppTokens.spaceXs),
+                Text(
+                  AppStrings.calendarHubSubtitle,
+                  style: TextStyle(fontSize: 12, color: AppColors.inkSoft),
+                ),
+              ],
+            ),
+          ),
+          const Icon(Icons.chevron_right_rounded, color: AppColors.inkSoft),
+        ],
+      ),
+    );
+  }
+}
+
 class _QuickActions extends StatelessWidget {
   const _QuickActions();
 
@@ -759,6 +862,16 @@ class _QuickActions extends StatelessWidget {
           icon: Icons.alarm,
           label: AppStrings.createAlarms,
           onTap: () => context.go('/alarms'),
+        ),
+        _ActionTile(
+          icon: Icons.school_outlined,
+          label: AppStrings.academicsTitle,
+          onTap: () => context.push('/academics'),
+        ),
+        _ActionTile(
+          icon: Icons.calendar_month_outlined,
+          label: AppStrings.calendarTitle,
+          onTap: () => context.push('/calendar'),
         ),
       ],
     );

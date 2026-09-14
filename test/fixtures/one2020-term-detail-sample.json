@@ -1,0 +1,27 @@
+{
+  "id": "demo-term-1",
+  "term_num": "2026-2027学年第一学期",
+  "year_num": "2026-2027",
+  "start_date": "2026-09-07",
+  "end_date": "2027-01-17",
+  "holidays": [
+    {
+      "holiday_name": "开学",
+      "holiday_remark": "本科生报到与开学",
+      "start_date": "2026-09-07",
+      "end_date": "2026-09-07"
+    },
+    {
+      "holiday_name": "国庆假期",
+      "holiday_remark": "含调休，具体以学校通知为准",
+      "start_date": "2026-10-01",
+      "end_date": "2026-10-07"
+    },
+    {
+      "holiday_name": "期末考试周",
+      "holiday_remark": "教学周结束后考试",
+      "start_date": "2027-01-04",
+      "end_date": "2027-01-17"
+    }
+  ]
+}

@@ -3,6 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/alarms/presentation/alarms_page.dart';
+import '../../features/academics/presentation/academics_page.dart';
+import '../../features/calendar/presentation/calendar_page.dart';
+import '../../features/exams/presentation/exams_page.dart';
+import '../../features/grades/presentation/grades_page.dart';
 import '../widgets/in_app_browser_page.dart';
 import '../../features/auth/presentation/cas_web_login_page.dart';
 import '../../features/auth/presentation/login_page.dart';
@@ -58,6 +62,26 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             title: title,
           );
         },
+      ),
+      GoRoute(
+        path: '/academics',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const AcademicsPage(),
+      ),
+      GoRoute(
+        path: '/grades',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const GradesPage(),
+      ),
+      GoRoute(
+        path: '/exams',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const ExamsPage(),
+      ),
+      GoRoute(
+        path: '/calendar',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const CalendarPage(),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {

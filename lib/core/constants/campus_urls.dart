@@ -101,6 +101,32 @@ abstract final class CampusUrls {
   static const String dueNotices =
       'https://due.xjtu.edu.cn/jxxx/jxtz2.htm';
 
+  /// 成绩查询（本科 jwxt cjcx）。
+  static const String jwxtCjcxIndex =
+      'https://jwxt.xjtu.edu.cn/jwapp/sys/cjcx/*default/index.do';
+  static const String jwxtGrades =
+      'https://jwxt.xjtu.edu.cn/jwapp/sys/cjcx/modules/cjcx/xscjcx.do';
+
+  /// 我的考试安排。
+  static const String jwxtWdksapIndex =
+      'https://jwxt.xjtu.edu.cn/jwapp/sys/studentWdksapApp/*default/index.do';
+  static const String jwxtExams =
+      'https://jwxt.xjtu.edu.cn/jwapp/sys/studentWdksapApp/modules/wdksap/wdksap.do';
+
+  /// 校历（one2020 公开页；优先于 ywtb portal-api JWT）。
+  static const String one2020Origin = 'http://one2020.xjtu.edu.cn';
+  static const String one2020CalendarPage =
+      'http://one2020.xjtu.edu.cn/EIP/edu/education/schoolcalendar/showCalendar.htm';
+  static const String one2020Terms =
+      'http://one2020.xjtu.edu.cn/EIP/schoolcalendar/terms.htm';
+  static const String one2020TermById =
+      'http://one2020.xjtu.edu.cn/EIP/edu/education/schoolcalendar/queryTermById.htm';
+
+  /// 校园卡（本 sprint 不实现；仅保留 URL 备忘）。
+  // TODO(ncard): 校园卡余额/流水 — https://ncard.xjtu.edu.cn/plat
+  static const String ncardPlat = 'https://ncard.xjtu.edu.cn/plat';
+
+
   static const userAgent =
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 }

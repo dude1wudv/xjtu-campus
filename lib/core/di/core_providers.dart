@@ -1,5 +1,14 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../features/calendar/data/live_calendar_repository.dart';
+import '../../features/calendar/data/mock_calendar_repository.dart';
+import '../../features/calendar/domain/calendar_repository.dart';
+import '../../features/exams/data/live_exams_repository.dart';
+import '../../features/exams/data/mock_exams_repository.dart';
+import '../../features/exams/domain/exams_repository.dart';
+import '../../features/grades/data/live_grades_repository.dart';
+import '../../features/grades/data/mock_grades_repository.dart';
+import '../../features/grades/domain/grades_repository.dart';
 import '../../features/alarms/data/local_notification_scheduler.dart';
 import '../../features/alarms/domain/alarm_planner.dart';
 import '../../features/alarms/domain/alarm_scheduler.dart';
@@ -77,6 +86,40 @@ final notificationsRepositoryProvider = Provider<NotificationsRepository>(
   (ref) => LiveNotificationsRepository(
     session: ref.watch(campusSessionProvider),
     mock: ref.watch(mockNotificationsRepositoryProvider),
+  ),
+);
+
+
+final mockGradesRepositoryProvider = Provider<MockGradesRepository>(
+  (ref) => MockGradesRepository(),
+);
+
+final gradesRepositoryProvider = Provider<GradesRepository>(
+  (ref) => LiveGradesRepository(
+    session: ref.watch(campusSessionProvider),
+    mock: ref.watch(mockGradesRepositoryProvider),
+  ),
+);
+
+final mockExamsRepositoryProvider = Provider<MockExamsRepository>(
+  (ref) => MockExamsRepository(),
+);
+
+final examsRepositoryProvider = Provider<ExamsRepository>(
+  (ref) => LiveExamsRepository(
+    session: ref.watch(campusSessionProvider),
+    mock: ref.watch(mockExamsRepositoryProvider),
+  ),
+);
+
+final mockCalendarRepositoryProvider = Provider<MockCalendarRepository>(
+  (ref) => MockCalendarRepository(),
+);
+
+final calendarRepositoryProvider = Provider<CalendarRepository>(
+  (ref) => LiveCalendarRepository(
+    session: ref.watch(campusSessionProvider),
+    mock: ref.watch(mockCalendarRepositoryProvider),
   ),
 );
 
