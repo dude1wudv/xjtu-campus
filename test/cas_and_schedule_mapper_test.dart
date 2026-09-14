@@ -1,7 +1,11 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:xjtu_campus/core/crypto/rsa_pkcs1.dart';
 import 'package:xjtu_campus/features/schedule/data/jwxt_course_mapper.dart';
+import 'package:xjtu_campus/features/schedule/data/workflow_kebiao_mapper.dart';
 
 void main() {
   test('RSA 加密结果带学校要求的 __RSA__ 前缀', () {
@@ -44,5 +48,22 @@ fKnao11O/4niMaWQ3QIDAQAB
     expect(course.weeks, [1, 3, 5]);
     expect(course.building, '主楼A');
     expect(course.campus, '兴庆校区');
+  });
+
+  test('WorkflowKebiaoMapper 解析 docs/workflow-kebiao-sample.json', () {
+    final file = File('docs/workflow-kebiao-sample.json');
+    expect(file.existsSync(), isTrue);
+    final root = jsonDecode(file.readAsStringSync());
+    final courses = WorkflowKebiaoMapper.fromJson(root);
+    expect(courses, hasLength(3));
+    expect(courses.first.name, '工程与社会');
+    expect(courses.first.teacher, '樊超');
+    expect(courses.first.room, '西2西-407');
+    expect(courses.first.building, '西2西');
+    expect(courses.first.weekday, 2);
+    expect(courses.first.startPeriod, 1);
+    expect(courses.first.endPeriod, 2);
+    expect(courses.first.weeks, [1]);
+    expect(WorkflowKebiaoMapper.termOf(root), '2026-2027-1');
   });
 }

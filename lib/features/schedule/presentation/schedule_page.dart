@@ -215,7 +215,7 @@ class _WeekGrid extends StatelessWidget {
                 for (final label in AppStrings.weekdays) _HeadCell('周$label'),
               ],
             ),
-            for (final period in ClassPeriod.catalog)
+            for (final period in ClassPeriod.catalogFor(DateTime.now()))
               TableRow(
                 children: [
                   _HeadCell('${period.index}\n${period.formatClock()}'),

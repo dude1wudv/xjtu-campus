@@ -119,11 +119,24 @@ abstract final class AppTheme {
       ),
       chipTheme: ChipThemeData(
         backgroundColor: AppColors.chip,
-        selectedColor: AppColors.navy.withValues(alpha: 0.12),
-        side: BorderSide.none,
+        selectedColor: AppColors.navy,
+        disabledColor: AppColors.chip,
+        checkmarkColor: Colors.white,
+        secondarySelectedColor: AppColors.navy,
+        side: const BorderSide(color: AppColors.line),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-        labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+        labelStyle: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: AppColors.navyDeep,
+        ),
+        secondaryLabelStyle: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: Colors.white,
+        ),
         padding: const EdgeInsets.symmetric(horizontal: 4),
+        brightness: Brightness.light,
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(

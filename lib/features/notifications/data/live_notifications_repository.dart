@@ -1,3 +1,4 @@
+import 'package:cookie_jar/cookie_jar.dart';
 
 import '../../../core/constants/campus_urls.dart';
 import '../../../core/l10n/app_strings.dart';
@@ -6,18 +7,21 @@ import '../../../core/network/campus_session.dart';
 import '../domain/notice_filter.dart';
 import '../domain/notifications_repository.dart';
 import '../domain/school_notice.dart';
+import 'dean_notices_parser.dart';
+import 'dean_public_challenge.dart';
 import 'mock_notifications_repository.dart';
 
 /// 抓取教务处公开「教学通知」列表。
 ///
-/// 站点有公开的浏览器特征校验；应用按学校页面逻辑完成校验后读取列表，
-/// 不绕过登录墙，也不抓取未公开内容。
+/// 主路径由 NotificationsPage 内嵌 InAppWebView 完成（页面 JS 过校验）。
+/// 本仓库在 WebView 失败后作为二次路径：Dio + 本地 challenge，再不行回退演示数据。
 class LiveNotificationsRepository implements NotificationsRepository {
   LiveNotificationsRepository({
     required CampusSession session,
     required MockNotificationsRepository mock,
-  }) : _session = session,
-       _mock = mock;
+    // Public names for DI; fields stay private.
+  })  : _session = session, // ignore: prefer_initializing_formals
+        _mock = mock; // ignore: prefer_initializing_formals
 
   final CampusSession _session;
   final MockNotificationsRepository _mock;
@@ -30,7 +34,7 @@ class LiveNotificationsRepository implements NotificationsRepository {
   @override
   Future<NoticesSnapshot> load({NoticeFilterRule? rule}) async {
     try {
-      final notices = await _fetchDeanList();
+      final notices = await _fetchDeanListViaDio();
       final filtered = notices.where((n) => rule?.matches(n) ?? true).toList()
         ..sort((a, b) {
           if (a.pinned != b.pinned) return a.pinned ? -1 : 1;
@@ -41,7 +45,7 @@ class LiveNotificationsRepository implements NotificationsRepository {
         return NoticesSnapshot(
           notices: demo,
           live: false,
-          banner: AppStrings.liveFallbackBanner,
+          banner: AppStrings.noticesChallengeFailedBanner,
         );
       }
       return NoticesSnapshot(
@@ -50,70 +54,88 @@ class LiveNotificationsRepository implements NotificationsRepository {
         banner: AppStrings.noticesLiveBanner,
       );
     } on Object catch (e) {
-      AppLogger.warn('教务通知抓取失败，回退演示数据: $e');
+      AppLogger.warn('教务通知 Dio 抓取失败，回退演示数据: $e');
       final demo = await _mock.fetchNotices(rule: rule);
       return NoticesSnapshot(
         notices: demo,
         live: false,
-        banner: AppStrings.liveFallbackBanner,
+        banner: AppStrings.noticesChallengeFailedBanner,
       );
     }
   }
 
-  Future<List<SchoolNotice>> _fetchDeanList() async {
-    // Prefer dean; fall back to due if needed.
+  Future<List<SchoolNotice>> _fetchDeanListViaDio() async {
     for (final entryUrl in [CampusUrls.deanNotices, CampusUrls.dueNotices]) {
       try {
-        await _passPublicChallenge(entryUrl);
-        final response = await _session.get(
-          entryUrl,
-          headers: {'Accept': 'text/html,application/xhtml+xml'},
-          rewrite: false,
-        );
-        final html = response.data?.toString() ?? '';
-        if (html.contains('网站正在加载中') || !html.contains('教学通知')) {
-          continue;
+        final parsed = await _fetchOneViaDio(entryUrl);
+        if (parsed.isNotEmpty) {
+          AppLogger.info('Dio 教务通知成功（${parsed.length} 条）');
+          return parsed;
         }
-        final parsed = _parseList(html, base: entryUrl);
-        if (parsed.isNotEmpty) return parsed;
-      } on Object {
-        continue;
+      } on Object catch (error) {
+        AppLogger.warn('Dio 教务通知失败 ($entryUrl): $error');
       }
     }
     throw StateError('empty notice list');
   }
 
-  Future<void> _passPublicChallenge(String pageUrl) async {
-    final origin = Uri.parse(pageUrl).origin;
+  Future<List<SchoolNotice>> _fetchOneViaDio(String entryUrl) async {
+    var html = await _getHtml(entryUrl);
+    if (DeanPublicChallenge.looksLikeChallenge(html)) {
+      final passed = await _passPublicChallenge(entryUrl, html);
+      if (!passed) return const [];
+      html = await _getHtml(entryUrl);
+      if (DeanPublicChallenge.looksLikeChallenge(html)) {
+        AppLogger.warn('教务通知仍为挑战页，重试一次 challenge');
+        final retried = await _passPublicChallenge(entryUrl, html);
+        if (!retried) return const [];
+        html = await _getHtml(entryUrl);
+      }
+    }
+    if (DeanPublicChallenge.looksLikeChallenge(html) ||
+        !DeanNoticeParser.looksLikeNoticeList(html)) {
+      return const [];
+    }
+    return DeanNoticeParser.parse(html, base: entryUrl);
+  }
+
+  Future<String> _getHtml(String url) async {
     final response = await _session.get(
-      pageUrl,
-      headers: {'Accept': 'text/html'},
+      url,
+      headers: {
+        'Accept': 'text/html,application/xhtml+xml',
+        'User-Agent': CampusUrls.userAgent,
+      },
       rewrite: false,
     );
-    final html = response.data?.toString() ?? '';
-    if (!html.contains('dynamic_challenge') && !html.contains('challengeId')) {
-      return;
-    }
+    return _session.responseText(response);
+  }
 
-    final challengeId = _match(html, r"challengeId\s*=\s*'([^']+)'");
-    final a = int.tryParse(_match(html, r'var a\s*=\s*(\d+);') ?? '');
-    final b = int.tryParse(_match(html, r'var b\s*=\s*(\d+);') ?? '');
-    final op = _match(html, r"var operator\s*=\s*'([^']+)';");
-    if (challengeId == null || a == null || b == null || op == null) {
-      return;
+  /// Solve challenge from [freshHtml], POST `/dynamic_challenge`, then import
+  /// `client_id` into the CampusSession cookie jar (browser sets it via JS).
+  Future<bool> _passPublicChallenge(String pageUrl, String freshHtml) async {
+    final origin = Uri.parse(pageUrl).origin;
+    final host = Uri.parse(pageUrl).host;
+    final parsed = DeanPublicChallenge.parseChallenge(freshHtml);
+    if (parsed == null) {
+      AppLogger.warn('教务挑战页字段不完整');
+      return false;
     }
-    final result = switch (op) {
-      '+' => a + b,
-      '-' => a - b,
-      '*' => a * b,
-      _ => a - b,
-    };
+    final result = DeanPublicChallenge.computeAnswer(
+      parsed.a,
+      parsed.b,
+      parsed.op,
+    );
     final ua = CampusUrls.userAgent;
-    final hash = _simpleHash('$challengeId$result${ua.substring(0, 10)}');
-    await _session.post(
+    final hash = DeanPublicChallenge.hashFor(
+      challengeId: parsed.challengeId,
+      answer: result,
+      userAgent: ua,
+    );
+    final response = await _session.post(
       '$origin/dynamic_challenge',
       data: {
-        'challenge_id': challengeId,
+        'challenge_id': parsed.challengeId,
         'answer': result,
         'browser_info': {
           'userAgent': ua,
@@ -130,94 +152,38 @@ class LiveNotificationsRepository implements NotificationsRepository {
         'Accept': 'application/json',
         'Origin': origin,
         'Referer': pageUrl,
+        'User-Agent': ua,
       },
       rewrite: false,
     );
-  }
-
-  List<SchoolNotice> _parseList(String html, {required String base}) {
-    final baseUri = Uri.parse(base);
-    final items = <SchoolNotice>[];
-    final liRegex = RegExp(r'<li[^>]*>(.*?)</li>', dotAll: true);
-    for (final match in liRegex.allMatches(html)) {
-      final block = match.group(1)!;
-      final hrefMatch = RegExp(r'href="([^"]*info/\d+/\d+\.htm)"').firstMatch(block);
-      if (hrefMatch == null) continue;
-      final href = hrefMatch.group(1)!;
-      final absolute = baseUri.resolve(href).toString();
-      final plain = block
-          .replaceAll(RegExp(r'<[^>]+>'), ' ')
-          .replaceAll(RegExp(r'\s+'), ' ')
-          .trim();
-      final dateMatch = RegExp(r'(\d{4}-\d{2}-\d{2})').firstMatch(plain);
-      if (dateMatch == null) continue;
-      final date = DateTime.tryParse(dateMatch.group(1)!);
-      if (date == null) continue;
-      var title = plain.replaceAll(dateMatch.group(1)!, '').trim();
-      String? tag;
-      final tagMatch = RegExp(r'^\[([^\]]+)\]').firstMatch(title);
-      if (tagMatch != null) {
-        tag = tagMatch.group(1);
-        title = title.substring(tagMatch.end).trim();
-      }
-      if (title.isEmpty) continue;
-      final category = _categorize(tag, title);
-      items.add(
-        SchoolNotice(
-          id: absolute,
-          title: tag == null ? title : '[$tag]$title',
-          summary: tag == null ? '教务处教学通知' : '分类：$tag',
-          publishedAt: date,
-          category: category,
-          source: '教务处',
-          keywords: [
-            if (tag != null) tag,
-            ..._keywordsFrom(title),
-          ],
-          url: absolute,
-          live: true,
-        ),
+    final raw = _session.responseText(response);
+    final clientId = DeanPublicChallenge.clientIdFromResponse(raw);
+    if (clientId == null) {
+      AppLogger.warn(
+        'dynamic_challenge 未返回 client_id（前 120 字: ${_preview(raw)}）',
       );
+      return false;
     }
-    return items;
+
+    await _session.importCookies([
+      (name: 'client_id', value: clientId, domain: host, path: '/'),
+    ]);
+    await _session.jar.saveFromResponse(
+      Uri.parse('$origin/'),
+      [
+        Cookie('client_id', clientId)
+          ..path = '/'
+          ..httpOnly = false
+          ..secure = true,
+      ],
+    );
+    AppLogger.info('已写入 $host client_id Cookie path=/');
+    return true;
   }
 
-  NoticeCategory _categorize(String? tag, String title) {
-    final hay = '${tag ?? ''}$title';
-    if (hay.contains('考试') || hay.contains('补考') || hay.contains('成绩')) {
-      return NoticeCategory.exam;
-    }
-    if (hay.contains('选课') ||
-        hay.contains('课程') ||
-        hay.contains('课表') ||
-        hay.contains('停开') ||
-        hay.contains('辅修')) {
-      return NoticeCategory.course;
-    }
-    if (hay.contains('奖') || hay.contains('助学') || hay.contains('资助')) {
-      return NoticeCategory.scholarship;
-    }
-    if (hay.contains('放假') || hay.contains('假期') || hay.contains('调休')) {
-      return NoticeCategory.holiday;
-    }
-    return NoticeCategory.general;
-  }
-
-  List<String> _keywordsFrom(String title) {
-    const seeds = ['补考', '缓考', '选课', '课表', '转专业', '毕业', '学位', '实习', '考勤'];
-    return seeds.where(title.contains).toList();
-  }
-
-  static String? _match(String text, String pattern) =>
-      RegExp(pattern).firstMatch(text)?.group(1);
-
-  static int _simpleHash(String str) {
-    var hash = 0;
-    for (final unit in str.codeUnits) {
-      hash = ((hash << 5) - hash) + unit;
-      hash &= 0xffffffff;
-      if (hash >= 0x80000000) hash -= 0x100000000;
-    }
-    return hash.abs();
+  static String _preview(String raw) {
+    final oneLine = raw.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (oneLine.length <= 120) return oneLine;
+    return '${oneLine.substring(0, 120)}…';
   }
 }

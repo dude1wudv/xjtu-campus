@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../../core/l10n/app_strings.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_feedback.dart';
+import '../../about/presentation/about_sheet.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../../schedule/domain/course.dart';
 import '../../schedule/presentation/schedule_providers.dart';
@@ -23,6 +24,11 @@ class HomeDashboard extends ConsumerWidget {
       appBar: AppBar(
         title: const Text(AppStrings.appName),
         actions: [
+          IconButton(
+            tooltip: '关于 / 检查更新',
+            onPressed: () => showAboutSheet(context),
+            icon: const Icon(Icons.info_outline_rounded),
+          ),
           IconButton(
             tooltip: AppStrings.openLogin,
             onPressed: () => context.push('/login'),

@@ -56,7 +56,7 @@ void main() {
     expect(find.textContaining('同学 demo'), findsWidgets);
   });
 
-  testWidgets('闹钟页展示一键创建按钮与建议起床时间', (tester) async {
+  testWidgets('闹钟页展示创建所选按钮与作息提示', (tester) async {
     await tester.pumpWidget(app());
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
@@ -65,8 +65,10 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 
-    expect(find.text(AppStrings.createAlarms), findsWidgets);
+    expect(find.text(AppStrings.createSelectedAlarms), findsWidgets);
     expect(find.text(AppStrings.alarmsTitle), findsWidgets);
-    expect(find.textContaining(AppStrings.wakeOffsetLabel), findsOneWidget);
+    expect(find.text(AppStrings.enableWakeAlarm), findsOneWidget);
+    expect(find.textContaining('作息'), findsWidgets);
   });
 }
+

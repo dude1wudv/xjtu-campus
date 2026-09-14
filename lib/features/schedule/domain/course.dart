@@ -1,6 +1,9 @@
 import 'package:equatable/equatable.dart';
 
 /// 交大常见 45 分钟小节，含课间。
+///
+/// 夏秋季（5/1 起）下午从 14:30 开始；冬春季（10/1 起）下午从 14:00 开始。
+/// 上午与晚间保持一致，仅下午 5–8 节整体平移 30 分钟。
 class ClassPeriod extends Equatable {
   const ClassPeriod({
     required this.index,
@@ -22,21 +25,117 @@ class ClassPeriod extends Equatable {
     return '$hours:$minutes';
   }
 
-  static const catalog = [
-    ClassPeriod(index: 1, start: Duration(hours: 8), end: Duration(hours: 8, minutes: 45)),
-    ClassPeriod(index: 2, start: Duration(hours: 8, minutes: 55), end: Duration(hours: 9, minutes: 40)),
-    ClassPeriod(index: 3, start: Duration(hours: 10, minutes: 10), end: Duration(hours: 10, minutes: 55)),
-    ClassPeriod(index: 4, start: Duration(hours: 11, minutes: 5), end: Duration(hours: 11, minutes: 50)),
-    ClassPeriod(index: 5, start: Duration(hours: 14), end: Duration(hours: 14, minutes: 45)),
-    ClassPeriod(index: 6, start: Duration(hours: 14, minutes: 55), end: Duration(hours: 15, minutes: 40)),
-    ClassPeriod(index: 7, start: Duration(hours: 16, minutes: 10), end: Duration(hours: 16, minutes: 55)),
-    ClassPeriod(index: 8, start: Duration(hours: 17, minutes: 5), end: Duration(hours: 17, minutes: 50)),
-    ClassPeriod(index: 9, start: Duration(hours: 19), end: Duration(hours: 19, minutes: 45)),
-    ClassPeriod(index: 10, start: Duration(hours: 19, minutes: 55), end: Duration(hours: 20, minutes: 40)),
-    ClassPeriod(index: 11, start: Duration(hours: 20, minutes: 50), end: Duration(hours: 21, minutes: 35)),
+  static const _morning = [
+    ClassPeriod(
+      index: 1,
+      start: Duration(hours: 8),
+      end: Duration(hours: 8, minutes: 45),
+    ),
+    ClassPeriod(
+      index: 2,
+      start: Duration(hours: 8, minutes: 55),
+      end: Duration(hours: 9, minutes: 40),
+    ),
+    ClassPeriod(
+      index: 3,
+      start: Duration(hours: 10, minutes: 10),
+      end: Duration(hours: 10, minutes: 55),
+    ),
+    ClassPeriod(
+      index: 4,
+      start: Duration(hours: 11, minutes: 5),
+      end: Duration(hours: 11, minutes: 50),
+    ),
   ];
 
-  static ClassPeriod byIndex(int index) {
+  static const _evening = [
+    ClassPeriod(
+      index: 9,
+      start: Duration(hours: 19),
+      end: Duration(hours: 19, minutes: 45),
+    ),
+    ClassPeriod(
+      index: 10,
+      start: Duration(hours: 19, minutes: 55),
+      end: Duration(hours: 20, minutes: 40),
+    ),
+    ClassPeriod(
+      index: 11,
+      start: Duration(hours: 20, minutes: 50),
+      end: Duration(hours: 21, minutes: 35),
+    ),
+  ];
+
+  /// 冬春季作息：下午从 14:00 起（10/1 起）。
+  static const catalogWinter = [
+    ..._morning,
+    ClassPeriod(
+      index: 5,
+      start: Duration(hours: 14),
+      end: Duration(hours: 14, minutes: 45),
+    ),
+    ClassPeriod(
+      index: 6,
+      start: Duration(hours: 14, minutes: 55),
+      end: Duration(hours: 15, minutes: 40),
+    ),
+    ClassPeriod(
+      index: 7,
+      start: Duration(hours: 16, minutes: 10),
+      end: Duration(hours: 16, minutes: 55),
+    ),
+    ClassPeriod(
+      index: 8,
+      start: Duration(hours: 17, minutes: 5),
+      end: Duration(hours: 17, minutes: 50),
+    ),
+    ..._evening,
+  ];
+
+  /// 夏秋季作息：下午从 14:30 起（5/1 起）。
+  static const catalogSummer = [
+    ..._morning,
+    ClassPeriod(
+      index: 5,
+      start: Duration(hours: 14, minutes: 30),
+      end: Duration(hours: 15, minutes: 15),
+    ),
+    ClassPeriod(
+      index: 6,
+      start: Duration(hours: 15, minutes: 25),
+      end: Duration(hours: 16, minutes: 10),
+    ),
+    ClassPeriod(
+      index: 7,
+      start: Duration(hours: 16, minutes: 40),
+      end: Duration(hours: 17, minutes: 25),
+    ),
+    ClassPeriod(
+      index: 8,
+      start: Duration(hours: 17, minutes: 35),
+      end: Duration(hours: 18, minutes: 20),
+    ),
+    ..._evening,
+  ];
+
+  /// 兼容旧调用：默认取当前日期对应季节目录。
+  static List<ClassPeriod> get catalog => catalogFor(DateTime.now());
+
+  /// May–Sep → 夏秋季；Oct–Apr → 冬春季。
+  static bool isSummerSeason(DateTime day) => day.month >= 5 && day.month <= 9;
+
+  static List<ClassPeriod> catalogFor(DateTime now) =>
+      isSummerSeason(now) ? catalogSummer : catalogWinter;
+
+  static String seasonLabel(DateTime now) {
+    if (isSummerSeason(now)) {
+      return '当前：夏秋季作息（5/1起）';
+    }
+    return '当前：冬春季作息（10/1起）';
+  }
+
+  static ClassPeriod byIndex(int index, {DateTime? day}) {
+    final catalog = catalogFor(day ?? DateTime.now());
     for (final period in catalog) {
       if (period.index == index) return period;
     }
@@ -81,22 +180,28 @@ class Course extends Equatable {
   ClassPeriod get start => ClassPeriod.byIndex(startPeriod);
   ClassPeriod get end => ClassPeriod.byIndex(endPeriod);
 
+  ClassPeriod startOf(DateTime day) =>
+      ClassPeriod.byIndex(startPeriod, day: day);
+
+  ClassPeriod endOf(DateTime day) => ClassPeriod.byIndex(endPeriod, day: day);
+
   String get location => '$campus $building $room';
 
-  String get periodLabel =>
-      '第$startPeriod${startPeriod == endPeriod ? '' : '-$endPeriod'}节 ${start.formatClock().split('–').first}–${end.formatClock().split('–').last}';
+  String get periodLabel => periodLabelFor(DateTime.now());
 
-  DateTime startAt(DateTime day) => DateTime(
-    day.year,
-    day.month,
-    day.day,
-  ).add(start.start);
+  String periodLabelFor(DateTime day) {
+    final s = startOf(day);
+    final e = endOf(day);
+    return '第$startPeriod${startPeriod == endPeriod ? '' : '-$endPeriod'}节 '
+        '${s.formatClock().split('–').first}–${e.formatClock().split('–').last}';
+  }
 
-  DateTime endAt(DateTime day) => DateTime(
-    day.year,
-    day.month,
-    day.day,
-  ).add(end.end);
+  /// 用 [day] 当天季节作息计算开课时刻。
+  DateTime startAt(DateTime day) =>
+      DateTime(day.year, day.month, day.day).add(startOf(day).start);
+
+  DateTime endAt(DateTime day) =>
+      DateTime(day.year, day.month, day.day).add(endOf(day).end);
 
   static Course? nextAfter(
     List<Course> courses,
@@ -114,17 +219,15 @@ class Course extends Equatable {
       final week = weekNumber == null
           ? null
           : weekNumber + ((now.weekday - 1 + offset) ~/ 7);
-      final ofDay =
-          courses.where((course) {
-            if (course.weekday != day.weekday) return false;
-            if (week != null &&
-                course.weeks.isNotEmpty &&
-                !course.weeks.contains(week)) {
-              return false;
-            }
-            return true;
-          }).toList()
-            ..sort((a, b) => a.startPeriod.compareTo(b.startPeriod));
+      final ofDay = courses.where((course) {
+        if (course.weekday != day.weekday) return false;
+        if (week != null &&
+            course.weeks.isNotEmpty &&
+            !course.weeks.contains(week)) {
+          return false;
+        }
+        return true;
+      }).toList()..sort((a, b) => a.startPeriod.compareTo(b.startPeriod));
       for (final course in ofDay) {
         final start = course.startAt(day);
         if (start.isAfter(now) &&

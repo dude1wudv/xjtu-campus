@@ -9,6 +9,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_feedback.dart';
 import '../domain/notice_filter.dart';
 import '../domain/school_notice.dart';
+import 'dean_notices_webview_loader.dart';
 
 class NoticeFilterController extends Notifier<NoticeFilterRule> {
   @override
@@ -24,7 +25,8 @@ final noticeFilterProvider =
       NoticeFilterController.new,
     );
 
-final noticesSnapshotProvider = FutureProvider((ref) {
+/// Dio / mock fallback after embedded WebView fails.
+final noticesFallbackProvider = FutureProvider<NoticesSnapshot>((ref) {
   final rule = ref.watch(noticeFilterProvider);
   return ref.watch(notificationsRepositoryProvider).load(rule: rule);
 });
@@ -32,10 +34,42 @@ final noticesSnapshotProvider = FutureProvider((ref) {
 class NotificationsPage extends ConsumerWidget {
   const NotificationsPage({super.key});
 
+  void _refresh(WidgetRef ref) {
+    ref.read(liveDeanNoticesProvider.notifier).markLoading();
+    ref.read(deanNoticesReloadTickProvider.notifier).bump();
+    // Clear stale Dio fallback so a later failure reloads.
+    ref.invalidate(noticesFallbackProvider);
+  }
+
+  NoticesSnapshot _filterLive(
+    List<SchoolNotice> notices,
+    NoticeFilterRule rule,
+  ) {
+    final filtered = notices.where(rule.matches).toList()
+      ..sort((a, b) {
+        if (a.pinned != b.pinned) return a.pinned ? -1 : 1;
+        return b.publishedAt.compareTo(a.publishedAt);
+      });
+    return NoticesSnapshot(
+      notices: filtered,
+      live: true,
+      banner: AppStrings.noticesLiveBanner,
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final filter = ref.watch(noticeFilterProvider);
-    final snapshot = ref.watch(noticesSnapshotProvider);
+    final live = ref.watch(liveDeanNoticesProvider);
+
+    final AsyncValue<NoticesSnapshot> snapshot;
+    if (live.isSuccess) {
+      snapshot = AsyncValue.data(_filterLive(live.notices, filter));
+    } else if (live.isFailed) {
+      snapshot = ref.watch(noticesFallbackProvider);
+    } else {
+      snapshot = const AsyncValue.loading();
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -43,85 +77,139 @@ class NotificationsPage extends ConsumerWidget {
         actions: [
           IconButton(
             tooltip: '刷新',
-            onPressed: () => ref.invalidate(noticesSnapshotProvider),
+            onPressed: () => _refresh(ref),
             icon: const Icon(Icons.refresh_rounded),
           ),
         ],
       ),
-      body: Column(
+      body: Stack(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                snapshot.when(
-                  data: (data) => DataSourceBanner(
-                    live: data.live,
-                    message: data.banner,
-                  ),
-                  loading: () => const DataSourceBanner(),
-                  error: (_, _) => const DataSourceBanner(),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  AppStrings.filterRulesHint,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-                const SizedBox(height: 10),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: FilterChip(
-                          label: const Text(AppStrings.filterAll),
-                          selected: filter.category == null,
-                          onSelected: (_) => ref
-                              .read(noticeFilterProvider.notifier)
-                              .setCategory(null),
-                        ),
-                      ),
-                      for (final category in NoticeCategory.values)
-                        Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: FilterChip(
-                            label: Text(category.label),
-                            selected: filter.category == category,
-                            onSelected: (_) => ref
-                                .read(noticeFilterProvider.notifier)
-                                .setCategory(category),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ],
+          // Real WebView (not Headless): shares CookieManager, runs page JS.
+          const Positioned(
+            left: 0,
+            top: 0,
+            child: Opacity(
+              opacity: 0,
+              child: IgnorePointer(
+                child: DeanNoticesWebViewLoader(),
+              ),
             ),
           ),
-          Expanded(
-            child: AsyncBody(
-              value: snapshot,
-              onRetry: () => ref.invalidate(noticesSnapshotProvider),
-              builder: (data) {
-                final items = data.notices;
-                if (items.isEmpty) {
-                  return const EmptyHint(
-                    icon: Icons.notifications_off_outlined,
-                    text: AppStrings.emptyNotices,
-                  );
-                }
-                return ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
-                  itemCount: items.length,
-                  separatorBuilder: (context, index) =>
-                      const SizedBox(height: 10),
-                  itemBuilder: (context, index) =>
-                      _NoticeCard(notice: items[index]),
-                );
-              },
-            ),
+          Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    snapshot.when(
+                      data: (data) => DataSourceBanner(
+                        live: data.live,
+                        message: data.banner,
+                      ),
+                      loading: () => const DataSourceBanner(
+                        message: '正在通过浏览器加载教务通知…',
+                      ),
+                      error: (_, _) => const DataSourceBanner(),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      AppStrings.filterRulesHint,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    const SizedBox(height: 10),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: FilterChip(
+                              label: const Text(AppStrings.filterAll),
+                              selected: filter.category == null,
+                              showCheckmark: true,
+                              checkmarkColor: Colors.white,
+                              selectedColor: AppColors.navy,
+                              backgroundColor: AppColors.chip,
+                              side: const BorderSide(color: AppColors.line),
+                              labelStyle: TextStyle(
+                                color: filter.category == null
+                                    ? Colors.white
+                                    : AppColors.navyDeep,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                              ),
+                              onSelected: (_) => ref
+                                  .read(noticeFilterProvider.notifier)
+                                  .setCategory(null),
+                            ),
+                          ),
+                          for (final category in NoticeCategory.values)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: FilterChip(
+                                label: Text(category.label),
+                                selected: filter.category == category,
+                                showCheckmark: true,
+                                checkmarkColor: Colors.white,
+                                selectedColor: AppColors.navy,
+                                backgroundColor: AppColors.chip,
+                                side: const BorderSide(color: AppColors.line),
+                                labelStyle: TextStyle(
+                                  color: filter.category == category
+                                      ? Colors.white
+                                      : AppColors.navyDeep,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                ),
+                                onSelected: (_) => ref
+                                    .read(noticeFilterProvider.notifier)
+                                    .setCategory(category),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: AsyncBody(
+                  value: snapshot,
+                  onRetry: () => _refresh(ref),
+                  builder: (data) {
+                    final items = data.notices;
+                    if (items.isEmpty) {
+                      return RefreshIndicator(
+                        onRefresh: () async => _refresh(ref),
+                        child: ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          children: const [
+                            SizedBox(height: 120),
+                            EmptyHint(
+                              icon: Icons.notifications_off_outlined,
+                              text: AppStrings.emptyNotices,
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                    return RefreshIndicator(
+                      onRefresh: () async => _refresh(ref),
+                      child: ListView.separated(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
+                        itemCount: items.length,
+                        separatorBuilder: (context, index) =>
+                            const SizedBox(height: 10),
+                        itemBuilder: (context, index) =>
+                            _NoticeCard(notice: items[index]),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -143,9 +231,13 @@ class _NoticeCard extends StatelessWidget {
         onTap: notice.url == null
             ? null
             : () {
-                final url = Uri.encodeComponent(notice.url!);
-                final title = Uri.encodeComponent(notice.title);
-                context.push('/browser?url=$url&title=$title');
+                context.push(
+                  '/browser',
+                  extra: {
+                    'url': notice.url!,
+                    'title': notice.title,
+                  },
+                );
               },
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),

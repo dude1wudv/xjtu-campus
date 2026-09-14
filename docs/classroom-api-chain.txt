@@ -1,0 +1,29 @@
+XJTU 空闲教室 API chain (observed 2026-09-14 UTC)
+
+Auth/status
+- ywtb.xjtu.edu.cn was already authenticated; no login wall appeared. The 教学管理系统 header showed a student account.
+- Portal search for “空闲教室” and “教室查询” returned 0 indexed results. Working navigation was: 一网通办 → 应用 → 本科教务系统 → 查询服务 → 空闲教室 → 空闲教室查询.
+
+Ordered navigation / requests
+1. Service host/final embedded document URL:
+   https://jwxt.xjtu.edu.cn/jwapp/sys/kxjas/*default/index.do?THEME=indigo&THEME_VARIABLES=cHJpbWFyeUNvbG9yMT0jRUZGN0ZGJnByaW1hcnlDb2xvcjI9Izk0QkZGRiZwcmltYXJ5Q29sb3IzPSM0MDgwRkYmcHJpbWFyeUNvbG9yND0jMWE0YjljJnByaW1hcnlDb2xvcjU9IzBFNDJEMiZiZ0NvbG9yPSNFQ0YxRkMmcHJpbWFyeUJ0blRleHRDb2xvcj0jRkZGRkZG&RADIUS=20&EMAP_LANG=zh&forceApp=kxjas&_yhz=0000020241125142542723&min=1#/kxjscx
+   It is embedded by the jwxt home document; the top-level document remained https://jwxt.xjtu.edu.cn/jwapp/sys/homeapp/home/index.html?av=&contextPath=/jwapp#/.
+
+2. Campus-code options (学校校区 / XXXQDM):
+   GET https://jwxt.xjtu.edu.cn/jwapp/code/83a986fc-e677-400e-99a4-c7bb39c2ca35.do
+   Observed browser request included the normal cache-buster suffix: ?_=1789390841392.
+   Sample returned IDs: 5 创新港校区; 4 苏州校区; 8 海南创新中心; 2 雁塔校区; 3 曲江校区; 1 兴庆校区.
+
+3. Building-code options (教学楼 / JXLDM):
+   GET https://jwxt.xjtu.edu.cn/jwapp/code/551fbcc3-cf07-4566-af1e-fc7ce272ddc1.do
+   Observed browser request included: ?_=1789390841398.
+   Returned 114 building rows; each includes id/name and otherFields.XXXQDM for campus association (e.g. id 1001 = 主楼A, XXXQDM 1).
+
+4. Free-room query (table action cxkxjs):
+   POST https://jwxt.xjtu.edu.cn/jwapp/sys/kxjas/modules/kxjscx/cxkxjs.do
+   The page’s table configuration explicitly showed type=POST and data fields XXXQDM, JXLDM, JASLXDM, KXRQ, KSJC, JSJC. The initial empty query also returned JSON with datas.cxkxjs.rows.
+   The page model/action metadata also references /jwapp/sys/kxjas/modules/kxjscx.do with emap-action=cxkxjs; the actual XHR data endpoint is the /kxjscx/cxkxjs.do path above.
+
+Related page-load metadata observed (not part of the three requested code/query endpoints):
+- GET https://jwxt.xjtu.edu.cn/jwapp/sys/kxjas/modules/kxjscx.do
+- GET https://jwxt.xjtu.edu.cn/jwapp/sys/emapcomponent/schema/getList.do

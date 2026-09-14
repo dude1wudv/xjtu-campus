@@ -13,10 +13,19 @@ class AlarmPlanner {
     List<Duration> reminderOffsets = AppConstants.defaultClassReminders,
     int daysAhead = AppConstants.alarmDaysAhead,
     int? weekNumber,
+    bool enableWake = true,
+    bool enableClass = true,
   }) {
     final suggestions = <AlarmSuggestion>[];
+    final reminders = reminderOffsets
+        .where((d) => d.inMinutes > 0)
+        .toList(growable: false);
     for (var offset = 0; offset < daysAhead; offset++) {
-      final day = DateTime(now.year, now.month, now.day).add(Duration(days: offset));
+      final day = DateTime(
+        now.year,
+        now.month,
+        now.day,
+      ).add(Duration(days: offset));
       final weekday = day.weekday;
       final week = weekNumber == null
           ? null
@@ -29,44 +38,48 @@ class AlarmPlanner {
           return false;
         }
         return true;
-      }).toList()
-        ..sort((a, b) => a.startPeriod.compareTo(b.startPeriod));
+      }).toList()..sort((a, b) => a.startPeriod.compareTo(b.startPeriod));
       if (todayCourses.isEmpty) continue;
 
       final first = todayCourses.first;
       final firstStart = first.startAt(day);
-      final wakeAt = firstStart.subtract(wakeOffset);
-      if (!wakeAt.isBefore(now)) {
-        suggestions.add(
-          AlarmSuggestion(
-            id: 'wake-${first.id}-${_ymd(day)}',
-            kind: AlarmKind.wakeUp,
-            title: '起床 · ${first.name}',
-            body:
-                '${_weekdayLabel(weekday)} 第一节 ${first.name} ${first.start.formatClock().split('–').first} @ ${first.location}',
-            fireAt: wakeAt,
-            course: first,
-            minutesBefore: wakeOffset.inMinutes,
-          ),
-        );
-      }
-
-      for (final course in todayCourses) {
-        final start = course.startAt(day);
-        for (final reminder in reminderOffsets) {
-          final fireAt = start.subtract(reminder);
-          if (fireAt.isBefore(now)) continue;
+      if (enableWake) {
+        final wakeAt = firstStart.subtract(wakeOffset);
+        if (!wakeAt.isBefore(now)) {
+          final firstClock = first.startOf(day).formatClock().split('–').first;
           suggestions.add(
             AlarmSuggestion(
-              id: 'class-${course.id}-${reminder.inMinutes}-${_ymd(day)}',
-              kind: AlarmKind.classReminder,
-              title: '${course.name} · ${reminder.inMinutes}分钟后上课',
-              body: '${course.location}  ${course.periodLabel}',
-              fireAt: fireAt,
-              course: course,
-              minutesBefore: reminder.inMinutes,
+              id: 'wake-${first.id}-${_ymd(day)}',
+              kind: AlarmKind.wakeUp,
+              title: '起床 · ${first.name}',
+              body:
+                  '${_weekdayLabel(weekday)} 第一节 ${first.name} $firstClock @ ${first.location}',
+              fireAt: wakeAt,
+              course: first,
+              minutesBefore: wakeOffset.inMinutes,
             ),
           );
+        }
+      }
+
+      if (enableClass) {
+        for (final course in todayCourses) {
+          final start = course.startAt(day);
+          for (final reminder in reminders) {
+            final fireAt = start.subtract(reminder);
+            if (fireAt.isBefore(now)) continue;
+            suggestions.add(
+              AlarmSuggestion(
+                id: 'class-${course.id}-${reminder.inMinutes}-${_ymd(day)}',
+                kind: AlarmKind.classReminder,
+                title: '${course.name} · ${reminder.inMinutes}分钟后上课',
+                body: '${course.location}  ${course.periodLabelFor(day)}',
+                fireAt: fireAt,
+                course: course,
+                minutesBefore: reminder.inMinutes,
+              ),
+            );
+          }
         }
       }
     }

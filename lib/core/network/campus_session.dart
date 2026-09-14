@@ -72,12 +72,34 @@ class CampusSession {
 
   Future<bool> hasCasCookie() async {
     try {
-      final cookies = await _jar.loadForRequest(Uri.parse(CampusUrls.casLogin));
-      return cookies.any(
-        (cookie) =>
-            cookie.name.toUpperCase().contains('TGC') ||
-            cookie.name.toUpperCase().contains('CASTGC'),
-      );
+      final origins = [
+        CampusUrls.casLogin,
+        CampusUrls.ywtbMain,
+        CampusUrls.ehallHome,
+        CampusUrls.jwxtHome,
+        CampusUrls.workflowKebiaoPage,
+      ];
+      for (final origin in origins) {
+        final cookies = await _jar.loadForRequest(Uri.parse(origin));
+        for (final cookie in cookies) {
+          final name = cookie.name.toUpperCase();
+          if (name.contains('TGC') ||
+              name.contains('CASTGC') ||
+              name.contains('SESSION') ||
+              name == 'ROUTE' ||
+              name.contains('MOD_AUTH') ||
+              name.contains('JSESSIONID') ||
+              name.contains('SSO') ||
+              name.contains('TOKEN')) {
+            return true;
+          }
+        }
+        if (cookies.isNotEmpty) {
+          // 一网通办登录后常见仅有业务 Cookie，也视为已登录会话。
+          return true;
+        }
+      }
+      return false;
     } on Object {
       return false;
     }
@@ -89,28 +111,59 @@ class CampusSession {
         cookies,
   ) async {
     final byHost = <Uri, List<Cookie>>{};
-    for (final item in cookies) {
-      var domain = (item.domain ?? 'login.xjtu.edu.cn').replaceFirst(
-        RegExp(r'^\.'),
-        '',
-      );
-      if (domain.isEmpty) domain = 'login.xjtu.edu.cn';
-      if (!domain.endsWith('xjtu.edu.cn') && domain != 'webvpn.xjtu.edu.cn') {
-        continue;
-      }
-      final uri = Uri(scheme: 'https', host: domain, path: item.path ?? '/');
-      byHost
-          .putIfAbsent(uri, () => <Cookie>[])
-          .add(
+    final importedNames = <String>{};
+    const mirrorHosts = [
+      'login.xjtu.edu.cn',
+      'ywtb.xjtu.edu.cn',
+      'ehall.xjtu.edu.cn',
+      'workflow.xjtu.edu.cn',
+    ];
+
+    void addCookie(
+      String host,
+      ({String name, String value, String? domain, String? path}) item,
+    ) {
+      final path = item.path ?? '/';
+      final uri = Uri(scheme: 'https', host: host, path: path);
+      byHost.putIfAbsent(uri, () => <Cookie>[]).add(
             Cookie(item.name, item.value)
-              ..domain = domain
-              ..path = item.path ?? '/'
+              ..domain = host
+              ..path = path
               ..httpOnly = true
               ..secure = true,
           );
     }
+
+    for (final item in cookies) {
+      var domain = (item.domain ?? '').trim().replaceFirst(RegExp(r'^\.'), '');
+      if (domain.isEmpty) {
+        domain = 'login.xjtu.edu.cn';
+      }
+      // 仅接受交大相关域名（含裸 xjtu.edu.cn / webvpn）。
+      if (!domain.endsWith('xjtu.edu.cn')) {
+        continue;
+      }
+
+      importedNames.add(item.name);
+      addCookie(domain, item);
+
+      // 父域 Cookie 在浏览器会发给各子域；Dio CookieJar 按 host 匹配，
+      // 因此镜像到登录 / 一网通办 / 大厅，保证后续请求能带上会话。
+      if (domain == 'xjtu.edu.cn') {
+        for (final host in mirrorHosts) {
+          addCookie(host, item);
+        }
+      }
+    }
+
     for (final entry in byHost.entries) {
       await _jar.saveFromResponse(entry.key, entry.value);
+    }
+
+    if (importedNames.isNotEmpty) {
+      AppLogger.info('已导入校园 Cookie 名称: ${importedNames.join(', ')}');
+    } else {
+      AppLogger.warn('importCookies 未写入任何校园域名 Cookie');
     }
   }
 
@@ -127,6 +180,12 @@ class CampusSession {
   String _resolve(String url) =>
       WebVpnUrl.maybeConvert(url, enabled: useWebVpn);
 
+  /// GET with optional WebVPN rewrite.
+  ///
+  /// Pass [rewrite]: `false` to hit the original host directly (ignores
+  /// [useWebVpn]). Prefer direct for workflow/jwxt when SSO cookies were
+  /// imported for those hosts; WebVPN rewrite without webvpn session cookies
+  /// drops them and breaks sync.
   Future<Response<dynamic>> get(
     String url, {
     Map<String, dynamic>? query,
@@ -142,6 +201,21 @@ class CampusSession {
       options: Options(headers: headers, responseType: responseType),
     );
   }
+
+  /// Direct GET that never rewrites through WebVPN.
+  Future<Response<dynamic>> getDirect(
+    String url, {
+    Map<String, dynamic>? query,
+    Map<String, String>? headers,
+    ResponseType? responseType,
+  }) =>
+      get(
+        url,
+        query: query,
+        headers: headers,
+        responseType: responseType,
+        rewrite: false,
+      );
 
   Future<Uint8List> getBytes(String url) async {
     final response = await get(url, responseType: ResponseType.bytes);
@@ -213,6 +287,7 @@ class CampusSession {
       'ehall.xjtu.edu.cn',
       'ywtb.xjtu.edu.cn',
       'jwxt.xjtu.edu.cn',
+      'workflow.xjtu.edu.cn',
       'authx-service.xjtu.edu.cn',
       'dean.xjtu.edu.cn',
       'due.xjtu.edu.cn',

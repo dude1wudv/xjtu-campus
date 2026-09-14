@@ -1,0 +1,72 @@
+{
+  "e": 0,
+  "d": [
+    {
+      "source": "教务管理系统",
+      "KCM": "工程与社会",
+      "KCBH": "MAGT300127",
+      "JSXM": "樊超",
+      "JSH": "1008255",
+      "BJJSMC": "西2西-407",
+      "ZC": "1",
+      "XQ": "2",
+      "KSJC": 1,
+      "JSJC": 2,
+      "BJID": "202620271MAGT30012707",
+      "BJMC": "",
+      "TERMNAME": "2026-2027-1",
+      "XNXQDM": "2026-2027-1",
+      "XH": "2236515806",
+      "PKINFOID": "",
+      "color": {
+        "background-color": "#FFEBCD",
+        "color": "#F3A540"
+      }
+    },
+    {
+      "source": "教务管理系统",
+      "KCM": "离散数学Ⅳ",
+      "KCBH": "MATH200127",
+      "JSXM": "高照奇",
+      "JSH": "1008254",
+      "BJJSMC": "西2西-329",
+      "ZC": "1",
+      "XQ": "2",
+      "KSJC": 7,
+      "JSJC": 8,
+      "BJID": "202620271MATH20012701",
+      "BJMC": "",
+      "TERMNAME": "2026-2027-1",
+      "XNXQDM": "2026-2027-1",
+      "XH": "2236515806",
+      "PKINFOID": "",
+      "color": {
+        "background-color": "#FAECFE",
+        "color": "#BF76D9"
+      }
+    },
+    {
+      "source": "教务管理系统",
+      "KCM": "离散数学Ⅳ",
+      "KCBH": "MATH200127",
+      "JSXM": "高照奇",
+      "JSH": "1008254",
+      "BJJSMC": "西2西-329",
+      "ZC": "1",
+      "XQ": "4",
+      "KSJC": 3,
+      "JSJC": 4,
+      "BJID": "202620271MATH20012701",
+      "BJMC": "",
+      "TERMNAME": "2026-2027-1",
+      "XNXQDM": "2026-2027-1",
+      "XH": "2236515806",
+      "PKINFOID": "",
+      "color": {
+        "background-color": "#FAECFE",
+        "color": "#BF76D9"
+      }
+    }
+  ],
+  "m": "操作成功"
+}

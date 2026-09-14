@@ -1,0 +1,21 @@
+XJTU workflow SSO trace (2026-09-14; captured with Chrome DevTools Network, Preserve log enabled)
+
+Ordered navigation URLs observed:
+1. https://ywtb.xjtu.edu.cn/main.html#/Index
+2. https://ywtb.xjtu.edu.cn/main.html#/global-search?keyword=%E8%AF%BE%E8%A1%A8%E6%9F%A5%E8%AF%A2&type=service
+   (SPA route reached after selecting the 课表查询 service/search result.)
+3. https://workflow.xjtu.edu.cn/selectpage/page/site/newkebiao
+   (only workflow Document navigation observed; HTTP 200; newkebiao page shown.)
+
+No login.xjtu.edu.cn ticket URL, authx URL, or intermediate portal Document navigation appeared in the preserved Network log. The workflow URL was opened directly and the existing SSO session was accepted.
+
+SSO-like/bootstrap XHR observed during activation:
+- https://ywtb.xjtu.edu.cn/dataService/api/saveService?name=<encoded-service>&ticket=<redacted>
+  (HTTP 200 XHR; the ticket value was a JWT-like sensitive token and is intentionally redacted.)
+
+Workflow page XHRs observed after navigation:
+- https://workflow.xjtu.edu.cn/selectpage/site/user_info
+- https://workflow.xjtu.edu.cn/selectpage/site/kebiao/selkxueqi?date=2026-09-14
+- https://workflow.xjtu.edu.cn/selectpage/site/newkebiao/getUndergraduateKebiao?startDate=2026-09-14&endDate=2026-09-20
+- https://workflow.xjtu.edu.cn/selectpage/site/newkebiao/getGroupKebiao?startDate=2026-09-14&endDate=2026-09-20
+- https://workflow.xjtu.edu.cn/selectpage/site/visit/addvisit?uid=34864&url=newkebiao&terminal=1

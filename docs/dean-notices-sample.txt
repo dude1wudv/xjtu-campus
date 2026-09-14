@@ -1,0 +1,11 @@
+XJTU 教务处 notices sample (2026-09-14 UTC)
+
+URL: https://dean.xjtu.edu.cn/jxxx/jxtz2.htm
+Status: notice list loaded normally; no challenge/CAPTCHA page observed. This page is public and did not request portal authentication.
+
+First five visible notice titles:
+1. [综合通知] 关于组建中国青年志愿者西安交通大学第29届研究生支教团的通知
+2. [专业辅修] 关于开展西安交通大学微专业增补报名的通知
+3. [考试安排] 关于2026-2027学年第一学期补考（含缓考）有关事宜的通知
+4. [培养方案] 关于启动2025级本科生劳动教育并继续做好2023、2024级本科生劳动教育的通知
+5. [奖项申报] 关于组织申报2026年度“人工智能+教育”智慧课程典型案例的通知

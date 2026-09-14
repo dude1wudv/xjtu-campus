@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/di/core_providers.dart';
 import '../../../core/l10n/app_strings.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_feedback.dart';
 import '../../auth/presentation/auth_controller.dart';
+import '../data/classroom_codes.dart';
 import '../domain/classroom_slot.dart';
 
 class ClassroomFilter extends Notifier<ClassroomQuery> {
@@ -28,17 +30,22 @@ class ClassroomFilter extends Notifier<ClassroomQuery> {
 final classroomFilterProvider =
     NotifierProvider<ClassroomFilter, ClassroomQuery>(ClassroomFilter.new);
 
+/// Campus/building changes refetch; period is applied locally after a full-day parse.
 final freeClassroomsProvider = FutureProvider<ClassroomPageData>((ref) {
   ref.watch(authControllerProvider.select((state) => state.user.sessionToken));
-  final query = ref.watch(classroomFilterProvider);
-  return ref.watch(classroomRepositoryProvider).findFree(query);
+  final campus = ref.watch(classroomFilterProvider.select((query) => query.campus));
+  final building =
+      ref.watch(classroomFilterProvider.select((query) => query.building));
+  return ref.watch(classroomRepositoryProvider).findFree(
+        ClassroomQuery(campus: campus, building: building),
+      );
 });
 
 class ClassroomPage extends ConsumerWidget {
   const ClassroomPage({super.key});
 
-  static const campuses = ['兴庆校区', '雁塔校区', '创新港校区', '曲江校区'];
-  static const buildings = [
+  static const fallbackCampuses = ['兴庆校区', '雁塔校区', '创新港校区', '曲江校区', '苏州校区', '海南创新中心'];
+  static const fallbackBuildings = [
     '主楼A',
     '主楼B',
     '主楼C',
@@ -56,6 +63,16 @@ class ClassroomPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final filter = ref.watch(classroomFilterProvider);
     final rooms = ref.watch(freeClassroomsProvider);
+    final liveCampuses = rooms.asData?.value.campuses ?? const <String>[];
+    final liveBuildings = rooms.asData?.value.buildingsForCampus ?? const <String>[];
+    final campusItems =
+        liveCampuses.isNotEmpty ? liveCampuses : fallbackCampuses;
+    final buildingItems =
+        liveBuildings.isNotEmpty ? liveBuildings : fallbackBuildings;
+    final campusValue =
+        campusItems.contains(filter.campus) ? filter.campus : null;
+    final buildingValue =
+        buildingItems.contains(filter.building) ? filter.building : null;
 
     return Scaffold(
       appBar: AppBar(title: const Text(AppStrings.classroomTitle)),
@@ -80,14 +97,14 @@ class ClassroomPage extends ConsumerWidget {
                   runSpacing: 8,
                   children: [
                     DropdownButton<String?>(
-                      value: filter.campus,
+                      value: campusValue,
                       hint: const Text(AppStrings.allCampuses),
                       items: [
                         const DropdownMenuItem(
                           value: null,
                           child: Text(AppStrings.allCampuses),
                         ),
-                        for (final campus in campuses)
+                        for (final campus in campusItems)
                           DropdownMenuItem(value: campus, child: Text(campus)),
                       ],
                       onChanged: (value) => ref
@@ -95,14 +112,14 @@ class ClassroomPage extends ConsumerWidget {
                           .setCampus(value),
                     ),
                     DropdownButton<String?>(
-                      value: filter.building,
+                      value: buildingValue,
                       hint: const Text(AppStrings.allBuildings),
                       items: [
                         const DropdownMenuItem(
                           value: null,
                           child: Text(AppStrings.allBuildings),
                         ),
-                        for (final building in buildings)
+                        for (final building in buildingItems)
                           DropdownMenuItem(
                             value: building,
                             child: Text(building),
@@ -140,7 +157,10 @@ class ClassroomPage extends ConsumerWidget {
               value: rooms,
               onRetry: () => ref.invalidate(freeClassroomsProvider),
               builder: (data) {
-                final items = data.rooms;
+                final items = ClassroomQueryLogic.filterByPeriod(
+                  data.rooms,
+                  filter.period,
+                );
                 if (items.isEmpty) {
                   return const EmptyHint(
                     icon: Icons.meeting_room_outlined,
@@ -154,15 +174,30 @@ class ClassroomPage extends ConsumerWidget {
                   itemBuilder: (context, index) {
                     final room = items[index];
                     return Card(
-                      child: ListTile(
-                        leading: const Icon(Icons.door_front_door_outlined),
-                        title: Text('${room.building} ${room.room}'),
-                        subtitle: Text(
-                          '${room.campus} · ${AppStrings.seats} ${room.capacity} · ${room.periodText}',
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(4, 8, 8, 10),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            ListTile(
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
+                              leading: const Icon(Icons.door_front_door_outlined),
+                              title: Text('${room.building} ${room.room}'),
+                              subtitle: Text(
+                                '${room.campus} · ${AppStrings.seats} ${room.capacity} · ${room.periodText}',
+                              ),
+                              trailing: room.freePeriods.isNotEmpty
+                                  ? const Text(AppStrings.freeNow)
+                                  : const Text('占用'),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 0, 12, 4),
+                              child: _PeriodStrip(room: room),
+                            ),
+                          ],
                         ),
-                        trailing: room.hasProjector
-                            ? const Text(AppStrings.freeNow)
-                            : null,
                       ),
                     );
                   },
@@ -171,6 +206,57 @@ class ClassroomPage extends ConsumerWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _PeriodStrip extends StatelessWidget {
+  const _PeriodStrip({required this.room});
+
+  final ClassroomSlot room;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 4,
+      runSpacing: 4,
+      children: [
+        for (var period = 1; period <= ClassroomSlot.dayLastPeriod; period++)
+          _PeriodChip(
+            period: period,
+            free: room.freePeriods.contains(period),
+          ),
+      ],
+    );
+  }
+}
+
+class _PeriodChip extends StatelessWidget {
+  const _PeriodChip({required this.period, required this.free});
+
+  final int period;
+  final bool free;
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = free ? const Color(0xFFDDF4E4) : const Color(0xFFEDEDED);
+    final fg = free ? AppColors.success : AppColors.inkSoft;
+    return Container(
+      width: 26,
+      height: 26,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        '$period',
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: fg,
+        ),
       ),
     );
   }

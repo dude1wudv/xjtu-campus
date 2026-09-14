@@ -431,11 +431,18 @@ class CasAuthRepository implements AuthRepository {
     if (id.isEmpty) {
       throw const AuthException('请先填写学号，再进行网页登录');
     }
+    final names = cookies.map((c) => c.name).toSet().join(',');
+    AppLogger.info('网页登录导入 Cookie 名称: $names');
     await _session.importCookies(cookies);
+    // 一网通办登录成功后不一定能读到名为 TGC 的 Cookie；有校园域 Cookie 即可继续。
+    if (cookies.isEmpty) {
+      throw const AuthException('网页登录未拿到任何会话 Cookie，请重试网页登录');
+    }
     if (!await _session.hasCasCookie()) {
-      throw const AuthException('网页登录未检测到 CAS 会话，请确认已在网页中登录成功');
+      AppLogger.warn('未识别到典型 CAS Cookie，仍尝试用已导入会话继续');
     }
     await _store.write(key: AppConstants.sessionModeKey, value: AppConstants.modeCas);
+    await _store.write(key: AppConstants.sessionStudentIdKey, value: id);
     await _establishDownstreamSessions();
     await _saveProfile(id);
     final name = await _store.read(AppConstants.sessionDisplayNameKey);
@@ -474,6 +481,13 @@ class CasAuthRepository implements AuthRepository {
       await _session.get(CampusUrls.jwxtHome, rewrite: false);
     } on Object {
       AppLogger.warn('jwxt 直连未完成，将优先使用 ehall 课表接口');
+    }
+    // YWTB「课表查询」workflow：访问一次页面以建立 SSO Cookie。
+    try {
+      await _session.get(CampusUrls.workflowKebiaoPage, rewrite: false);
+      AppLogger.info('已访问 workflow 课表页以建立下游会话');
+    } on Object {
+      AppLogger.warn('workflow 课表页会话未建立');
     }
   }
 

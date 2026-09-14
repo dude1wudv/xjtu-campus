@@ -38,7 +38,7 @@ class MockClassroomRepository implements ClassroomRepository {
     ),
     ClassroomSlot(
       id: 'ih-i19-105',
-      campus: '创新港',
+      campus: '创新港校区',
       building: '涵英楼',
       room: '1-105',
       capacity: 90,
@@ -63,15 +63,22 @@ class MockClassroomRepository implements ClassroomRepository {
       if (query.building != null && room.building != query.building) {
         return false;
       }
-      if (query.period != null && !room.freePeriods.contains(query.period)) {
-        return false;
-      }
       return true;
     }).toList();
+    final campuses = <String>{
+      for (final room in MockClassroomRepository.rooms) room.campus,
+    }.toList();
+    final buildings = <String>{
+      for (final room in MockClassroomRepository.rooms)
+        if (query.campus == null || room.campus == query.campus) room.building,
+    }.toList();
     return ClassroomPageData(
       rooms: rooms,
       live: false,
       banner: AppStrings.mockBanner,
+      campuses: campuses,
+      buildingsForCampus: buildings,
+      buildingCount: buildings.length,
     );
   }
 }

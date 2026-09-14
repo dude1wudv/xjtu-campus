@@ -36,11 +36,26 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/browser',
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) {
-          final url = state.uri.queryParameters['url'] ?? '';
-          final title = state.uri.queryParameters['title'];
+          final extra = state.extra;
+          String? urlFromExtra;
+          String? titleFromExtra;
+          if (extra is Map) {
+            final rawUrl = extra['url'];
+            final rawTitle = extra['title'];
+            if (rawUrl != null) urlFromExtra = rawUrl.toString();
+            if (rawTitle != null) titleFromExtra = rawTitle.toString();
+          }
+          final url = urlFromExtra ??
+              (state.uri.queryParameters['url'] == null
+                  ? null
+                  : Uri.decodeComponent(state.uri.queryParameters['url']!));
+          final title = titleFromExtra ??
+              (state.uri.queryParameters['title'] == null
+                  ? null
+                  : Uri.decodeComponent(state.uri.queryParameters['title']!));
           return InAppBrowserPage(
-            initialUrl: Uri.decodeComponent(url),
-            title: title == null ? null : Uri.decodeComponent(title),
+            initialUrl: url ?? '',
+            title: title,
           );
         },
       ),

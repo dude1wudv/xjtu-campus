@@ -58,6 +58,10 @@ abstract final class CampusUrls {
       'https://jwxt.xjtu.edu.cn/jwapp/sys/homeapp/api/home/currentUser.do';
   static const String jwxtChangeRole =
       'https://jwxt.xjtu.edu.cn/jwapp/sys/homeapp/api/home/changeAppRole.do';
+  static const String ehallKxjasIndex =
+      'https://ehall.xjtu.edu.cn/jwapp/sys/kxjas/*default/index.do';
+  static const String jwxtKxjasIndex =
+      'https://jwxt.xjtu.edu.cn/jwapp/sys/kxjas/*default/index.do';
   static const String ehallEmptyRoom =
       'https://ehall.xjtu.edu.cn/jwapp/sys/kxjas/modules/kxjscx/cxkxjs.do';
   static const String ehallCampusCode =
@@ -75,6 +79,17 @@ abstract final class CampusUrls {
       'https://login.xjtu.edu.cn/cas/login?service=https%3A%2F%2Fywtb.xjtu.edu.cn%2F%3Fpath%3Dhttps%253A%252F%252Fywtb.xjtu.edu.cn%252Fmain.html%2523%252FIndex';
   static const String ywtbUser =
       'https://authx-service.xjtu.edu.cn/personal/api/v1/personal/me/user';
+
+  /// 一网通办「课表查询」workflow（YWTB selectpage），浏览器实测 XHR。
+  static const String workflow = 'https://workflow.xjtu.edu.cn';
+  static const String workflowKebiaoPage =
+      'https://workflow.xjtu.edu.cn/selectpage/page/site/newkebiao';
+  static const String workflowSelKxueqi =
+      'https://workflow.xjtu.edu.cn/selectpage/site/kebiao/selkxueqi';
+  static const String workflowUndergraduateKebiao =
+      'https://workflow.xjtu.edu.cn/selectpage/site/newkebiao/getUndergraduateKebiao';
+  static const String workflowGroupKebiao =
+      'https://workflow.xjtu.edu.cn/selectpage/site/newkebiao/getGroupKebiao';
 
   static const String jwcNotices = 'https://dean.xjtu.edu.cn';
   static const String schoolHome = 'https://www.xjtu.edu.cn';

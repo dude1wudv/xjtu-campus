@@ -9,6 +9,18 @@ abstract final class AppStrings {
   static const String webVpnHint = '不在校园网时请打开，登录后通过 webvpn.xjtu.edu.cn 访问课表/教室';
   static const String liveFallbackBanner = '实时接口不可用，以下为演示数据，仅供浏览界面。';
 
+  /// 教务处公开页浏览器特征校验失败时的提示。
+  static const String noticesChallengeFailedBanner =
+      '教务处校验失败请下拉刷新。以下为演示数据，仅供浏览界面。';
+
+  /// 已登录但课表/workflow SSO 未同步成功时的首页提示。
+  static const String liveSyncFailedBanner =
+      '课表接口未同步成功，请重新网页登录；校外请开启 WebVPN。以下为演示数据。';
+
+  /// 已登录但空闲教室接口未同步成功。
+  static const String classroomSyncFailedBanner =
+      '空闲教室接口未同步成功，请重新网页登录；校外请开启 WebVPN。以下为演示数据。';
+
   static const String navHome = '首页';
   static const String navSchedule = '课表';
   static const String navClassroom = '教室';
@@ -28,8 +40,7 @@ abstract final class AppStrings {
   static const String loginAction = '统一认证登录';
   static const String webLoginAction = '网页登录（推荐）';
   static const String webLoginTitle = '网页统一认证';
-  static const String webLoginHint =
-      '在学校官方页面完成登录（含验证码/短信）。登录成功后会自动返回并导入会话。';
+  static const String webLoginHint = '在学校官方页面完成登录（含验证码/短信）。登录成功后会自动返回并导入会话。';
   static const String loginDemo = '演示登录（不联网）';
   static const String logoutAction = '退出登录';
   static const String loginSuccess = '已登录统一认证';
@@ -42,8 +53,7 @@ abstract final class AppStrings {
   static const String captchaLead = '学校要求输入图形验证码。请按图片填写，应用不会自动识别。';
   static const String refreshCaptcha = '刷新验证码';
   static const String mfaCodeLabel = '短信验证码';
-  static const String mfaLead =
-      '账号开启了安全验证。验证码发到学校预留手机，请填写后再次登录。应用不会绕过二次验证。';
+  static const String mfaLead = '账号开启了安全验证。验证码发到学校预留手机，请填写后再次登录。应用不会绕过二次验证。';
   static const String mfaPhonePrefix = '已发送至 ';
   static const String resendMfa = '重新发送短信';
   static const String accountChoiceLead = '该账号有多个身份，请选择本次使用的身份。';
@@ -88,14 +98,21 @@ abstract final class AppStrings {
   static const String suggestedAlarms = '建议闹钟';
   static const String wakeUpAlarm = '起床闹钟';
   static const String classReminder = '上课提醒';
+  static const String enableWakeAlarm = '启用起床闹钟';
+  static const String enableClassReminder = '启用上课前提醒';
+  static const String reminderOffsetsLabel = '课前提醒提前量';
+  static const String selectAllAlarms = '全选';
+  static const String deselectAllAlarms = '取消全选';
   static const String createAlarms = '一键创建闹钟';
+  static const String createSelectedAlarms = '创建所选闹钟';
   static const String alarmsCreated = '已创建本地通知';
   static const String noAlarms = '课表为空，无法生成提醒';
+  static const String noSelectedAlarms = '请先勾选要创建的闹钟';
   static const String firstClass = '第一节课';
   static const String cancelAlarms = '取消已创建的提醒';
   static const String testNotification = '立即发送测试通知';
   static const String alarmStubHint =
-      '一键创建会把未来 7 天仍未开始的课程写入本机通知（时区 Asia/Shanghai）：起床为当天第一节课提前量（默认 90 分钟），上课前提醒 30 / 15 分钟。Web / 部分桌面无法预约未来通知。';
+      '可分别开关起床闹钟与课前提醒，并多选提前分钟。列表中勾选要创建的项后点「创建所选闹钟」。作息会按学校夏令时/冬令时自动切换。Web / 部分桌面无法预约未来通知。';
 
   static const String loading = '加载中…';
   static const String retry = '重试';

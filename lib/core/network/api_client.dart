@@ -24,6 +24,7 @@ class ApiClient {
       'ehall.xjtu.edu.cn',
       'ywtb.xjtu.edu.cn',
       'jwxt.xjtu.edu.cn',
+      'workflow.xjtu.edu.cn',
       'authx-service.xjtu.edu.cn',
       'dean.xjtu.edu.cn',
     ];
