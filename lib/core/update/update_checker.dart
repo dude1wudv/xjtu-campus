@@ -88,18 +88,7 @@ class UpdateChecker {
       }
 
       final assets = decoded['assets'];
-      String? apkUrl;
-      if (assets is List) {
-        for (final raw in assets) {
-          if (raw is! Map<String, dynamic>) continue;
-          final name = (raw['name'] as String?)?.toLowerCase() ?? '';
-          final url = raw['browser_download_url'] as String?;
-          if (name.endsWith('.apk') && url != null && url.isNotEmpty) {
-            apkUrl = url;
-            break;
-          }
-        }
-      }
+      final apkUrl = pickApkDownloadUrl(assets is List ? assets : null);
 
       final htmlUrl = (decoded['html_url'] as String?)?.trim() ??
           AppConstants.githubRepoUrl;
@@ -118,6 +107,25 @@ class UpdateChecker {
       AppLogger.warn('UpdateChecker 失败: $error\n$stack');
       return const UpdateCheckFailed('网络异常，暂时无法检查更新');
     }
+  }
+
+
+  /// Prefer `xjtu-campus-arm64-release.apk`, else first `.apk` asset URL.
+  static String? pickApkDownloadUrl(List<dynamic>? assets) {
+    if (assets == null) return null;
+    String? preferred;
+    String? first;
+    for (final raw in assets) {
+      if (raw is! Map) continue;
+      final name = (raw['name'] as String?)?.toLowerCase() ?? '';
+      final url = raw['browser_download_url'] as String?;
+      if (!name.endsWith('.apk') || url == null || url.isEmpty) continue;
+      first ??= url;
+      if (name == 'xjtu-campus-arm64-release.apk') {
+        preferred = url;
+      }
+    }
+    return preferred ?? first;
   }
 
   void close() => _client.close();

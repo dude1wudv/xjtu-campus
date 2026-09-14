@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'app_tokens.dart';
+
 /// 视觉参考：干净、留白、软表面、克制强调色（Grok 系产品气质）。
 abstract final class AppColors {
   static const Color ink = Color(0xFF12141A);
@@ -90,7 +92,7 @@ abstract final class AppTheme {
         height: 68,
         indicatorColor: AppColors.navy.withValues(alpha: 0.10),
         indicatorShape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(AppTokens.radiusSm),
         ),
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           final selected = states.contains(WidgetState.selected);
@@ -113,7 +115,7 @@ abstract final class AppTheme {
         elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(AppTokens.radiusLg),
           side: const BorderSide(color: AppColors.line),
         ),
       ),
@@ -124,7 +126,9 @@ abstract final class AppTheme {
         checkmarkColor: Colors.white,
         secondarySelectedColor: AppColors.navy,
         side: const BorderSide(color: AppColors.line),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppTokens.radiusPill),
+        ),
         labelStyle: const TextStyle(
           fontSize: 13,
           fontWeight: FontWeight.w600,
@@ -135,7 +139,7 @@ abstract final class AppTheme {
           fontWeight: FontWeight.w600,
           color: Colors.white,
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 4),
+        padding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceXs),
         brightness: Brightness.light,
       ),
       filledButtonTheme: FilledButtonThemeData(
@@ -144,9 +148,12 @@ abstract final class AppTheme {
           foregroundColor: Colors.white,
           elevation: 0,
           minimumSize: const Size.fromHeight(52),
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppTokens.spaceXl,
+            vertical: 14,
+          ),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(AppTokens.radiusMd),
           ),
           textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
         ),
@@ -157,7 +164,7 @@ abstract final class AppTheme {
           minimumSize: const Size.fromHeight(52),
           side: BorderSide(color: AppColors.navy.withValues(alpha: 0.22)),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(AppTokens.radiusMd),
           ),
           textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
         ),
@@ -166,19 +173,19 @@ abstract final class AppTheme {
         filled: true,
         fillColor: AppColors.card,
         contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 16,
+          horizontal: AppTokens.spaceLg,
+          vertical: AppTokens.spaceLg,
         ),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(AppTokens.radiusMd),
           borderSide: const BorderSide(color: AppColors.line),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(AppTokens.radiusMd),
           borderSide: const BorderSide(color: AppColors.line),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(AppTokens.radiusMd),
           borderSide: const BorderSide(color: AppColors.navy, width: 1.4),
         ),
       ),
@@ -198,7 +205,9 @@ abstract final class AppTheme {
         behavior: SnackBarBehavior.floating,
         backgroundColor: AppColors.ink,
         contentTextStyle: const TextStyle(color: Colors.white),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppTokens.radiusSm + 2),
+        ),
       ),
     );
   }

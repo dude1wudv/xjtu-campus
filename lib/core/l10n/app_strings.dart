@@ -119,6 +119,21 @@ abstract final class AppStrings {
   static const String errorTitle = '加载失败';
   static const String errorGeneric = '出了点问题，请稍后重试。';
   static const String quickActions = '快捷入口';
+  static const String todayDashboard = '今日仪表盘';
+  static const String classInProgress = '进行中';
+  static const String countdownMinutesPrefix = '还有 ';
+  static const String countdownMinutesSuffix = ' 分钟';
+  static const String countdownHoursPrefix = '还有 ';
+  static const String todayCourseCount = '今日课数';
+  static const String loggedInStatus = '已登录';
+  static const String guestStatus = '访客';
+  static const String noticesPeekTitle = '教务通知';
+  static const String noticesPeekSubtitle = '查看最新';
+  static const String noticesPeekMore = '全部通知';
+  static const String findClassroomTitle = '找空教室';
+  static const String findClassroomSubtitle = '按校区与楼宇快速筛选空闲教室';
+  static const String noMoreClassToday = '今天课程已全部结束';
+
   static const String openLogin = '去登录';
   static const String weekPrefix = '第';
   static const String weekSuffix = '周';

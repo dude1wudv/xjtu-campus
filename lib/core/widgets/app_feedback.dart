@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/app_strings.dart';
 import '../theme/app_theme.dart';
+import '../theme/app_tokens.dart';
 
 class DataSourceBanner extends StatelessWidget {
   const DataSourceBanner({
@@ -24,7 +25,7 @@ class DataSourceBanner extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(AppTokens.radiusSm + 2),
         border: Border.all(color: color.withValues(alpha: 0.18)),
       ),
       child: Row(
@@ -35,7 +36,7 @@ class DataSourceBanner extends StatelessWidget {
             size: 16,
             color: color,
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: AppTokens.spaceSm),
           Expanded(
             child: Text(
               text,
