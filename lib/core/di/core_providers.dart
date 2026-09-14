@@ -27,10 +27,15 @@ import '../../features/schedule/domain/schedule_repository.dart';
 import '../network/api_client.dart';
 import '../network/campus_session.dart';
 import '../storage/credential_store.dart';
+import '../cache/snapshot_cache.dart';
 import '../storage/secure_credential_store.dart';
 
 final credentialStoreProvider = Provider<CredentialStore>(
   (ref) => SecureCredentialStore(),
+);
+
+final snapshotCacheProvider = Provider<SnapshotCache>(
+  (ref) => SnapshotCache(),
 );
 
 final campusSessionProvider = Provider<CampusSession>((ref) {

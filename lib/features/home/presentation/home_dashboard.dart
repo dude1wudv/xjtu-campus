@@ -66,7 +66,13 @@ class _HomeDashboardState extends ConsumerState<HomeDashboard> {
         children: [
           snapshot.when(
             data: (data) =>
-                DataSourceBanner(live: data.live, message: data.banner),
+                DataSourceBanner(
+              live: data.live,
+              message: data.banner,
+              fromCache: data.fromCache,
+              cachedAt: data.cachedAt,
+              fetchedAt: data.fetchedAt,
+            ),
             loading: () => const MockDataBanner(),
             error: (_, _) => const MockDataBanner(),
           ),
@@ -87,10 +93,19 @@ class _HomeDashboardState extends ConsumerState<HomeDashboard> {
                 now,
                 weekNumber: data.week,
               );
+              final cacheAge = data.fromCache && data.cachedAt != null
+                  ? AppStrings.updatedAtLabel(data.cachedAt!)
+                  : (data.live && data.fetchedAt != null
+                      ? AppStrings.freshUpdatedLabel(data.fetchedAt)
+                      : null);
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _NextClassHero(hero: hero, now: now),
+                  _NextClassHero(
+                    hero: hero,
+                    now: now,
+                    cacheAgeLabel: cacheAge,
+                  ),
                   const SizedBox(height: AppTokens.spaceMd),
                   _TodayStatsRow(
                     todayCount: todayCount,
@@ -269,10 +284,15 @@ class _GreetingCard extends StatelessWidget {
 }
 
 class _NextClassHero extends StatelessWidget {
-  const _NextClassHero({required this.hero, required this.now});
+  const _NextClassHero({
+    required this.hero,
+    required this.now,
+    this.cacheAgeLabel,
+  });
 
   final _HeroCourse? hero;
   final DateTime now;
+  final String? cacheAgeLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -307,6 +327,16 @@ class _NextClassHero extends StatelessWidget {
                       fontSize: 13,
                     ),
                   ),
+                  if (cacheAgeLabel != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      cacheAgeLabel!,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppColors.inkSoft,
+                            fontSize: 11.5,
+                          ),
+                    ),
+                  ],
                   const SizedBox(height: AppTokens.spaceXs),
                   Text(
                     hero == null
@@ -400,6 +430,16 @@ class _NextClassHero extends StatelessWidget {
                 ),
             ],
           ),
+          if (cacheAgeLabel != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              cacheAgeLabel!,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.inkSoft,
+                    fontSize: 11.5,
+                  ),
+            ),
+          ],
           const SizedBox(height: AppTokens.spaceMd),
           Text(
             item.name,

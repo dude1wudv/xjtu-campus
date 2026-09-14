@@ -229,7 +229,13 @@ class _AlarmsPageState extends ConsumerState<AlarmsPage> {
               children: [
                 snapshot.when(
                   data: (data) =>
-                      DataSourceBanner(live: data.live, message: data.banner),
+                      DataSourceBanner(
+                        live: data.live,
+                        message: data.banner,
+                        fromCache: data.fromCache,
+                        cachedAt: data.cachedAt,
+                        fetchedAt: data.fetchedAt,
+                      ),
                   loading: () => const MockDataBanner(),
                   error: (_, _) => const MockDataBanner(),
                 ),

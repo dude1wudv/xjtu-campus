@@ -55,6 +55,35 @@ class ClassroomSlot extends Equatable {
     return parts.join(',');
   }
 
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'campus': campus,
+    'building': building,
+    'room': room,
+    'capacity': capacity,
+    'freePeriods': freePeriods,
+    'hasProjector': hasProjector,
+  };
+
+  factory ClassroomSlot.fromJson(Map<String, dynamic> json) {
+    final periodsRaw = json['freePeriods'];
+    final freePeriods = <int>[];
+    if (periodsRaw is List) {
+      for (final p in periodsRaw) {
+        if (p is num) freePeriods.add(p.toInt());
+      }
+    }
+    return ClassroomSlot(
+      id: json['id'] as String? ?? '',
+      campus: json['campus'] as String? ?? '',
+      building: json['building'] as String? ?? '',
+      room: json['room'] as String? ?? '',
+      capacity: (json['capacity'] as num?)?.toInt() ?? 0,
+      freePeriods: freePeriods,
+      hasProjector: json['hasProjector'] as bool? ?? true,
+    );
+  }
+
   @override
   List<Object?> get props => [
     id,
@@ -83,6 +112,11 @@ class ClassroomPageData {
     this.campuses = const [],
     this.buildingsForCampus = const [],
     this.buildingCount = 0,
+    this.fromCache = false,
+    this.cachedAt,
+    this.fetchedAt,
+    this.queryCampus,
+    this.queryBuilding,
   });
 
   final List<ClassroomSlot> rooms;
@@ -97,4 +131,92 @@ class ClassroomPageData {
 
   /// Number of buildings covered by the current campus filter.
   final int buildingCount;
+  final bool fromCache;
+  final DateTime? cachedAt;
+  final DateTime? fetchedAt;
+  final String? queryCampus;
+  final String? queryBuilding;
+
+  ClassroomPageData copyWith({
+    List<ClassroomSlot>? rooms,
+    bool? live,
+    String? banner,
+    List<String>? campuses,
+    List<String>? buildingsForCampus,
+    int? buildingCount,
+    bool? fromCache,
+    DateTime? cachedAt,
+    DateTime? fetchedAt,
+    String? queryCampus,
+    String? queryBuilding,
+    bool clearCachedAt = false,
+    bool clearFetchedAt = false,
+  }) {
+    return ClassroomPageData(
+      rooms: rooms ?? this.rooms,
+      live: live ?? this.live,
+      banner: banner ?? this.banner,
+      campuses: campuses ?? this.campuses,
+      buildingsForCampus: buildingsForCampus ?? this.buildingsForCampus,
+      buildingCount: buildingCount ?? this.buildingCount,
+      fromCache: fromCache ?? this.fromCache,
+      cachedAt: clearCachedAt ? null : (cachedAt ?? this.cachedAt),
+      fetchedAt: clearFetchedAt ? null : (fetchedAt ?? this.fetchedAt),
+      queryCampus: queryCampus ?? this.queryCampus,
+      queryBuilding: queryBuilding ?? this.queryBuilding,
+    );
+  }
+
+  ClassroomPageData asCached(DateTime savedAt, {required String banner}) =>
+      copyWith(
+        fromCache: true,
+        cachedAt: savedAt,
+        banner: banner,
+        clearFetchedAt: true,
+      );
+
+  ClassroomPageData asFresh({String? banner}) => copyWith(
+        fromCache: false,
+        fetchedAt: DateTime.now(),
+        banner: banner ?? this.banner,
+        clearCachedAt: true,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'rooms': rooms.map((r) => r.toJson()).toList(),
+        'live': live,
+        'banner': banner,
+        'campuses': campuses,
+        'buildingsForCampus': buildingsForCampus,
+        'buildingCount': buildingCount,
+        if (queryCampus != null) 'queryCampus': queryCampus,
+        if (queryBuilding != null) 'queryBuilding': queryBuilding,
+      };
+
+  factory ClassroomPageData.fromJson(Map<String, dynamic> json) {
+    final rooms = <ClassroomSlot>[];
+    final roomsRaw = json['rooms'];
+    if (roomsRaw is List) {
+      for (final item in roomsRaw) {
+        if (item is Map) {
+          rooms.add(ClassroomSlot.fromJson(Map<String, dynamic>.from(item)));
+        }
+      }
+    }
+    List<String> strList(Object? raw) {
+      if (raw is! List) return const [];
+      return [for (final e in raw) if (e is String) e];
+    }
+
+    return ClassroomPageData(
+      rooms: rooms,
+      live: json['live'] as bool? ?? true,
+      banner: json['banner'] as String? ?? '',
+      campuses: strList(json['campuses']),
+      buildingsForCampus: strList(json['buildingsForCampus']),
+      buildingCount: (json['buildingCount'] as num?)?.toInt() ?? 0,
+      queryCampus: json['queryCampus'] as String?,
+      queryBuilding: json['queryBuilding'] as String?,
+    );
+  }
 }

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/cache/cached_snapshot_loader.dart';
+import '../../../core/cache/snapshot_cache.dart';
 import '../../../core/di/core_providers.dart';
 import '../../../core/l10n/app_strings.dart';
 import '../../../core/theme/app_theme.dart';
@@ -30,16 +32,51 @@ class ClassroomFilter extends Notifier<ClassroomQuery> {
 final classroomFilterProvider =
     NotifierProvider<ClassroomFilter, ClassroomQuery>(ClassroomFilter.new);
 
+class FreeClassroomsNotifier extends AsyncNotifier<ClassroomPageData> {
+  @override
+  Future<ClassroomPageData> build() async {
+    ref.watch(authControllerProvider.select((state) => state.user.sessionToken));
+    final campus =
+        ref.watch(classroomFilterProvider.select((query) => query.campus));
+    final building =
+        ref.watch(classroomFilterProvider.select((query) => query.building));
+    final result = await loadWithCache<ClassroomPageData>(
+      cache: ref.watch(snapshotCacheProvider),
+      key: SnapshotCache.classroom,
+      fromJson: ClassroomPageData.fromJson,
+      toJson: (s) => s.copyWith(
+        queryCampus: campus,
+        queryBuilding: building,
+      ).toJson(),
+      fetch: () async {
+        final data = await ref.read(classroomRepositoryProvider).findFree(
+              ClassroomQuery(campus: campus, building: building),
+            );
+        return data.copyWith(queryCampus: campus, queryBuilding: building);
+      },
+      isLive: (s) => s.live,
+      markCached: (s, t) => s.asCached(
+        t,
+        banner: '${AppStrings.classroomCacheBanner} · ${AppStrings.updatedAtLabel(t)}',
+      ),
+      markRefreshFailed: (s, t) => s.asCached(
+        t,
+        banner: AppStrings.cacheRefreshFailed,
+      ),
+      emit: (s) => state = AsyncData(s),
+    );
+    if (result.live && !result.fromCache) {
+      return result.asFresh();
+    }
+    return result;
+  }
+}
+
 /// Campus/building changes refetch; period is applied locally after a full-day parse.
-final freeClassroomsProvider = FutureProvider<ClassroomPageData>((ref) {
-  ref.watch(authControllerProvider.select((state) => state.user.sessionToken));
-  final campus = ref.watch(classroomFilterProvider.select((query) => query.campus));
-  final building =
-      ref.watch(classroomFilterProvider.select((query) => query.building));
-  return ref.watch(classroomRepositoryProvider).findFree(
-        ClassroomQuery(campus: campus, building: building),
-      );
-});
+final freeClassroomsProvider =
+    AsyncNotifierProvider<FreeClassroomsNotifier, ClassroomPageData>(
+  FreeClassroomsNotifier.new,
+);
 
 class ClassroomPage extends ConsumerWidget {
   const ClassroomPage({super.key});
@@ -85,7 +122,13 @@ class ClassroomPage extends ConsumerWidget {
               children: [
                 rooms.when(
                   data: (data) =>
-                      DataSourceBanner(live: data.live, message: data.banner),
+                      DataSourceBanner(
+                        live: data.live,
+                        message: data.banner,
+                        fromCache: data.fromCache,
+                        cachedAt: data.cachedAt,
+                        fetchedAt: data.fetchedAt,
+                      ),
                   loading: () => const MockDataBanner(),
                   error: (_, _) => const MockDataBanner(),
                 ),
@@ -153,7 +196,12 @@ class ClassroomPage extends ConsumerWidget {
             ),
           ),
           Expanded(
-            child: AsyncBody(
+            child: RefreshIndicator(
+              onRefresh: () async {
+                ref.invalidate(freeClassroomsProvider);
+                await ref.read(freeClassroomsProvider.future);
+              },
+              child: AsyncBody(
               value: rooms,
               onRetry: () => ref.invalidate(freeClassroomsProvider),
               builder: (data) {
@@ -162,12 +210,19 @@ class ClassroomPage extends ConsumerWidget {
                   filter.period,
                 );
                 if (items.isEmpty) {
-                  return const EmptyHint(
-                    icon: Icons.meeting_room_outlined,
-                    text: AppStrings.emptyClassrooms,
+                  return ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: const [
+                      SizedBox(height: 120),
+                      EmptyHint(
+                        icon: Icons.meeting_room_outlined,
+                        text: AppStrings.emptyClassrooms,
+                      ),
+                    ],
                   );
                 }
                 return ListView.separated(
+                  physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                   itemCount: items.length,
                   separatorBuilder: (context, index) => const SizedBox(height: 8),
@@ -203,6 +258,7 @@ class ClassroomPage extends ConsumerWidget {
                   },
                 );
               },
+            ),
             ),
           ),
         ],

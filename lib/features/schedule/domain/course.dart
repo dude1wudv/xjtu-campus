@@ -240,6 +240,43 @@ class Course extends Equatable {
     return best;
   }
 
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'teacher': teacher,
+    'campus': campus,
+    'building': building,
+    'room': room,
+    'weekday': weekday,
+    'startPeriod': startPeriod,
+    'endPeriod': endPeriod,
+    'weeks': weeks,
+    'weeksLabel': weeksLabel,
+  };
+
+  factory Course.fromJson(Map<String, dynamic> json) {
+    final weeksRaw = json['weeks'];
+    final weeks = <int>[];
+    if (weeksRaw is List) {
+      for (final w in weeksRaw) {
+        if (w is num) weeks.add(w.toInt());
+      }
+    }
+    return Course(
+      id: json['id'] as String? ?? '',
+      name: json['name'] as String? ?? '',
+      teacher: json['teacher'] as String? ?? '',
+      campus: json['campus'] as String? ?? '',
+      building: json['building'] as String? ?? '',
+      room: json['room'] as String? ?? '',
+      weekday: (json['weekday'] as num?)?.toInt() ?? 1,
+      startPeriod: (json['startPeriod'] as num?)?.toInt() ?? 1,
+      endPeriod: (json['endPeriod'] as num?)?.toInt() ?? 1,
+      weeks: weeks,
+      weeksLabel: json['weeksLabel'] as String? ?? '1-16周',
+    );
+  }
+
   @override
   List<Object?> get props => [
     id,

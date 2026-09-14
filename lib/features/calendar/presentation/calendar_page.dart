@@ -54,15 +54,22 @@ class CalendarPage extends ConsumerWidget {
       ),
       body: RefreshIndicator(
         onRefresh: () async {
-          ref.invalidate(calendarSnapshotProvider);
           ref.invalidate(scheduleSnapshotProvider);
+          ref.invalidate(calendarSnapshotProvider);
+          await ref.read(calendarSnapshotProvider.future);
         },
         child: ListView(
           padding: AppTokens.pagePadding,
           children: [
             snap.when(
               data: (data) =>
-                  DataSourceBanner(live: data.live, message: data.banner),
+                  DataSourceBanner(
+                    live: data.live,
+                    message: data.banner,
+                    fromCache: data.fromCache,
+                    cachedAt: data.cachedAt,
+                    fetchedAt: data.fetchedAt,
+                  ),
               loading: () => const MockDataBanner(),
               error: (_, _) => const MockDataBanner(),
             ),

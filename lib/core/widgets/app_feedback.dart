@@ -10,45 +10,122 @@ class DataSourceBanner extends StatelessWidget {
     super.key,
     this.live = false,
     this.message,
+    this.fromCache = false,
+    this.cachedAt,
+    this.fetchedAt,
   });
 
   final bool live;
   final String? message;
 
+  /// When true, show 「缓存」chip and prefer [cachedAt] for secondary time.
+  final bool fromCache;
+  final DateTime? cachedAt;
+  final DateTime? fetchedAt;
+
+  String? get _timeCaption {
+    if (fromCache && cachedAt != null) {
+      return AppStrings.updatedAtLabel(cachedAt!);
+    }
+    if (live && !fromCache) {
+      return AppStrings.freshUpdatedLabel(fetchedAt ?? DateTime.now());
+    }
+    if (cachedAt != null) {
+      return AppStrings.updatedAtLabel(cachedAt!);
+    }
+    if (fetchedAt != null) {
+      return AppStrings.updatedAtLabel(fetchedAt!);
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final text =
         message ?? (live ? AppStrings.liveBanner : AppStrings.mockBanner);
-    final color = live ? AppColors.success : AppColors.gold;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(AppTokens.radiusSm + 2),
-        border: Border.all(color: color.withValues(alpha: 0.18)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            live ? Icons.check_circle_outline : Icons.info_outline,
-            size: 16,
-            color: color,
-          ),
-          const SizedBox(width: AppTokens.spaceSm),
-          Expanded(
-            child: Text(
-              text,
-              style: TextStyle(
-                fontSize: 12.5,
-                height: 1.35,
-                color: AppColors.inkSoft,
-                fontWeight: FontWeight.w500,
+    final color = fromCache
+        ? AppColors.gold
+        : (live ? AppColors.success : AppColors.gold);
+    final timeCaption = _timeCaption;
+    return Opacity(
+      opacity: fromCache ? 0.92 : 1,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(AppTokens.radiusSm + 2),
+          border: Border.all(color: color.withValues(alpha: 0.18)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              fromCache
+                  ? Icons.history_rounded
+                  : (live ? Icons.check_circle_outline : Icons.info_outline),
+              size: 16,
+              color: color,
+            ),
+            const SizedBox(width: AppTokens.spaceSm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (fromCache) ...[
+                        Container(
+                          margin: const EdgeInsets.only(right: 6, top: 1),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 1,
+                          ),
+                          decoration: BoxDecoration(
+                            color: color.withValues(alpha: 0.18),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            AppStrings.cacheChip,
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w700,
+                              color: color,
+                              height: 1.2,
+                            ),
+                          ),
+                        ),
+                      ],
+                      Expanded(
+                        child: Text(
+                          text,
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            height: 1.35,
+                            color: AppColors.inkSoft,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (timeCaption != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      timeCaption,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppColors.inkSoft,
+                            fontSize: 11.5,
+                            height: 1.2,
+                          ),
+                    ),
+                  ],
+                ],
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -78,6 +155,8 @@ class AsyncBody<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return value.when(
+      skipLoadingOnReload: true,
+      skipLoadingOnRefresh: true,
       data: builder,
       loading: () => const Padding(
         padding: EdgeInsets.symmetric(vertical: 40),

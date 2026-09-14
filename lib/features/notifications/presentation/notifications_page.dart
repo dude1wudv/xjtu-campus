@@ -41,10 +41,15 @@ class NotificationsPage extends ConsumerWidget {
     ref.invalidate(noticesFallbackProvider);
   }
 
-  NoticesSnapshot _filterLive(
+  NoticesSnapshot _filterNotices(
     List<SchoolNotice> notices,
-    NoticeFilterRule rule,
-  ) {
+    NoticeFilterRule rule, {
+    required bool live,
+    required bool fromCache,
+    DateTime? cachedAt,
+    DateTime? fetchedAt,
+    String? banner,
+  }) {
     final filtered = notices.where(rule.matches).toList()
       ..sort((a, b) {
         if (a.pinned != b.pinned) return a.pinned ? -1 : 1;
@@ -52,8 +57,16 @@ class NotificationsPage extends ConsumerWidget {
       });
     return NoticesSnapshot(
       notices: filtered,
-      live: true,
-      banner: AppStrings.noticesLiveBanner,
+      live: live,
+      banner: banner ??
+          (fromCache
+              ? (cachedAt != null
+                  ? AppStrings.cacheBanner(cachedAt)
+                  : AppStrings.classroomCacheBanner)
+              : AppStrings.noticesLiveBanner),
+      fromCache: fromCache,
+      cachedAt: cachedAt,
+      fetchedAt: fetchedAt,
     );
   }
 
@@ -63,8 +76,33 @@ class NotificationsPage extends ConsumerWidget {
     final live = ref.watch(liveDeanNoticesProvider);
 
     final AsyncValue<NoticesSnapshot> snapshot;
-    if (live.isSuccess) {
-      snapshot = AsyncValue.data(_filterLive(live.notices, filter));
+    if (live.isSuccess && !live.fromCache) {
+      snapshot = AsyncValue.data(
+        _filterNotices(
+          live.notices,
+          filter,
+          live: true,
+          fromCache: false,
+          fetchedAt: live.fetchedAt ?? DateTime.now(),
+          banner: AppStrings.noticesLiveBanner,
+        ),
+      );
+    } else if (live.notices.isNotEmpty && (live.fromCache || live.isLoading)) {
+      // Show cached notices immediately while WebView loads (or after soft fail).
+      snapshot = AsyncValue.data(
+        _filterNotices(
+          live.notices,
+          filter,
+          live: true,
+          fromCache: true,
+          cachedAt: live.cachedAt,
+          banner: live.isFailed
+              ? AppStrings.cacheRefreshFailed
+              : (live.cachedAt != null
+                  ? AppStrings.cacheBanner(live.cachedAt!)
+                  : null),
+        ),
+      );
     } else if (live.isFailed) {
       snapshot = ref.watch(noticesFallbackProvider);
     } else {
@@ -103,9 +141,13 @@ class NotificationsPage extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     snapshot.when(
+                      skipLoadingOnReload: true,
                       data: (data) => DataSourceBanner(
                         live: data.live,
                         message: data.banner,
+                        fromCache: data.fromCache,
+                        cachedAt: data.cachedAt,
+                        fetchedAt: data.fetchedAt,
                       ),
                       loading: () => const DataSourceBanner(
                         message: '正在通过浏览器加载教务通知…',

@@ -190,6 +190,48 @@ abstract final class AppStrings {
       '校园卡余额/流水功能本版本暂缓（ncard 独立认证链），后续迭代再接入。';
 
   static const List<String> weekdays = ['一', '二', '三', '四', '五', '六', '日'];
+
+  static const String cacheChip = '缓存';
+  static const String cacheJustUpdated = '刚刚更新';
+  static const String cacheRefreshFailed = '网络刷新失败，仍显示缓存';
+  static const String classroomCacheBanner = '缓存 · 上次查询';
+  static const String clearCache = '清除缓存';
+  static const String clearCacheSubtitle = '删除本机课表/成绩/考试等缓存（不影响登录）';
+  static const String clearCacheDone = '已清除本地缓存';
+
+  /// 「缓存数据 · 更新于 M/d HH:mm」
+  static String cacheBanner(DateTime t) {
+    final local = t.toLocal();
+    return '缓存数据 · 更新于 ${_mdHm(local)}';
+  }
+
+  /// 「更新于 M月d日 HH:mm」
+  static String updatedAtLabel(DateTime t) {
+    final local = t.toLocal();
+    return '更新于 ${local.month}月${local.day}日 ${_hm(local)}';
+  }
+
+  /// Fresh live fetch caption.
+  static String freshUpdatedLabel(DateTime? fetchedAt) {
+    if (fetchedAt == null) return cacheJustUpdated;
+    final local = fetchedAt.toLocal();
+    final age = DateTime.now().difference(local);
+    if (age.inMinutes < 2) return cacheJustUpdated;
+    return updatedAtLabel(local);
+  }
+
+  static String _mdHm(DateTime t) {
+    final m = t.minute.toString().padLeft(2, '0');
+    final h = t.hour.toString().padLeft(2, '0');
+    return '${t.month}/${t.day} $h:$m';
+  }
+
+  static String _hm(DateTime t) {
+    final m = t.minute.toString().padLeft(2, '0');
+    final h = t.hour.toString().padLeft(2, '0');
+    return '$h:$m';
+  }
+
   static const List<String> weekdayFull = [
     '星期一',
     '星期二',

@@ -33,6 +33,14 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
         title: const Text(AppStrings.navSchedule),
         actions: [
           IconButton(
+            tooltip: '刷新',
+            onPressed: () async {
+              ref.invalidate(scheduleSnapshotProvider);
+              await ref.read(scheduleSnapshotProvider.future);
+            },
+            icon: const Icon(Icons.refresh_rounded),
+          ),
+          IconButton(
             tooltip: _weekView ? AppStrings.listView : AppStrings.weekView,
             onPressed: () => setState(() => _weekView = !_weekView),
             icon: Icon(_weekView ? Icons.view_agenda_outlined : Icons.grid_view),
@@ -57,7 +65,13 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    DataSourceBanner(live: data.live, message: data.banner),
+                    DataSourceBanner(
+                      live: data.live,
+                      message: data.banner,
+                      fromCache: data.fromCache,
+                      cachedAt: data.cachedAt,
+                      fetchedAt: data.fetchedAt,
+                    ),
                     const SizedBox(height: 8),
                     Text(
                       '${AppStrings.scheduleSubtitle} · ${AppStrings.weekPrefix}$week ${AppStrings.weekSuffix}',

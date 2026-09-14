@@ -6,6 +6,7 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/cache/snapshot_cache.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/l10n/app_strings.dart';
 import '../../../core/theme/app_theme.dart';
@@ -135,6 +136,22 @@ class _AboutSheetBodyState extends State<_AboutSheetBody> {
               subtitle: Text(AppConstants.githubRepoUrl),
               trailing: const Icon(Icons.open_in_new_rounded),
               onTap: _openGithub,
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.cleaning_services_outlined,
+                  color: AppColors.navy),
+              title: const Text(AppStrings.clearCache),
+              subtitle: const Text(AppStrings.clearCacheSubtitle),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () async {
+                final messenger = ScaffoldMessenger.of(context);
+                await SnapshotCache().clearAll();
+                if (!mounted) return;
+                messenger.showSnackBar(
+                  const SnackBar(content: Text(AppStrings.clearCacheDone)),
+                );
+              },
             ),
           ],
         ),

@@ -43,13 +43,22 @@ class _GradesPageState extends ConsumerState<GradesPage> {
         ),
       ),
       body: RefreshIndicator(
-        onRefresh: () async => ref.invalidate(gradesSnapshotProvider),
+        onRefresh: () async {
+          ref.invalidate(gradesSnapshotProvider);
+          await ref.read(gradesSnapshotProvider.future);
+        },
         child: ListView(
           padding: AppTokens.pagePadding,
           children: [
             snap.when(
               data: (data) =>
-                  DataSourceBanner(live: data.live, message: data.banner),
+                  DataSourceBanner(
+                    live: data.live,
+                    message: data.banner,
+                    fromCache: data.fromCache,
+                    cachedAt: data.cachedAt,
+                    fetchedAt: data.fetchedAt,
+                  ),
               loading: () => const MockDataBanner(),
               error: (_, _) => const MockDataBanner(),
             ),

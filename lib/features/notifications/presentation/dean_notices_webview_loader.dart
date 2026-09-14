@@ -6,7 +6,9 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/campus_urls.dart';
+import '../../../core/cache/snapshot_cache.dart';
 import '../../../core/di/core_providers.dart';
+import '../../../core/l10n/app_strings.dart';
 import '../../../core/logging/app_logger.dart';
 import '../data/dean_notices_parser.dart';
 import '../data/dean_public_challenge.dart';
@@ -21,11 +23,17 @@ class LiveDeanNoticesState {
     this.status = LiveDeanNoticesStatus.idle,
     this.notices = const [],
     this.baseUrl,
+    this.fromCache = false,
+    this.cachedAt,
+    this.fetchedAt,
   });
 
   final LiveDeanNoticesStatus status;
   final List<SchoolNotice> notices;
   final String? baseUrl;
+  final bool fromCache;
+  final DateTime? cachedAt;
+  final DateTime? fetchedAt;
 
   bool get isLoading =>
       status == LiveDeanNoticesStatus.loading ||
@@ -36,38 +44,108 @@ class LiveDeanNoticesState {
 
   bool get isFailed => status == LiveDeanNoticesStatus.failed;
 
+  /// Cached list available while WebView still loading / failed.
+  bool get hasCachedNotices => notices.isNotEmpty && fromCache;
+
   LiveDeanNoticesState copyWith({
     LiveDeanNoticesStatus? status,
     List<SchoolNotice>? notices,
     String? baseUrl,
+    bool? fromCache,
+    DateTime? cachedAt,
+    DateTime? fetchedAt,
   }) {
     return LiveDeanNoticesState(
       status: status ?? this.status,
       notices: notices ?? this.notices,
       baseUrl: baseUrl ?? this.baseUrl,
+      fromCache: fromCache ?? this.fromCache,
+      cachedAt: cachedAt ?? this.cachedAt,
+      fetchedAt: fetchedAt ?? this.fetchedAt,
     );
   }
 }
 
 class LiveDeanNoticesNotifier extends Notifier<LiveDeanNoticesState> {
   @override
-  LiveDeanNoticesState build() => const LiveDeanNoticesState(
-        status: LiveDeanNoticesStatus.loading,
+  LiveDeanNoticesState build() {
+    Future.microtask(_hydrateFromCache);
+    return const LiveDeanNoticesState(
+      status: LiveDeanNoticesStatus.loading,
+    );
+  }
+
+  Future<void> _hydrateFromCache() async {
+    final envelope = await ref
+        .read(snapshotCacheProvider)
+        .readEnvelope(SnapshotCache.notices, NoticesSnapshot.fromJson);
+    if (envelope == null) return;
+    // Do not clobber a live success that arrived first.
+    if (state.isSuccess && !state.fromCache) return;
+    if (state.status == LiveDeanNoticesStatus.failed) {
+      state = LiveDeanNoticesState(
+        status: LiveDeanNoticesStatus.failed,
+        notices: envelope.payload.notices,
+        fromCache: true,
+        cachedAt: envelope.savedAt,
       );
+      return;
+    }
+    state = LiveDeanNoticesState(
+      status: state.isLoading
+          ? LiveDeanNoticesStatus.loading
+          : state.status,
+      notices: envelope.payload.notices,
+      fromCache: true,
+      cachedAt: envelope.savedAt,
+    );
+  }
 
   void markLoading() {
-    state = const LiveDeanNoticesState(status: LiveDeanNoticesStatus.loading);
+    // Keep prior cache visible under loading if we had one.
+    final prior = state;
+    state = LiveDeanNoticesState(
+      status: LiveDeanNoticesStatus.loading,
+      notices: prior.fromCache || prior.isSuccess ? prior.notices : const [],
+      fromCache: prior.fromCache || (prior.isSuccess && prior.notices.isNotEmpty),
+      cachedAt: prior.cachedAt ?? prior.fetchedAt,
+    );
   }
 
   void markSuccess(List<SchoolNotice> notices, {required String baseUrl}) {
+    final now = DateTime.now();
     state = LiveDeanNoticesState(
       status: LiveDeanNoticesStatus.success,
       notices: notices,
       baseUrl: baseUrl,
+      fromCache: false,
+      fetchedAt: now,
     );
+    // Persist live-only; never log full notice bodies here.
+    Future.microtask(() async {
+      final snap = NoticesSnapshot(
+        notices: notices,
+        live: true,
+        banner: AppStrings.noticesLiveBanner,
+      );
+      await ref.read(snapshotCacheProvider).write(
+            SnapshotCache.notices,
+            snap.toJson(),
+          );
+    });
   }
 
   void markFailed() {
+    final prior = state;
+    if (prior.notices.isNotEmpty) {
+      state = LiveDeanNoticesState(
+        status: LiveDeanNoticesStatus.failed,
+        notices: prior.notices,
+        fromCache: true,
+        cachedAt: prior.cachedAt ?? prior.fetchedAt,
+      );
+      return;
+    }
     state = const LiveDeanNoticesState(status: LiveDeanNoticesStatus.failed);
   }
 }
