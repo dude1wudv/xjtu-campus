@@ -23,21 +23,21 @@ class _CasWebLoginPageState extends ConsumerState<CasWebLoginPage> {
   var _finishing = false;
   String? _status;
 
-  Uri get _startUrl => Uri.parse(
-        '${CampusUrls.casLogin}?service=${Uri.encodeComponent(CampusUrls.jwxtHome)}&locale=zh',
-      );
+  Uri get _startUrl => Uri.parse(CampusUrls.casLoginYwtb);
 
   Future<void> _tryFinish(Uri uri) async {
     if (_finishing) return;
     final host = uri.host;
     final path = uri.path;
+    // ignore unauthorized-service interstitial
     final leftCas =
         host != 'login.xjtu.edu.cn' || !path.contains('/cas/login');
     final landedCampus = host.endsWith('xjtu.edu.cn') &&
-        (host.startsWith('jwxt') ||
-            host.startsWith('ehall') ||
-            host.startsWith('ywtb') ||
-            host.startsWith('webvpn'));
+        (host.contains('ehall') ||
+            host.contains('ywtb') ||
+            host.contains('jwxt') ||
+            host.contains('webvpn') ||
+            host.contains('authx-service'));
     if (!leftCas && !landedCampus) return;
 
     final cookieManager = CookieManager.instance();
@@ -137,7 +137,20 @@ class _CasWebLoginPageState extends ConsumerState<CasWebLoginPage> {
               },
               onLoadStop: (controller, url) async {
                 if (url != null) {
-                  await _tryFinish(Uri.parse(url.toString()));
+                  final uri = Uri.parse(url.toString());
+                  final html = await controller.evaluateJavascript(
+                    source: 'document.body ? document.body.innerText : ""',
+                  );
+                  final text = html?.toString() ?? '';
+                  if (text.contains('未认证授权的服务') ||
+                      text.contains('missing service')) {
+                    setState(() => _status = '登录目标已纠正，正在重新打开一网通办认证…');
+                    await controller.loadUrl(
+                      urlRequest: URLRequest(url: WebUri(CampusUrls.casLoginYwtb)),
+                    );
+                    return;
+                  }
+                  await _tryFinish(uri);
                 }
               },
             ),

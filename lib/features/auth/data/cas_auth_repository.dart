@@ -141,7 +141,8 @@ class CasAuthRepository implements AuthRepository {
   Future<_PendingCas> _begin(String studentId, String password) async {
     final fp = _fpVisitorId();
     final candidates = <String>[
-      '${CampusUrls.casLogin}?service=${Uri.encodeComponent(CampusUrls.jwxtHome)}&locale=zh',
+      CampusUrls.casLoginYwtb,
+      CampusUrls.casLoginEhall,
       '${CampusUrls.casLogin}?locale=zh',
       CampusUrls.casLogin,
     ];
@@ -448,18 +449,9 @@ class CasAuthRepository implements AuthRepository {
 
   Future<void> _establishDownstreamSessions() async {
     await _session.ensureWebVpnSession();
+    // 只走 CAS 已注册服务。jwxt home 作 service 会报 missing service。
     try {
-      await _session.get(CampusUrls.jwxtHome);
-    } on Object {
-      AppLogger.warn('教务系统单点登录未完成，课表可能需要校园网或 WebVPN');
-    }
-    try {
-      await _session.get(CampusUrls.ehallLogin);
-    } on Object {
-      AppLogger.warn('ehall 单点登录未完成');
-    }
-    try {
-      final ywtb = await _session.get(CampusUrls.ywtbCasLogin);
+      final ywtb = await _session.get(CampusUrls.ywtbCasLogin, rewrite: false);
       final ticket = ywtb.realUri.queryParameters['ticket'];
       if (ticket != null && ticket.contains('.')) {
         final payload = _jwtPayload(ticket);
@@ -470,6 +462,18 @@ class CasAuthRepository implements AuthRepository {
       }
     } on Object {
       AppLogger.warn('一网通办单点登录未完成');
+    }
+    try {
+      await _session.get(CampusUrls.ehallLogin, rewrite: false);
+      await _session.get(CampusUrls.ehallHome, rewrite: false);
+    } on Object {
+      AppLogger.warn('ehall 单点登录未完成');
+    }
+    // jwxt 可能未注册到 CAS；能开则开，失败不影响 ehall 课表。
+    try {
+      await _session.get(CampusUrls.jwxtHome, rewrite: false);
+    } on Object {
+      AppLogger.warn('jwxt 直连未完成，将优先使用 ehall 课表接口');
     }
   }
 

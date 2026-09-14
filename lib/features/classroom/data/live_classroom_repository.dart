@@ -6,7 +6,7 @@ import '../domain/classroom_repository.dart';
 import '../domain/classroom_slot.dart';
 import 'mock_classroom_repository.dart';
 
-/// 空闲教室：CAS 登录后走教务 kxjas（一网通办会话用于身份）。
+/// 空闲教室：优先 ehall（CAS 已注册），失败再试 jwxt。
 class LiveClassroomRepository implements ClassroomRepository {
   LiveClassroomRepository({
     required this._session,
@@ -37,7 +37,7 @@ class LiveClassroomRepository implements ClassroomRepository {
       return ClassroomPageData(
         rooms: rooms,
         live: true,
-        banner: '实时空闲教室 · 教务 kxjas（一网通办登录后，校外需 WebVPN）',
+        banner: '实时空闲教室（优先 ehall；校外可开 WebVPN）',
       );
     } on Object {
       AppLogger.warn('实时空闲教室失败，回退演示数据');
@@ -52,25 +52,46 @@ class LiveClassroomRepository implements ClassroomRepository {
 
   Map<String, String>? _campuses;
   Map<String, String>? _buildings;
+  String _host = 'ehall';
 
   Future<List<ClassroomSlot>> _fetchLive(ClassroomQuery query) async {
-    await _switchStudentRole();
-    await _loadCodes();
-    final campusCode = _campuses?[query.campus ?? '兴庆校区'] ?? _campuses?.values.first;
+    Object? last;
+    for (final host in ['ehall', 'jwxt']) {
+      try {
+        _host = host;
+        _campuses = null;
+        _buildings = null;
+        await _switchStudentRole();
+        await _loadCodes();
+        return await _queryRooms(query);
+      } on Object catch (e) {
+        last = e;
+      }
+    }
+    throw last ?? StateError('classroom fetch failed');
+  }
+
+  Future<List<ClassroomSlot>> _queryRooms(ClassroomQuery query) async {
+    final campusCode =
+        _campuses?[query.campus ?? '兴庆校区'] ?? _campuses?.values.first;
     final buildingName = query.building ?? '主楼A';
     final buildingCode = _buildings?[buildingName] ?? _buildings?['主楼A'];
     if (campusCode == null || buildingCode == null) {
       throw StateError('missing classroom codes');
     }
+    final now = DateTime.now();
     final date =
-        '${DateTime.now().year.toString().padLeft(4, '0')}-'
-        '${DateTime.now().month.toString().padLeft(2, '0')}-'
-        '${DateTime.now().day.toString().padLeft(2, '0')}';
+        '${now.year.toString().padLeft(4, '0')}-'
+        '${now.month.toString().padLeft(2, '0')}-'
+        '${now.day.toString().padLeft(2, '0')}';
     final start = query.period ?? 1;
     final end = query.period ?? 11;
+    final emptyUrl = _host == 'ehall'
+        ? CampusUrls.ehallEmptyRoom
+        : CampusUrls.jwxtEmptyRoom;
     final json = _session.tryJson(
       await _session.post(
-        CampusUrls.jwxtEmptyRoom,
+        emptyUrl,
         data: {
           'XXXQDM': campusCode,
           'JXLDM': buildingCode,
@@ -107,18 +128,21 @@ class LiveClassroomRepository implements ClassroomRepository {
 
   Future<void> _loadCodes() async {
     if (_campuses != null && _buildings != null) return;
-    _campuses = await _codeMap(CampusUrls.jwxtCampusCode);
-    _buildings = await _codeMap(CampusUrls.jwxtBuildingCode);
+    final campusUrl =
+        _host == 'ehall' ? CampusUrls.ehallCampusCode : CampusUrls.jwxtCampusCode;
+    final buildingUrl = _host == 'ehall'
+        ? CampusUrls.ehallBuildingCode
+        : CampusUrls.jwxtBuildingCode;
+    _campuses = await _codeMap(campusUrl);
+    _buildings = await _codeMap(buildingUrl);
   }
 
   Future<Map<String, String>> _codeMap(String url) async {
+    final referer = _host == 'ehall'
+        ? 'https://ehall.xjtu.edu.cn/jwapp/sys/kxjas/*default/index.do'
+        : 'https://jwxt.xjtu.edu.cn/jwapp/sys/kxjas/*default/index.do';
     final json = _session.tryJson(
-      await _session.post(
-        url,
-        headers: {
-          'Referer': 'https://jwxt.xjtu.edu.cn/jwapp/sys/kxjas/*default/index.do',
-        },
-      ),
+      await _session.post(url, headers: {'Referer': referer}),
     );
     final rows = json?['datas']?['code']?['rows'];
     final map = <String, String>{};
@@ -134,14 +158,17 @@ class LiveClassroomRepository implements ClassroomRepository {
 
   Future<void> _switchStudentRole() async {
     try {
+      final userUrl = _host == 'ehall'
+          ? CampusUrls.ehallCurrentUser
+          : CampusUrls.jwxtCurrentUser;
+      final roleUrl = _host == 'ehall'
+          ? CampusUrls.ehallChangeRole
+          : CampusUrls.jwxtChangeRole;
+      final referer = _host == 'ehall'
+          ? 'https://ehall.xjtu.edu.cn/jwapp/sys/homeapp/home/index.html?av=&contextPath=/jwapp'
+          : 'https://jwxt.xjtu.edu.cn/jwapp/sys/homeapp/home/index.html?av=&contextPath=/jwapp';
       final json = _session.tryJson(
-        await _session.get(
-          CampusUrls.jwxtCurrentUser,
-          headers: {
-            'Referer':
-                'https://jwxt.xjtu.edu.cn/jwapp/sys/homeapp/home/index.html?av=&contextPath=/jwapp',
-          },
-        ),
+        await _session.get(userUrl, headers: {'Referer': referer}),
       );
       final groups = json?['datas']?['userGroups'];
       if (groups is! List) return;
@@ -155,10 +182,7 @@ class LiveClassroomRepository implements ClassroomRepository {
         }
       }
       if (!currentIsStudent && studentId != null) {
-        await _session.post(
-          CampusUrls.jwxtChangeRole,
-          data: {'appRole': studentId},
-        );
+        await _session.post(roleUrl, data: {'appRole': studentId});
       }
     } on Object {
       // 角色切换失败时仍尝试查询。

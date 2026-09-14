@@ -4,6 +4,15 @@
 abstract final class CampusUrls {
   static const String casOrigin = 'https://login.xjtu.edu.cn';
   static const String casLogin = 'https://login.xjtu.edu.cn/cas/login';
+  /// 学校 CAS 已注册服务：一网通办（不要用 jwxt home 当 service，会报 missing service）。
+  static const String casServiceYwtb =
+      'https://ywtb.xjtu.edu.cn/?path=https%3A%2F%2Fywtb.xjtu.edu.cn%2Fmain.html%23%2FIndex';
+  static const String casServiceEhall =
+      'https://ehall.xjtu.edu.cn/new/index.html?browser=no';
+  static const String casLoginYwtb =
+      'https://login.xjtu.edu.cn/cas/login?service=https%3A%2F%2Fywtb.xjtu.edu.cn%2F%3Fpath%3Dhttps%253A%252F%252Fywtb.xjtu.edu.cn%252Fmain.html%2523%252FIndex&locale=zh';
+  static const String casLoginEhall =
+      'https://login.xjtu.edu.cn/cas/login?service=https%3A%2F%2Fehall.xjtu.edu.cn%2Fnew%2Findex.html%3Fbrowser%3Dno&locale=zh';
   static const String casPublicKey = 'https://login.xjtu.edu.cn/cas/jwt/publicKey';
   static const String casCaptcha = 'https://login.xjtu.edu.cn/cas/captcha.jpg';
   static const String casMfaDetect = 'https://login.xjtu.edu.cn/cas/mfa/detect';
@@ -49,6 +58,16 @@ abstract final class CampusUrls {
       'https://jwxt.xjtu.edu.cn/jwapp/sys/homeapp/api/home/currentUser.do';
   static const String jwxtChangeRole =
       'https://jwxt.xjtu.edu.cn/jwapp/sys/homeapp/api/home/changeAppRole.do';
+  static const String ehallEmptyRoom =
+      'https://ehall.xjtu.edu.cn/jwapp/sys/kxjas/modules/kxjscx/cxkxjs.do';
+  static const String ehallCampusCode =
+      'https://ehall.xjtu.edu.cn/jwapp/code/83a986fc-e677-400e-99a4-c7bb39c2ca35.do';
+  static const String ehallBuildingCode =
+      'https://ehall.xjtu.edu.cn/jwapp/code/551fbcc3-cf07-4566-af1e-fc7ce272ddc1.do';
+  static const String ehallCurrentUser =
+      'https://ehall.xjtu.edu.cn/jwapp/sys/homeapp/api/home/currentUser.do';
+  static const String ehallChangeRole =
+      'https://ehall.xjtu.edu.cn/jwapp/sys/homeapp/api/home/changeAppRole.do';
 
   static const String ywtb = 'https://ywtb.xjtu.edu.cn';
   static const String ywtbMain = 'https://ywtb.xjtu.edu.cn/main.html';

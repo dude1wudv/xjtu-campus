@@ -76,6 +76,8 @@ flutter test
 
 ## WebVPN（校外）
 
+CAS 登录的 service 必须用一网通办/ehall（已注册）；不要用 jwxt home，否则会报 missing service。
+
 登录页可打开「校外使用 WebVPN」。开启后，课表 / 教室请求会改写到 `webvpn.xjtu.edu.cn`（AES-CFB 默认密钥）。请先完成统一认证；WebVPN 若另需滑块/短信，请在学校网页完成后再回应用。
 
 ## 教务通知

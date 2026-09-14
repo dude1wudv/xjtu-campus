@@ -50,16 +50,17 @@ class LiveScheduleRepository implements ScheduleRepository {
   }
 
   Future<ScheduleSnapshot> _fetchLive(DateTime now) async {
+    // ehall 优先：jwxt 对 CAS service 注册不完整时仍可拉课表。
     final hosts = [
-      (
-        term: CampusUrls.jwxtCurrentTerm,
-        table: CampusUrls.jwxtSchedule,
-        start: CampusUrls.jwxtTermStart,
-      ),
       (
         term: CampusUrls.ehallCurrentTerm,
         table: CampusUrls.ehallSchedule,
         start: CampusUrls.ehallTermStart,
+      ),
+      (
+        term: CampusUrls.jwxtCurrentTerm,
+        table: CampusUrls.jwxtSchedule,
+        start: CampusUrls.jwxtTermStart,
       ),
     ];
 
