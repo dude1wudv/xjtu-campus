@@ -17,7 +17,7 @@ abstract final class AppStrings {
 
   static const String loginTitle = '西安交大统一认证';
   static const String loginHint =
-      '使用学号与统一认证密码登录 login.xjtu.edu.cn。也可先用演示模式浏览界面，演示不会联网。';
+      '推荐使用「网页登录」打开学校官方认证页。表单登录若失败，多半是手机网络拿不到登录页字段。';
   static const String studentIdLabel = '学号';
   static const String studentIdHint = '请输入学号';
   static const String passwordLabel = '统一认证密码';
@@ -26,6 +26,10 @@ abstract final class AppStrings {
   static const String showPassword = '显示密码';
   static const String hidePassword = '隐藏密码';
   static const String loginAction = '统一认证登录';
+  static const String webLoginAction = '网页登录（推荐）';
+  static const String webLoginTitle = '网页统一认证';
+  static const String webLoginHint =
+      '在学校官方页面完成登录（含验证码/短信）。登录成功后会自动返回并导入会话。';
   static const String loginDemo = '演示登录（不联网）';
   static const String logoutAction = '退出登录';
   static const String loginSuccess = '已登录统一认证';

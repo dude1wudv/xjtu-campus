@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/alarms/presentation/alarms_page.dart';
+import '../widgets/in_app_browser_page.dart';
+import '../../features/auth/presentation/cas_web_login_page.dart';
 import '../../features/auth/presentation/login_page.dart';
 import '../../features/classroom/presentation/classroom_page.dart';
 import '../../features/home/presentation/home_dashboard.dart';
@@ -21,6 +23,26 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/login',
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const LoginPage(),
+      ),
+      GoRoute(
+        path: '/login/web',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) {
+          final id = state.uri.queryParameters['studentId'] ?? '';
+          return CasWebLoginPage(studentId: id);
+        },
+      ),
+      GoRoute(
+        path: '/browser',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) {
+          final url = state.uri.queryParameters['url'] ?? '';
+          final title = state.uri.queryParameters['title'];
+          return InAppBrowserPage(
+            initialUrl: Uri.decodeComponent(url),
+            title: title == null ? null : Uri.decodeComponent(title),
+          );
+        },
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {

@@ -22,14 +22,20 @@ class CampusSession {
     );
     _dio = Dio(
       BaseOptions(
-        connectTimeout: const Duration(seconds: 20),
-        receiveTimeout: const Duration(seconds: 30),
+        connectTimeout: const Duration(seconds: 25),
+        receiveTimeout: const Duration(seconds: 35),
+        sendTimeout: const Duration(seconds: 25),
         followRedirects: true,
-        maxRedirects: 10,
+        maxRedirects: 12,
+        responseType: ResponseType.plain,
         validateStatus: (status) => status != null && status < 500,
         headers: {
           'User-Agent': CampusUrls.userAgent,
-          'Accept-Language': 'zh-CN,zh;q=0.9',
+          'Accept':
+              'text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
         },
       ),
     );
@@ -50,8 +56,7 @@ class CampusSession {
     try {
       await _jar.forceInit().timeout(const Duration(seconds: 3));
       ywtbIdToken = await _store.read('session.ywtb_id_token');
-      useWebVpn =
-          (await _store.read(AppConstants.webVpnEnabledKey)) == '1';
+      useWebVpn = (await _store.read(AppConstants.webVpnEnabledKey)) == '1';
     } on Object {
       AppLogger.warn('校园 Cookie 恢复失败，将以未登录会话继续');
     }
@@ -68,17 +73,51 @@ class CampusSession {
   Future<bool> hasCasCookie() async {
     try {
       final cookies = await _jar.loadForRequest(Uri.parse(CampusUrls.casLogin));
-      return cookies.any((cookie) => cookie.name.toUpperCase().contains('TGC'));
+      return cookies.any(
+        (cookie) =>
+            cookie.name.toUpperCase().contains('TGC') ||
+            cookie.name.toUpperCase().contains('CASTGC'),
+      );
     } on Object {
       return false;
     }
   }
 
-  /// 登录后建立 WebVPN 会话（校外访问 jwxt/ehall 时需要）。
+  /// 把 WebView 登录拿到的 Cookie 写入会话。
+  Future<void> importCookies(
+    Iterable<({String name, String value, String? domain, String? path})>
+        cookies,
+  ) async {
+    final byHost = <Uri, List<Cookie>>{};
+    for (final item in cookies) {
+      var domain = (item.domain ?? 'login.xjtu.edu.cn').replaceFirst(
+        RegExp(r'^\.'),
+        '',
+      );
+      if (domain.isEmpty) domain = 'login.xjtu.edu.cn';
+      if (!domain.endsWith('xjtu.edu.cn') && domain != 'webvpn.xjtu.edu.cn') {
+        continue;
+      }
+      final uri = Uri(scheme: 'https', host: domain, path: item.path ?? '/');
+      byHost
+          .putIfAbsent(uri, () => <Cookie>[])
+          .add(
+            Cookie(item.name, item.value)
+              ..domain = domain
+              ..path = item.path ?? '/'
+              ..httpOnly = true
+              ..secure = true,
+          );
+    }
+    for (final entry in byHost.entries) {
+      await _jar.saveFromResponse(entry.key, entry.value);
+    }
+  }
+
   Future<void> ensureWebVpnSession() async {
     if (!useWebVpn) return;
     try {
-      await get(CampusUrls.webVpnLogin);
+      await get(CampusUrls.webVpnLogin, rewrite: false);
       AppLogger.info('已尝试建立 WebVPN 会话');
     } on Object {
       AppLogger.warn('WebVPN 会话建立失败，将继续直连并在失败时回退');
@@ -109,6 +148,7 @@ class CampusSession {
     final data = response.data;
     if (data is Uint8List) return data;
     if (data is List<int>) return Uint8List.fromList(data);
+    if (data is String) return Uint8List.fromList(utf8.encode(data));
     throw StateError('expected bytes');
   }
 
@@ -118,6 +158,7 @@ class CampusSession {
     Map<String, String>? headers,
     bool jsonBody = false,
     bool rewrite = true,
+    ResponseType? responseType,
   }) {
     final target = rewrite ? _resolve(url) : url;
     _assertAllowed(target);
@@ -126,6 +167,7 @@ class CampusSession {
       data: data,
       options: Options(
         headers: headers,
+        responseType: responseType,
         contentType: jsonBody
             ? Headers.jsonContentType
             : Headers.formUrlEncodedContentType,
@@ -144,16 +186,22 @@ class CampusSession {
     AppLogger.info('已清除校园会话 Cookie');
   }
 
-  Map<String, dynamic>? tryJson(Response<dynamic> response) {
+  String responseText(Response<dynamic> response) {
     final data = response.data;
-    if (data is Map<String, dynamic>) return data;
-    if (data is String && data.isNotEmpty) {
-      try {
-        final decoded = jsonDecode(data);
-        if (decoded is Map<String, dynamic>) return decoded;
-      } on Object {
-        return null;
-      }
+    if (data == null) return '';
+    if (data is String) return data;
+    if (data is List<int>) return utf8.decode(data, allowMalformed: true);
+    return data.toString();
+  }
+
+  Map<String, dynamic>? tryJson(Response<dynamic> response) {
+    final raw = responseText(response);
+    if (raw.isEmpty) return null;
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is Map<String, dynamic>) return decoded;
+    } on Object {
+      return null;
     }
     return null;
   }

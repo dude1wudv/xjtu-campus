@@ -81,6 +81,15 @@ class MockAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<AuthUser> completeWebLogin({
+    required String studentId,
+    required List<({String name, String value, String? domain, String? path})>
+        cookies,
+  }) {
+    return login(studentId: studentId, password: 'web', demo: true);
+  }
+
+  @override
   Future<void> logout() async {
     await _store.deleteAll();
     AppLogger.info('已清除本地演示会话');

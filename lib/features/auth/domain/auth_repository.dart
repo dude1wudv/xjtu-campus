@@ -20,6 +20,13 @@ abstract class AuthRepository {
   /// 调用学校官方短信接口，把验证码发到学生自己绑定的手机。
   Future<String> sendMfaSms();
 
+  /// WebView 完成 CAS 后导入 Cookie。
+  Future<AuthUser> completeWebLogin({
+    required String studentId,
+    required List<({String name, String value, String? domain, String? path})>
+        cookies,
+  });
+
   Future<void> logout();
 }
 

@@ -256,6 +256,24 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           ],
           const SizedBox(height: 20),
           FilledButton(
+            onPressed: auth.busy
+                ? null
+                : () {
+                    final id = _idController.text.trim();
+                    if (id.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text(AppStrings.loginRequired)),
+                      );
+                      return;
+                    }
+                    context.push(
+                      '/login/web?studentId=${Uri.encodeComponent(id)}',
+                    );
+                  },
+            child: const Text(AppStrings.webLoginAction),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton(
             onPressed: auth.busy ? null : () => _submit(demo: false),
             child: auth.busy
                 ? const SizedBox(

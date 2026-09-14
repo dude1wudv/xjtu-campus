@@ -16,18 +16,39 @@ class DataSourceBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final text = message ??
-        (live ? AppStrings.liveBanner : AppStrings.mockBanner);
+    final text =
+        message ?? (live ? AppStrings.liveBanner : AppStrings.mockBanner);
+    final color = live ? AppColors.success : AppColors.gold;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: (live ? AppColors.success : AppColors.gold).withValues(
-          alpha: 0.18,
-        ),
-        borderRadius: BorderRadius.circular(10),
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
       ),
-      child: Text(text, style: const TextStyle(fontSize: 12, height: 1.3)),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            live ? Icons.check_circle_outline : Icons.info_outline,
+            size: 16,
+            color: color,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: 12.5,
+                height: 1.35,
+                color: AppColors.inkSoft,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -57,7 +78,10 @@ class AsyncBody<T> extends StatelessWidget {
   Widget build(BuildContext context) {
     return value.when(
       data: builder,
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () => const Padding(
+        padding: EdgeInsets.symmetric(vertical: 40),
+        child: Center(child: CircularProgressIndicator(strokeWidth: 2.4)),
+      ),
       error: (_, _) => _Message(
         icon: Icons.error_outline,
         title: AppStrings.errorTitle,
@@ -97,13 +121,29 @@ class _Message extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(28),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 40, color: AppColors.navy.withValues(alpha: 0.45)),
-            const SizedBox(height: 12),
-            Text(title, textAlign: TextAlign.center),
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: AppColors.chip,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Icon(icon, size: 28, color: AppColors.navy),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 16,
+                color: AppColors.ink,
+              ),
+            ),
             if (subtitle != null) ...[
               const SizedBox(height: 8),
               Text(
@@ -113,7 +153,7 @@ class _Message extends StatelessWidget {
               ),
             ],
             if (onRetry != null) ...[
-              const SizedBox(height: 16),
+              const SizedBox(height: 18),
               FilledButton(
                 onPressed: onRetry,
                 child: const Text(AppStrings.retry),

@@ -31,7 +31,7 @@ class HomeDashboard extends ConsumerWidget {
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
         children: [
           snapshot.when(
             data: (data) =>
@@ -91,10 +91,17 @@ class _GreetingCard extends StatelessWidget {
     final name = auth.isLoggedIn ? auth.user.displayName : AppStrings.guestName;
     final date = DateFormat('M月d日 EEEE', 'zh_CN').format(now);
 
-    return Card(
-      color: AppColors.navy,
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [AppColors.navyDeep, AppColors.navy, Color(0xFF2A5A8C)],
+        ),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -102,22 +109,32 @@ class _GreetingCard extends StatelessWidget {
               '$hello，$name',
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 20,
-                fontWeight: FontWeight.w600,
+                fontSize: 24,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.4,
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             Text(
               [
                 date,
-                if (week != null) '${AppStrings.weekPrefix}$week${AppStrings.weekSuffix}',
+                if (week != null)
+                  '${AppStrings.weekPrefix}$week${AppStrings.weekSuffix}',
                 AppStrings.termLabel,
               ].join(' · '),
-              style: TextStyle(color: Colors.white.withValues(alpha: 0.82)),
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.78),
+                height: 1.35,
+              ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             if (!auth.isLoggedIn)
-              FilledButton.tonal(
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: AppColors.navy,
+                  minimumSize: const Size(0, 44),
+                ),
                 onPressed: () => context.push('/login'),
                 child: const Text(AppStrings.openLogin),
               )

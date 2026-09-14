@@ -200,6 +200,10 @@ class AuthController extends Notifier<AuthState> {
     }
   }
 
+  Future<void> applyExternalLogin(AuthUser user) async {
+    state = AuthState(initialized: true, user: user);
+  }
+
   Future<void> logout() async {
     await _repo.logout();
     state = const AuthState(initialized: true, user: AuthUser.guest);

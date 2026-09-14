@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'package:dio/dio.dart';
+
 import '../../../core/constants/app_constants.dart';
 import '../../../core/constants/campus_urls.dart';
 import '../../../core/crypto/rsa_pkcs1.dart';
@@ -138,17 +140,48 @@ class CasAuthRepository implements AuthRepository {
 
   Future<_PendingCas> _begin(String studentId, String password) async {
     final fp = _fpVisitorId();
-    final loginUrl =
-        '${CampusUrls.casLogin}?service=${Uri.encodeComponent(CampusUrls.jwxtHome)}';
-    final page = await _session.get(loginUrl);
-    final html = page.data?.toString() ?? '';
+    final candidates = <String>[
+      '${CampusUrls.casLogin}?service=${Uri.encodeComponent(CampusUrls.jwxtHome)}&locale=zh',
+      '${CampusUrls.casLogin}?locale=zh',
+      CampusUrls.casLogin,
+    ];
+
+    Response<dynamic>? page;
+    var html = '';
+    Object? lastError;
+    for (final loginUrl in candidates) {
+      try {
+        page = await _session.get(
+          loginUrl,
+          rewrite: false,
+          headers: {
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Referer': CampusUrls.casOrigin,
+          },
+        );
+        html = _session.responseText(page);
+        if (_extractInput(html, 'execution') != null ||
+            _isSafetyVerify(html) ||
+            !page.realUri.toString().contains('/cas/login')) {
+          break;
+        }
+      } on Object catch (e) {
+        lastError = e;
+      }
+    }
+    if (page == null) {
+      throw AuthException(
+        '无法连接统一认证（${lastError ?? '网络错误'}）。可改用「网页登录」。',
+      );
+    }
+
     if (_isSafetyVerify(html)) {
+      final keyHtml = _session.responseText(
+        await _session.get(CampusUrls.casPublicKey, rewrite: false),
+      );
       final pending = _PendingCas(
         studentId: studentId,
-        encryptedPassword: rsaEncryptPassword(
-          password,
-          (await _session.get(CampusUrls.casPublicKey)).data?.toString() ?? '',
-        ),
+        encryptedPassword: rsaEncryptPassword(password, keyHtml),
         execution: _extractInput(html, 'execution') ?? '',
         postUrl: page.realUri.toString(),
         fpVisitorId: fp,
@@ -173,12 +206,20 @@ class CasAuthRepository implements AuthRepository {
           fpVisitorId: fp,
         );
       }
-      throw const AuthException('无法打开统一认证页面，请检查网络或稍后重试');
+      final status = page.statusCode;
+      final uri = page.realUri;
+      throw AuthException(
+        '无法解析统一认证登录页（HTTP $status @ $uri，内容 ${html.length} 字节）。'
+        '请改用「网页登录」，或检查是否能在浏览器打开 login.xjtu.edu.cn。',
+      );
     }
-    final keyResponse = await _session.get(CampusUrls.casPublicKey);
-    final pem = keyResponse.data?.toString() ?? '';
+    final keyResponse = await _session.get(
+      CampusUrls.casPublicKey,
+      rewrite: false,
+    );
+    final pem = _session.responseText(keyResponse);
     if (!pem.contains('BEGIN PUBLIC KEY')) {
-      throw const AuthException('无法获取学校登录公钥，请检查网络后重试');
+      throw const AuthException('无法获取学校登录公钥，请检查网络后重试，或改用网页登录');
     }
     final encrypted = rsaEncryptPassword(password, pem);
 
@@ -288,7 +329,7 @@ class CasAuthRepository implements AuthRepository {
       },
       headers: {'Referer': pending.postUrl},
     );
-    return _processLoginResponse(response.data?.toString() ?? '', response);
+    return _processLoginResponse(_session.responseText(response), response);
   }
 
   Future<AuthUser> _processLoginResponse(
@@ -355,7 +396,7 @@ class CasAuthRepository implements AuthRepository {
     );
     pending.safetyHtml = null;
     pending.safetyVerify = false;
-    return _processLoginResponse(response.data?.toString() ?? '', response);
+    return _processLoginResponse(_session.responseText(response), response);
   }
 
   Future<AuthUser> _finishAccountChoice(String label) async {
@@ -375,7 +416,34 @@ class CasAuthRepository implements AuthRepository {
     );
     pending.accountChoices = null;
     pending.accountHtml = null;
-    return _processLoginResponse(response.data?.toString() ?? '', response);
+    return _processLoginResponse(_session.responseText(response), response);
+  }
+
+  /// WebView 登录成功后：导入 Cookie 并建立下游会话。
+  @override
+  Future<AuthUser> completeWebLogin({
+    required String studentId,
+    required List<({String name, String value, String? domain, String? path})>
+        cookies,
+  }) async {
+    final id = studentId.trim();
+    if (id.isEmpty) {
+      throw const AuthException('请先填写学号，再进行网页登录');
+    }
+    await _session.importCookies(cookies);
+    if (!await _session.hasCasCookie()) {
+      throw const AuthException('网页登录未检测到 CAS 会话，请确认已在网页中登录成功');
+    }
+    await _store.write(key: AppConstants.sessionModeKey, value: AppConstants.modeCas);
+    await _establishDownstreamSessions();
+    await _saveProfile(id);
+    final name = await _store.read(AppConstants.sessionDisplayNameKey);
+    return AuthUser(
+      studentId: id,
+      displayName: name ?? '同学 $id',
+      sessionToken: 'cas-session',
+      college: '统一身份认证',
+    );
   }
 
   Future<void> _establishDownstreamSessions() async {
@@ -460,11 +528,28 @@ class CasAuthRepository implements AuthRepository {
   }
 
   String? _extractInput(String html, String name) {
-    final pattern = RegExp(
-      'name="$name"[^>]*value="([^"]*)"|value="([^"]*)"[^>]*name="$name"',
-    );
-    final match = pattern.firstMatch(html);
-    return match?.group(1) ?? match?.group(2);
+    final patterns = [
+      RegExp(
+        'name="$name"[^>]*value="([^"]*)"|value="([^"]*)"[^>]*name="$name"',
+        caseSensitive: false,
+      ),
+      RegExp(
+        "name='$name'[^>]*value='([^']*)'|value='([^']*)'[^>]*name='$name'",
+        caseSensitive: false,
+      ),
+      RegExp(
+        'name="$name"[^>]*value=([^\\s>]+)',
+        caseSensitive: false,
+      ),
+    ];
+    for (final pattern in patterns) {
+      final match = pattern.firstMatch(html);
+      final value = match?.group(1) ?? match?.group(2);
+      if (value != null && value.isNotEmpty) {
+        return value.replaceAll('"', '').replaceAll("'", '');
+      }
+    }
+    return null;
   }
 
   List<AccountChoice>? _extractAccounts(String html) {
