@@ -133,9 +133,25 @@ abstract final class CampusUrls {
   static const String one2020TermByIdHttps =
       'https://one2020.xjtu.edu.cn/EIP/edu/education/schoolcalendar/queryTermById.htm';
 
-  /// 校园卡（本 sprint 不实现；仅保留 URL 备忘）。
-  // TODO(ncard): 校园卡余额/流水 — https://ncard.xjtu.edu.cn/plat
-  static const String ncardPlat = 'https://ncard.xjtu.edu.cn/plat';
+  /// 校园卡（ncard / 慧新 E 校 H5，只读余额与流水）。
+  static const String ncardOrigin = 'https://ncard.xjtu.edu.cn';
+  static const String ncardPlat = 'https://ncard.xjtu.edu.cn/plat/';
+  static const String ncardCasRedirect =
+      'https://ncard.xjtu.edu.cn/berserker-base/redirect?type=login&loginFrom=h5&synAccessSource=h5';
+  static const String ncardOAuthToken =
+      'https://ncard.xjtu.edu.cn/berserker-auth/oauth/token';
+  static const String ncardUser =
+      'https://ncard.xjtu.edu.cn/berserker-base/user?synAccessSource=h5';
+  static const String ncardQueryCard =
+      'https://ncard.xjtu.edu.cn/berserker-app/ykt/tsm/queryCard?synAccessSource=h5';
+  static const String ncardTurnover =
+      'https://ncard.xjtu.edu.cn/berserker-search/search/personal/turnover';
+
+  /// Official H5 platform OAuth client (public; same as campus-card SPA / XJTUToolBox).
+  static const String ncardH5TokenBasicAuth =
+      'Basic bW9iaWxlX3NlcnZpY2VfcGxhdGZvcm06bW9iaWxlX3NlcnZpY2VfcGxhdGZvcm1fc2VjcmV0';
+  static const String ncardMobileUserAgent =
+      'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36';
 
 
   static const userAgent =

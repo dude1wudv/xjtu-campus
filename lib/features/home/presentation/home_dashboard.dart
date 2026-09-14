@@ -124,6 +124,8 @@ class _HomeDashboardState extends ConsumerState<HomeDashboard> {
           const _AcademicsShortcutCard(),
           const SizedBox(height: AppTokens.spaceMd),
           const _CalendarShortcutCard(),
+          const SizedBox(height: AppTokens.spaceMd),
+          const _CampusCardShortcutCard(),
           const SizedBox(height: AppTokens.spaceXl),
           Text(
             AppStrings.quickActions,
@@ -870,6 +872,55 @@ class _CalendarShortcutCard extends StatelessWidget {
   }
 }
 
+class _CampusCardShortcutCard extends StatelessWidget {
+  const _CampusCardShortcutCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return AppSurfaceCard(
+      onTap: () => context.push('/campus-card'),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: const BoxDecoration(
+              color: AppColors.chip,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.credit_card_outlined,
+              color: AppColors.navy,
+            ),
+          ),
+          const SizedBox(width: AppTokens.spaceMd),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  AppStrings.campusCardTitle,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                    color: AppColors.ink,
+                  ),
+                ),
+                SizedBox(height: AppTokens.spaceXs),
+                Text(
+                  AppStrings.campusCardSubtitle,
+                  style: TextStyle(fontSize: 12, color: AppColors.inkSoft),
+                ),
+              ],
+            ),
+          ),
+          const Icon(Icons.chevron_right_rounded, color: AppColors.inkSoft),
+        ],
+      ),
+    );
+  }
+}
+
 class _QuickActions extends StatelessWidget {
   const _QuickActions();
 
@@ -912,6 +963,11 @@ class _QuickActions extends StatelessWidget {
           icon: Icons.calendar_month_outlined,
           label: AppStrings.calendarTitle,
           onTap: () => context.push('/calendar'),
+        ),
+        _ActionTile(
+          icon: Icons.credit_card_outlined,
+          label: AppStrings.campusCardTitle,
+          onTap: () => context.push('/campus-card'),
         ),
       ],
     );

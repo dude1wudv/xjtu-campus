@@ -54,11 +54,12 @@ class AcademicsPage extends StatelessWidget {
             subtitle: AppStrings.calendarHubSubtitle,
             onTap: () => context.push('/calendar'),
           ),
-          const SizedBox(height: AppTokens.spaceXl),
-          const Text(
-            // TODO(ncard): 校园卡余额/流水 — deferred; see docs/grades-exams-calendar.md
-            AppStrings.campusCardDeferredNote,
-            style: TextStyle(fontSize: 12.5, color: AppColors.inkSoft, height: 1.4),
+          const SizedBox(height: AppTokens.spaceMd),
+          _HubTile(
+            icon: Icons.credit_card_outlined,
+            title: AppStrings.campusCardTitle,
+            subtitle: AppStrings.campusCardHubSubtitle,
+            onTap: () => context.push('/campus-card'),
           ),
         ],
       ),

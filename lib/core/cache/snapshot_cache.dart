@@ -19,6 +19,7 @@ class SnapshotCache {
   static const notices = 'cache.v1.notices';
   static const calendar = 'cache.v1.calendar';
   static const classroom = 'cache.v1.classroom';
+  static const campusCard = 'cache.v1.campus_card';
 
   static const allKeys = [
     schedule,
@@ -27,6 +28,7 @@ class SnapshotCache {
     notices,
     calendar,
     classroom,
+    campusCard,
   ];
 
   Future<SharedPreferences> _ensurePrefs() async {

@@ -1,5 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../features/campus_card/data/live_campus_card_repository.dart';
+import '../../features/campus_card/data/mock_campus_card_repository.dart';
+import '../../features/campus_card/domain/campus_card_repository.dart';
 import '../../features/calendar/data/live_calendar_repository.dart';
 import '../../features/calendar/data/mock_calendar_repository.dart';
 import '../../features/calendar/domain/calendar_repository.dart';
@@ -125,6 +128,18 @@ final calendarRepositoryProvider = Provider<CalendarRepository>(
   (ref) => LiveCalendarRepository(
     session: ref.watch(campusSessionProvider),
     mock: ref.watch(mockCalendarRepositoryProvider),
+  ),
+);
+
+
+final mockCampusCardRepositoryProvider = Provider<MockCampusCardRepository>(
+  (ref) => MockCampusCardRepository(),
+);
+
+final campusCardRepositoryProvider = Provider<CampusCardRepository>(
+  (ref) => LiveCampusCardRepository(
+    session: ref.watch(campusSessionProvider),
+    mock: ref.watch(mockCampusCardRepositoryProvider),
   ),
 );
 

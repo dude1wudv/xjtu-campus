@@ -78,6 +78,7 @@ class CampusSession {
         CampusUrls.ehallHome,
         CampusUrls.jwxtHome,
         CampusUrls.workflowKebiaoPage,
+        CampusUrls.ncardPlat,
       ];
       for (final origin in origins) {
         final cookies = await _jar.loadForRequest(Uri.parse(origin));
@@ -118,6 +119,7 @@ class CampusSession {
       'ehall.xjtu.edu.cn',
       'workflow.xjtu.edu.cn',
       'jwxt.xjtu.edu.cn',
+      'ncard.xjtu.edu.cn',
     ];
 
     void addCookie(

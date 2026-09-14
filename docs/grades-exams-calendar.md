@@ -42,10 +42,10 @@ Prefer public one2020 over ywtb `portal-api` (JWT/`没有访问权限01`).
 | App routes | `/calendar` |
 | Fixtures | `docs/one2020-terms-sample.json`, `docs/one2020-term-detail-sample.json` |
 
-## Deferred: 校园卡（ncard）
+## 校园卡（ncard）
 
-**Not implemented in this sprint.** Host `ncard.xjtu.edu.cn` needs a separate CAS → berserker auth chain (`/plat`, `queryCard`, turnover). See `docs/api-probe-candidates.md` §4. TODO markers live in `CampusUrls.ncardPlat` and the academics hub note.
+Implemented on experimental branch `feat/campus-card` as **v1.5.0-card.1** (GitHub pre-release, not Latest). See `docs/ncard-campus-card.md`.
 
 ## Navigation
 
-Bottom tabs unchanged (5). Entry points: home dashboard cards + quick actions + about sheet → `/academics` hub → `/grades` `/exams` `/calendar`.
+Bottom tabs unchanged (5). Entry points: home dashboard cards + quick actions → `/academics` hub → `/grades` `/exams` `/calendar` `/campus-card`. Campus card is **not** in the About sheet.
