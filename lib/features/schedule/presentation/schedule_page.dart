@@ -26,8 +26,7 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
 
   @override
   Widget build(BuildContext context) {
-    final courses = ref.watch(coursesProvider);
-    final week = ref.watch(currentWeekProvider);
+    final snapshot = ref.watch(scheduleSnapshotProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -41,9 +40,16 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
         ],
       ),
       body: AsyncBody(
-        value: courses,
-        onRetry: () => ref.invalidate(coursesProvider),
-        builder: (items) {
+        value: snapshot,
+        onRetry: () => ref.invalidate(scheduleSnapshotProvider),
+        builder: (data) {
+          final week = data.week;
+          final items = data.courses
+              .where(
+                (course) =>
+                    course.weeks.isEmpty || course.weeks.contains(week),
+              )
+              .toList();
           return Column(
             children: [
               Padding(
@@ -51,10 +57,10 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const MockDataBanner(),
+                    DataSourceBanner(live: data.live, message: data.banner),
                     const SizedBox(height: 8),
                     Text(
-                      '${AppStrings.scheduleSubtitle} · ${AppStrings.weekPrefix}${week.value ?? '-'} ${AppStrings.weekSuffix}',
+                      '${AppStrings.scheduleSubtitle} · ${AppStrings.weekPrefix}$week ${AppStrings.weekSuffix}',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                     const SizedBox(height: 12),

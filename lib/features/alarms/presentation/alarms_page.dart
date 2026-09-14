@@ -22,14 +22,15 @@ final wakeOffsetProvider = NotifierProvider<WakeOffsetController, int>(
 );
 
 final alarmPreviewProvider = Provider<AsyncValue<List<AlarmSuggestion>>>((ref) {
-  final courses = ref.watch(coursesProvider);
+  final snapshot = ref.watch(scheduleSnapshotProvider);
   final offsetMinutes = ref.watch(wakeOffsetProvider);
   final planner = ref.watch(alarmPlannerProvider);
-  return courses.whenData(
-    (items) => planner.plan(
-      courses: items,
+  return snapshot.whenData(
+    (data) => planner.plan(
+      courses: data.courses,
       now: DateTime.now(),
       wakeOffset: Duration(minutes: offsetMinutes),
+      weekNumber: data.week,
     ),
   );
 });
@@ -41,6 +42,7 @@ class AlarmsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final offset = ref.watch(wakeOffsetProvider);
     final preview = ref.watch(alarmPreviewProvider);
+    final snapshot = ref.watch(scheduleSnapshotProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text(AppStrings.alarmsTitle)),
@@ -51,7 +53,12 @@ class AlarmsPage extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const MockDataBanner(),
+                snapshot.when(
+                  data: (data) =>
+                      DataSourceBanner(live: data.live, message: data.banner),
+                  loading: () => const MockDataBanner(),
+                  error: (_, _) => const MockDataBanner(),
+                ),
                 const SizedBox(height: 8),
                 const Text(AppStrings.alarmStubHint),
                 const SizedBox(height: 12),
@@ -72,7 +79,7 @@ class AlarmsPage extends ConsumerWidget {
           Expanded(
             child: AsyncBody(
               value: preview,
-              onRetry: () => ref.invalidate(coursesProvider),
+              onRetry: () => ref.invalidate(scheduleSnapshotProvider),
               builder: (items) {
                 if (items.isEmpty) {
                   return const EmptyHint(
@@ -95,15 +102,38 @@ class AlarmsPage extends ConsumerWidget {
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-          child: FilledButton.icon(
-            onPressed: preview.maybeWhen(
-              data: (items) => items.isEmpty
-                  ? null
-                  : () => _create(context, ref, items),
-              orElse: () => null,
-            ),
-            icon: const Icon(Icons.alarm_add),
-            label: const Text(AppStrings.createAlarms),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              FilledButton.icon(
+                onPressed: preview.maybeWhen(
+                  data: (items) => items.isEmpty
+                      ? null
+                      : () => _create(context, ref, items),
+                  orElse: () => null,
+                ),
+                icon: const Icon(Icons.alarm_add),
+                label: const Text(AppStrings.createAlarms),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => _cancel(context, ref),
+                      child: const Text(AppStrings.cancelAlarms),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => _test(context, ref),
+                      child: const Text(AppStrings.testNotification),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       ),
@@ -116,6 +146,24 @@ class AlarmsPage extends ConsumerWidget {
     List<AlarmSuggestion> items,
   ) async {
     final result = await ref.read(alarmSchedulerProvider).createAlarms(items);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(result.message)),
+    );
+  }
+
+  Future<void> _cancel(BuildContext context, WidgetRef ref) async {
+    await ref.read(alarmSchedulerProvider).cancelAlarms();
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('已取消本机已预约的上课提醒')),
+    );
+  }
+
+  Future<void> _test(BuildContext context, WidgetRef ref) async {
+    final result = await ref
+        .read(alarmSchedulerProvider)
+        .showTestNotification();
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(result.message)),

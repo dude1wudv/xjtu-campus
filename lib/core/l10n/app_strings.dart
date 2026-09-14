@@ -3,6 +3,8 @@ abstract final class AppStrings {
   static const String appName = '交大校园助手';
   static const String appSubtitle = '西安交通大学校园服务';
   static const String mockBanner = '当前为本地模拟数据，尚未连接学校服务器';
+  static const String liveBanner = '当前为学校实时数据（需已登录统一认证）。';
+  static const String liveFallbackBanner = '实时接口不可用，以下为演示数据，仅供浏览界面。';
 
   static const String navHome = '首页';
   static const String navSchedule = '课表';
@@ -10,22 +12,36 @@ abstract final class AppStrings {
   static const String navNotices = '通知';
   static const String navAlarms = '闹钟';
 
-  static const String loginTitle = '统一身份认证（模拟）';
+  static const String loginTitle = '西安交大统一认证';
   static const String loginHint =
-      '此页面对接学校 CAS（login.xjtu.edu.cn）的接口尚未实现。任意学号即可体验，密码不会上传，也不会写入日志。';
+      '使用学号与统一认证密码登录 login.xjtu.edu.cn。也可先用演示模式浏览界面，演示不会联网。';
   static const String studentIdLabel = '学号';
   static const String studentIdHint = '请输入学号';
-  static const String passwordLabel = '密码';
-  static const String passwordHint = '模拟登录，不会提交到学校';
+  static const String passwordLabel = '统一认证密码';
+  static const String passwordHint = '密码只提交到学校，不会写入本地文件或日志';
   static const String passwordRequired = '请输入密码';
-  static const String loginAction = '模拟登录';
+  static const String showPassword = '显示密码';
+  static const String hidePassword = '隐藏密码';
+  static const String loginAction = '统一认证登录';
+  static const String loginDemo = '演示登录（不联网）';
   static const String logoutAction = '退出登录';
-  static const String loginSuccess = '已进入模拟会话';
+  static const String loginSuccess = '已登录统一认证';
+  static const String loginDemoSuccess = '已进入演示会话';
   static const String loginRequired = '请输入学号';
   static const String guestName = '未登录';
-  static const String guestHint = '登录后可同步课表与通知（即将支持 CAS）';
+  static const String guestHint = '登录后可同步课表、空闲教室与上课提醒';
   static const String loggedInAs = '当前学号';
-  static const String casAdapterNote = '真实 CAS / ehall / 一网通办适配器将在此替换 MockAuthRepository';
+  static const String captchaLabel = '验证码';
+  static const String captchaLead = '学校要求输入图形验证码。请按图片填写，应用不会自动识别。';
+  static const String refreshCaptcha = '刷新验证码';
+  static const String mfaCodeLabel = '短信验证码';
+  static const String mfaLead =
+      '账号开启了安全验证。验证码发到学校预留手机，请填写后再次登录。应用不会绕过二次验证。';
+  static const String mfaPhonePrefix = '已发送至 ';
+  static const String resendMfa = '重新发送短信';
+  static const String accountChoiceLead = '该账号有多个身份，请选择本次使用的身份。';
+  static const String loginPrivacy =
+      '学号与密码只在本机提交到 login.xjtu.edu.cn；密码不会写入本地文件，也不会上传到第三方。会话 Cookie 保存在系统安全存储中。';
 
   static const String today = '今天';
   static const String nextClass = '下一节课';
@@ -37,10 +53,10 @@ abstract final class AppStrings {
   static const String periods = '节次';
   static const String weeks = '周次';
   static const String emptySchedule = '本周暂无课程';
-  static const String scheduleSubtitle = '兴庆校区 · 模拟课表';
+  static const String scheduleSubtitle = '兴庆校区课表';
 
   static const String classroomTitle = '空闲教室';
-  static const String classroomSubtitle = '按校区 / 楼宇筛选（模拟）';
+  static const String classroomSubtitle = '按校区 / 楼宇筛选；登录后查询教务空闲教室';
   static const String campusFilter = '校区';
   static const String buildingFilter = '教学楼';
   static const String slotFilter = '时段';
@@ -66,11 +82,13 @@ abstract final class AppStrings {
   static const String wakeUpAlarm = '起床闹钟';
   static const String classReminder = '上课提醒';
   static const String createAlarms = '一键创建闹钟';
-  static const String alarmsCreated = '已模拟创建闹钟（尚未写入系统闹钟）';
+  static const String alarmsCreated = '已创建本地通知';
   static const String noAlarms = '课表为空，无法生成提醒';
   static const String firstClass = '第一节课';
+  static const String cancelAlarms = '取消已创建的提醒';
+  static const String testNotification = '立即发送测试通知';
   static const String alarmStubHint =
-      '当前仅预览与模拟创建。接入系统通知后，将使用本地通知权限，不会把课表上传到第三方。';
+      '一键创建会把未来 7 天仍未开始的课程写入本机通知（时区 Asia/Shanghai）：起床为当天第一节课提前量（默认 90 分钟），上课前提醒 30 / 15 分钟。Web / 部分桌面无法预约未来通知。';
 
   static const String loading = '加载中…';
   static const String retry = '重试';

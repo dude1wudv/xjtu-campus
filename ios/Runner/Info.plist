@@ -66,5 +66,7 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSUserNotificationsUsageDescription</key>
+	<string>用于按课表发送起床闹钟与上课提醒，通知仅在本机触发。</string>
 </dict>
 </plist>

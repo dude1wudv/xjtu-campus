@@ -33,10 +33,19 @@ class ClassPeriod extends Equatable {
     ClassPeriod(index: 8, start: Duration(hours: 17, minutes: 5), end: Duration(hours: 17, minutes: 50)),
     ClassPeriod(index: 9, start: Duration(hours: 19), end: Duration(hours: 19, minutes: 45)),
     ClassPeriod(index: 10, start: Duration(hours: 19, minutes: 55), end: Duration(hours: 20, minutes: 40)),
+    ClassPeriod(index: 11, start: Duration(hours: 20, minutes: 50), end: Duration(hours: 21, minutes: 35)),
   ];
 
-  static ClassPeriod byIndex(int index) =>
-      catalog.firstWhere((period) => period.index == index);
+  static ClassPeriod byIndex(int index) {
+    for (final period in catalog) {
+      if (period.index == index) return period;
+    }
+    return ClassPeriod(
+      index: index,
+      start: Duration(hours: 8 + (index - 1)),
+      end: Duration(hours: 8 + (index - 1), minutes: 45),
+    );
+  }
 
   @override
   List<Object?> get props => [index, start, end];
@@ -89,7 +98,11 @@ class Course extends Equatable {
     day.day,
   ).add(end.end);
 
-  static Course? nextAfter(List<Course> courses, DateTime now) {
+  static Course? nextAfter(
+    List<Course> courses,
+    DateTime now, {
+    int? weekNumber,
+  }) {
     Course? best;
     DateTime? bestStart;
     for (var offset = 0; offset < 8; offset++) {
@@ -98,8 +111,19 @@ class Course extends Equatable {
         now.month,
         now.day,
       ).add(Duration(days: offset));
+      final week = weekNumber == null
+          ? null
+          : weekNumber + ((now.weekday - 1 + offset) ~/ 7);
       final ofDay =
-          courses.where((course) => course.weekday == day.weekday).toList()
+          courses.where((course) {
+            if (course.weekday != day.weekday) return false;
+            if (week != null &&
+                course.weeks.isNotEmpty &&
+                !course.weeks.contains(week)) {
+              return false;
+            }
+            return true;
+          }).toList()
             ..sort((a, b) => a.startPeriod.compareTo(b.startPeriod));
       for (final course in ofDay) {
         final start = course.startAt(day);

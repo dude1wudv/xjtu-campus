@@ -43,3 +43,15 @@ class ClassroomQuery {
   final String? building;
   final int? period;
 }
+
+class ClassroomPageData {
+  const ClassroomPageData({
+    required this.rooms,
+    required this.live,
+    required this.banner,
+  });
+
+  final List<ClassroomSlot> rooms;
+  final bool live;
+  final String banner;
+}

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:equatable/equatable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,18 +14,36 @@ class AuthState extends Equatable {
     required this.user,
     this.busy = false,
     this.errorMessage,
+    this.captchaImage,
+    this.maskedPhone,
+    this.awaitingMfa = false,
+    this.awaitingCaptcha = false,
+    this.awaitingAccountChoice = false,
+    this.accountChoices = const [],
   });
 
   const AuthState.loading()
     : initialized = false,
       user = AuthUser.guest,
       busy = true,
-      errorMessage = null;
+      errorMessage = null,
+      captchaImage = null,
+      maskedPhone = null,
+      awaitingMfa = false,
+      awaitingCaptcha = false,
+      awaitingAccountChoice = false,
+      accountChoices = const [];
 
   final bool initialized;
   final AuthUser user;
   final bool busy;
   final String? errorMessage;
+  final Uint8List? captchaImage;
+  final String? maskedPhone;
+  final bool awaitingMfa;
+  final bool awaitingCaptcha;
+  final bool awaitingAccountChoice;
+  final List<AccountChoice> accountChoices;
 
   bool get isLoggedIn => !user.isGuest;
 
@@ -33,18 +52,43 @@ class AuthState extends Equatable {
     AuthUser? user,
     bool? busy,
     String? errorMessage,
+    Uint8List? captchaImage,
+    String? maskedPhone,
+    bool? awaitingMfa,
+    bool? awaitingCaptcha,
+    bool? awaitingAccountChoice,
+    List<AccountChoice>? accountChoices,
     bool clearError = false,
+    bool clearCaptcha = false,
   }) {
     return AuthState(
       initialized: initialized ?? this.initialized,
       user: user ?? this.user,
       busy: busy ?? this.busy,
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
+      captchaImage: clearCaptcha ? null : (captchaImage ?? this.captchaImage),
+      maskedPhone: maskedPhone ?? this.maskedPhone,
+      awaitingMfa: awaitingMfa ?? this.awaitingMfa,
+      awaitingCaptcha: awaitingCaptcha ?? this.awaitingCaptcha,
+      awaitingAccountChoice:
+          awaitingAccountChoice ?? this.awaitingAccountChoice,
+      accountChoices: accountChoices ?? this.accountChoices,
     );
   }
 
   @override
-  List<Object?> get props => [initialized, user, busy, errorMessage];
+  List<Object?> get props => [
+    initialized,
+    user,
+    busy,
+    errorMessage,
+    captchaImage,
+    maskedPhone,
+    awaitingMfa,
+    awaitingCaptcha,
+    awaitingAccountChoice,
+    accountChoices,
+  ];
 }
 
 class AuthController extends Notifier<AuthState> {
@@ -59,10 +103,7 @@ class AuthController extends Notifier<AuthState> {
   Future<void> restore() async {
     try {
       final user = await _repo.restoreSession();
-      state = AuthState(
-        initialized: true,
-        user: user ?? AuthUser.guest,
-      );
+      state = AuthState(initialized: true, user: user ?? AuthUser.guest);
     } on Object {
       state = const AuthState(initialized: true, user: AuthUser.guest);
     }
@@ -71,15 +112,51 @@ class AuthController extends Notifier<AuthState> {
   Future<bool> login({
     required String studentId,
     required String password,
+    String captcha = '',
+    String? mfaCode,
+    String? accountLabel,
+    bool demo = false,
   }) async {
     state = state.copyWith(busy: true, clearError: true);
     try {
       final user = await _repo.login(
         studentId: studentId,
         password: password,
+        captcha: captcha,
+        mfaCode: mfaCode,
+        accountLabel: accountLabel,
+        demo: demo,
       );
       state = AuthState(initialized: true, user: user);
       return true;
+    } on CaptchaRequiredException catch (error) {
+      state = state.copyWith(
+        busy: false,
+        initialized: true,
+        captchaImage: error.image,
+        awaitingCaptcha: true,
+        errorMessage: error.message,
+      );
+      return false;
+    } on MfaRequiredException catch (error) {
+      state = state.copyWith(
+        busy: false,
+        initialized: true,
+        awaitingMfa: true,
+        maskedPhone: error.maskedPhone,
+        errorMessage: error.message,
+      );
+      unawaited(sendMfaSms());
+      return false;
+    } on AccountChoiceRequiredException catch (error) {
+      state = state.copyWith(
+        busy: false,
+        initialized: true,
+        awaitingAccountChoice: true,
+        accountChoices: error.choices,
+        errorMessage: error.message,
+      );
+      return false;
     } on AuthException catch (error) {
       state = state.copyWith(
         busy: false,
@@ -91,9 +168,31 @@ class AuthController extends Notifier<AuthState> {
       state = state.copyWith(
         busy: false,
         initialized: true,
-        errorMessage: '登录失败，请稍后重试',
+        errorMessage: '登录失败，请检查网络后重试',
       );
       return false;
+    }
+  }
+
+  Future<void> refreshCaptcha() async {
+    try {
+      final image = await _repo.refreshCaptcha();
+      state = state.copyWith(captchaImage: image, awaitingCaptcha: true);
+    } on AuthException catch (error) {
+      state = state.copyWith(errorMessage: error.message);
+    }
+  }
+
+  Future<void> sendMfaSms() async {
+    try {
+      final phone = await _repo.sendMfaSms();
+      state = state.copyWith(
+        awaitingMfa: true,
+        maskedPhone: phone,
+        errorMessage: '验证码已发送至 $phone',
+      );
+    } on AuthException catch (error) {
+      state = state.copyWith(errorMessage: error.message);
     }
   }
 

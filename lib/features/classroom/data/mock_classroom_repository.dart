@@ -1,3 +1,4 @@
+import '../../../core/l10n/app_strings.dart';
 import '../domain/classroom_repository.dart';
 import '../domain/classroom_slot.dart';
 
@@ -55,9 +56,9 @@ class MockClassroomRepository implements ClassroomRepository {
   ];
 
   @override
-  Future<List<ClassroomSlot>> findFree(ClassroomQuery query) async {
-    await Future<void>.delayed(const Duration(milliseconds: 120));
-    return rooms.where((room) {
+  Future<ClassroomPageData> findFree(ClassroomQuery query) async {
+    await Future<void>.delayed(const Duration(milliseconds: 80));
+    final rooms = MockClassroomRepository.rooms.where((room) {
       if (query.campus != null && room.campus != query.campus) return false;
       if (query.building != null && room.building != query.building) {
         return false;
@@ -67,5 +68,10 @@ class MockClassroomRepository implements ClassroomRepository {
       }
       return true;
     }).toList();
+    return ClassroomPageData(
+      rooms: rooms,
+      live: false,
+      banner: AppStrings.mockBanner,
+    );
   }
 }

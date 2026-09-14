@@ -16,8 +16,7 @@ class HomeDashboard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final auth = ref.watch(authControllerProvider);
-    final courses = ref.watch(coursesProvider);
-    final week = ref.watch(currentWeekProvider);
+    final snapshot = ref.watch(scheduleSnapshotProvider);
     final now = DateTime.now();
 
     return Scaffold(
@@ -34,15 +33,24 @@ class HomeDashboard extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
         children: [
-          const MockDataBanner(),
+          snapshot.when(
+            data: (data) =>
+                DataSourceBanner(live: data.live, message: data.banner),
+            loading: () => const MockDataBanner(),
+            error: (_, _) => const MockDataBanner(),
+          ),
           const SizedBox(height: 16),
-          _GreetingCard(auth: auth, now: now, week: week.value),
+          _GreetingCard(auth: auth, now: now, week: snapshot.value?.week),
           const SizedBox(height: 16),
           AsyncBody(
-            value: courses,
-            onRetry: () => ref.invalidate(coursesProvider),
-            builder: (items) {
-              final next = Course.nextAfter(items, now);
+            value: snapshot,
+            onRetry: () => ref.invalidate(scheduleSnapshotProvider),
+            builder: (data) {
+              final next = Course.nextAfter(
+                data.courses,
+                now,
+                weekNumber: data.week,
+              );
               return _NextClassCard(course: next, now: now);
             },
           ),

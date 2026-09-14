@@ -11,13 +11,25 @@ class AlarmPlanner {
     required DateTime now,
     Duration wakeOffset = AppConstants.defaultWakeOffset,
     List<Duration> reminderOffsets = AppConstants.defaultClassReminders,
-    int daysAhead = 7,
+    int daysAhead = AppConstants.alarmDaysAhead,
+    int? weekNumber,
   }) {
     final suggestions = <AlarmSuggestion>[];
     for (var offset = 0; offset < daysAhead; offset++) {
       final day = DateTime(now.year, now.month, now.day).add(Duration(days: offset));
       final weekday = day.weekday;
-      final todayCourses = courses.where((course) => course.weekday == weekday).toList()
+      final week = weekNumber == null
+          ? null
+          : weekNumber + ((now.weekday - 1 + offset) ~/ 7);
+      final todayCourses = courses.where((course) {
+        if (course.weekday != weekday) return false;
+        if (week != null &&
+            course.weeks.isNotEmpty &&
+            !course.weeks.contains(week)) {
+          return false;
+        }
+        return true;
+      }).toList()
         ..sort((a, b) => a.startPeriod.compareTo(b.startPeriod));
       if (todayCourses.isEmpty) continue;
 

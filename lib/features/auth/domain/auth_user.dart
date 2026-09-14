@@ -6,12 +6,14 @@ class AuthUser extends Equatable {
     required this.displayName,
     required this.sessionToken,
     this.college,
+    this.isDemo = false,
   });
 
   final String studentId;
   final String displayName;
   final String sessionToken;
   final String? college;
+  final bool isDemo;
 
   bool get isGuest => studentId.isEmpty;
 
@@ -22,5 +24,11 @@ class AuthUser extends Equatable {
   );
 
   @override
-  List<Object?> get props => [studentId, displayName, sessionToken, college];
+  List<Object?> get props => [
+    studentId,
+    displayName,
+    sessionToken,
+    college,
+    isDemo,
+  ];
 }

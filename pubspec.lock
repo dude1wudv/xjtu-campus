@@ -57,6 +57,22 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.19.1"
+  convert:
+    dependency: transitive
+    description:
+      name: convert
+      sha256: b30acd5944035672bc15c6b7a8b47d773e41e2f17de064350988c5d02adb1c68
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.1.2"
+  cookie_jar:
+    dependency: "direct main"
+    description:
+      name: cookie_jar
+      sha256: "963da02c1ef64cb5ac20de948c9e5940aa351f1e34a12b1d327c83d85b7e8fff"
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.0.9"
   crypto:
     dependency: transitive
     description:
@@ -89,6 +105,30 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.7.15"
+  dio:
+    dependency: "direct main"
+    description:
+      name: dio
+      sha256: "852ec3b48cc431ac04fff978413c541502b67ffc3e26921e74e3d994694192c1"
+      url: "https://pub.dev"
+    source: hosted
+    version: "5.11.1"
+  dio_cookie_manager:
+    dependency: "direct main"
+    description:
+      name: dio_cookie_manager
+      sha256: "4ed4669cacb11931517c1158876a2189f19386674b9dab498abcca063dbe4c61"
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.5.0"
+  dio_web_adapter:
+    dependency: transitive
+    description:
+      name: dio_web_adapter
+      sha256: "3a1b2cd7be71086f38504956e3ebcd2837288d231ff454bafa78021244102bfc"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.2.2"
   equatable:
     dependency: "direct main"
     description:
@@ -397,6 +437,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.18.3"
+  mime:
+    dependency: transitive
+    description:
+      name: mime
+      sha256: bd47de35f07e27267e69c8c8b22edf9473bfee170a60d60fcc93730c5144b7f6
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.1.0"
   objective_c:
     dependency: transitive
     description:
@@ -493,6 +541,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.1.8"
+  pointycastle:
+    dependency: "direct main"
+    description:
+      name: pointycastle
+      sha256: "92aa3841d083cc4b0f4709b5c74fd6409a3e6ba833ffc7dc6a8fee096366acf5"
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.0.0"
   pub_semver:
     dependency: transitive
     description:
@@ -579,7 +635,7 @@ packages:
     source: hosted
     version: "0.7.12"
   timezone:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: timezone
       sha256: "981d1020d6ef8fe1e7b3de5054e5b25579ae7c403d7734adc508ffc47668e9cb"
@@ -594,6 +650,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.4.0"
+  universal_io:
+    dependency: transitive
+    description:
+      name: universal_io
+      sha256: f63cbc48103236abf48e345e07a03ce5757ea86285ed313a6a032596ed9301e2
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.3.1"
   uuid:
     dependency: transitive
     description:

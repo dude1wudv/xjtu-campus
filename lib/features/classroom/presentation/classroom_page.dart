@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/di/core_providers.dart';
 import '../../../core/l10n/app_strings.dart';
 import '../../../core/widgets/app_feedback.dart';
+import '../../auth/presentation/auth_controller.dart';
 import '../domain/classroom_slot.dart';
 
 class ClassroomFilter extends Notifier<ClassroomQuery> {
@@ -27,7 +28,8 @@ class ClassroomFilter extends Notifier<ClassroomQuery> {
 final classroomFilterProvider =
     NotifierProvider<ClassroomFilter, ClassroomQuery>(ClassroomFilter.new);
 
-final freeClassroomsProvider = FutureProvider<List<ClassroomSlot>>((ref) {
+final freeClassroomsProvider = FutureProvider<ClassroomPageData>((ref) {
+  ref.watch(authControllerProvider.select((state) => state.user.sessionToken));
   final query = ref.watch(classroomFilterProvider);
   return ref.watch(classroomRepositoryProvider).findFree(query);
 });
@@ -35,8 +37,20 @@ final freeClassroomsProvider = FutureProvider<List<ClassroomSlot>>((ref) {
 class ClassroomPage extends ConsumerWidget {
   const ClassroomPage({super.key});
 
-  static const campuses = ['兴庆校区', '雁塔校区', '创新港'];
-  static const buildings = ['教学主楼', '仲英楼', '钱学森图书馆', '医学部教学楼', '涵英楼'];
+  static const campuses = ['兴庆校区', '雁塔校区', '创新港校区', '曲江校区'];
+  static const buildings = [
+    '主楼A',
+    '主楼B',
+    '主楼C',
+    '主楼D',
+    '仲英楼',
+    '教学主楼',
+    '钱学森图书馆',
+    '医学部教学楼',
+    '涵英楼',
+    '1号巨构',
+    '教学楼',
+  ];
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -52,7 +66,12 @@ class ClassroomPage extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const MockDataBanner(),
+                rooms.when(
+                  data: (data) =>
+                      DataSourceBanner(live: data.live, message: data.banner),
+                  loading: () => const MockDataBanner(),
+                  error: (_, _) => const MockDataBanner(),
+                ),
                 const SizedBox(height: 8),
                 const Text(AppStrings.classroomSubtitle),
                 const SizedBox(height: 12),
@@ -101,7 +120,7 @@ class ClassroomPage extends ConsumerWidget {
                           value: null,
                           child: Text(AppStrings.allSlots),
                         ),
-                        for (var period = 1; period <= 10; period++)
+                        for (var period = 1; period <= 11; period++)
                           DropdownMenuItem(
                             value: period,
                             child: Text('第$period节'),
@@ -120,7 +139,8 @@ class ClassroomPage extends ConsumerWidget {
             child: AsyncBody(
               value: rooms,
               onRetry: () => ref.invalidate(freeClassroomsProvider),
-              builder: (items) {
+              builder: (data) {
+                final items = data.rooms;
                 if (items.isEmpty) {
                   return const EmptyHint(
                     icon: Icons.meeting_room_outlined,

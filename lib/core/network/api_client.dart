@@ -2,9 +2,8 @@ import 'package:http/http.dart' as http;
 
 import '../constants/campus_urls.dart';
 
-/// HTTP 客户端占位。后续 ehall / 一网通办适配器应通过此入口发请求。
-///
-/// 骨架阶段不发起任何学校登录或抓取。Cookie 与 Token 只能来自用户授权后的 CAS 会话。
+/// 带 Cookie 的校园 HTTP 客户端。仅允许学校域名。
+/// 登录后的课表 / 教室请求必须走此会话，不要另开无 Cookie 的客户端。
 class ApiClient {
   ApiClient({http.Client? client}) : _client = client ?? http.Client();
 
@@ -24,12 +23,14 @@ class ApiClient {
       'login.xjtu.edu.cn',
       'ehall.xjtu.edu.cn',
       'ywtb.xjtu.edu.cn',
+      'jwxt.xjtu.edu.cn',
+      'authx-service.xjtu.edu.cn',
       'dean.xjtu.edu.cn',
     ];
     return allowed.contains(host);
   }
 
-  /// 后续 CasAuthRepository 将使用 [CampusUrls.casLogin]。
+  /// 后续 CasAuthRepository 使用 [CampusUrls.casLogin]。
   Uri get casLoginUri => Uri.parse(CampusUrls.casLogin);
 
   void close() => _client.close();

@@ -46,4 +46,24 @@ void main() {
       isEmpty,
     );
   });
+
+  test('周次过滤：不在本周的课程不生成闹钟', () {
+    final math = planner.plan(
+      courses: [MockScheduleData.courses.first],
+      now: DateTime(2026, 9, 14, 5),
+      daysAhead: 1,
+      weekNumber: 3,
+    );
+    expect(math, isNotEmpty);
+
+    final physics = planner.plan(
+      courses: [
+        MockScheduleData.courses.firstWhere((course) => course.id == 'physics-wed'),
+      ],
+      now: DateTime(2026, 9, 16, 5),
+      daysAhead: 1,
+      weekNumber: 3,
+    );
+    expect(physics, isEmpty);
+  });
 }

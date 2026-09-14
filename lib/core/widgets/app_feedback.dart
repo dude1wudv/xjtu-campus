@@ -4,23 +4,40 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../l10n/app_strings.dart';
 import '../theme/app_theme.dart';
 
+class DataSourceBanner extends StatelessWidget {
+  const DataSourceBanner({
+    super.key,
+    this.live = false,
+    this.message,
+  });
+
+  final bool live;
+  final String? message;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = message ??
+        (live ? AppStrings.liveBanner : AppStrings.mockBanner);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: (live ? AppColors.success : AppColors.gold).withValues(
+          alpha: 0.18,
+        ),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(text, style: const TextStyle(fontSize: 12, height: 1.3)),
+    );
+  }
+}
+
 class MockDataBanner extends StatelessWidget {
   const MockDataBanner({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: AppColors.gold.withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: const Text(
-        AppStrings.mockBanner,
-        style: TextStyle(fontSize: 12, height: 1.3),
-      ),
-    );
+    return const DataSourceBanner();
   }
 }
 

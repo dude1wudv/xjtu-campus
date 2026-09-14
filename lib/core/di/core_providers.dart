@@ -1,17 +1,21 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../features/alarms/data/stub_alarm_scheduler.dart';
+import '../../features/alarms/data/local_notification_scheduler.dart';
 import '../../features/alarms/domain/alarm_planner.dart';
 import '../../features/alarms/domain/alarm_scheduler.dart';
+import '../../features/auth/data/cas_auth_repository.dart';
 import '../../features/auth/data/mock_auth_repository.dart';
 import '../../features/auth/domain/auth_repository.dart';
+import '../../features/classroom/data/live_classroom_repository.dart';
 import '../../features/classroom/data/mock_classroom_repository.dart';
 import '../../features/classroom/domain/classroom_repository.dart';
 import '../../features/notifications/data/mock_notifications_repository.dart';
 import '../../features/notifications/domain/notifications_repository.dart';
+import '../../features/schedule/data/live_schedule_repository.dart';
 import '../../features/schedule/data/mock_schedule_repository.dart';
 import '../../features/schedule/domain/schedule_repository.dart';
 import '../network/api_client.dart';
+import '../network/campus_session.dart';
 import '../storage/credential_store.dart';
 import '../storage/secure_credential_store.dart';
 
@@ -19,32 +23,59 @@ final credentialStoreProvider = Provider<CredentialStore>(
   (ref) => SecureCredentialStore(),
 );
 
+final campusSessionProvider = Provider<CampusSession>((ref) {
+  return CampusSession(ref.watch(credentialStoreProvider));
+});
+
 final apiClientProvider = Provider<ApiClient>((ref) {
   final client = ApiClient();
   ref.onDispose(client.close);
   return client;
 });
 
-/// 后续替换为 CasAuthRepository（login.xjtu.edu.cn）。
-final authRepositoryProvider = Provider<AuthRepository>(
+final mockAuthRepositoryProvider = Provider<MockAuthRepository>(
   (ref) => MockAuthRepository(ref.watch(credentialStoreProvider)),
 );
 
-/// 后续替换为 EhallScheduleRepository。
-final scheduleRepositoryProvider = Provider<ScheduleRepository>(
+/// 默认 CAS；演示登录通过 login(demo: true) 走 Mock。
+final authRepositoryProvider = Provider<AuthRepository>(
+  (ref) => CasAuthRepository(
+    session: ref.watch(campusSessionProvider),
+    store: ref.watch(credentialStoreProvider),
+    mock: ref.watch(mockAuthRepositoryProvider),
+  ),
+);
+
+final mockScheduleRepositoryProvider = Provider<MockScheduleRepository>(
   (ref) => MockScheduleRepository(),
 );
 
-final classroomRepositoryProvider = Provider<ClassroomRepository>(
+final scheduleRepositoryProvider = Provider<ScheduleRepository>(
+  (ref) => LiveScheduleRepository(
+    session: ref.watch(campusSessionProvider),
+    mock: ref.watch(mockScheduleRepositoryProvider),
+  ),
+);
+
+final mockClassroomRepositoryProvider = Provider<MockClassroomRepository>(
   (ref) => MockClassroomRepository(),
+);
+
+final classroomRepositoryProvider = Provider<ClassroomRepository>(
+  (ref) => LiveClassroomRepository(
+    session: ref.watch(campusSessionProvider),
+    mock: ref.watch(mockClassroomRepositoryProvider),
+  ),
 );
 
 final notificationsRepositoryProvider = Provider<NotificationsRepository>(
   (ref) => MockNotificationsRepository(),
 );
 
-final alarmPlannerProvider = Provider<AlarmPlanner>((ref) => const AlarmPlanner());
+final alarmPlannerProvider = Provider<AlarmPlanner>(
+  (ref) => const AlarmPlanner(),
+);
 
 final alarmSchedulerProvider = Provider<AlarmScheduler>(
-  (ref) => StubAlarmScheduler(),
+  (ref) => LocalNotificationScheduler(),
 );

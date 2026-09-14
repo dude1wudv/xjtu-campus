@@ -37,6 +37,19 @@ void main() {
     expect(find.text(AppStrings.mockBanner), findsWidgets);
   });
 
+  testWidgets('登录页提供统一认证与演示两条路径', (tester) async {
+    await tester.pumpWidget(app());
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    await tester.tap(find.byTooltip(AppStrings.openLogin));
+    await tester.pumpAndSettle();
+
+    expect(find.text(AppStrings.loginAction), findsOneWidget);
+    expect(find.text(AppStrings.loginDemo), findsOneWidget);
+    expect(find.text(AppStrings.loginTitle), findsWidgets);
+  });
+
   testWidgets('闹钟页展示一键创建按钮与建议起床时间', (tester) async {
     await tester.pumpWidget(app());
     await tester.pump();
