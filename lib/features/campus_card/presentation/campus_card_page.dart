@@ -47,11 +47,23 @@ class _CampusCardPageState extends ConsumerState<CampusCardPage> {
   Future<void> _openNcardSyncLogin() async {
     final result = await context.push<bool>('/campus-card/sync');
     if (!mounted) return;
+    await _reload();
+    if (!mounted) return;
+    // Sync page only pops true after verifyQueryCard; if reload still fails,
+    // keep the sync button and nudge the user to retry.
     if (result == true) {
-      await _reload();
-    } else {
-      // Still retry after manual return — cookies / partial sync may help.
-      await _reload();
+      final snap = ref.read(campusCardSnapshotProvider);
+      final stillFailed = snap.maybeWhen(
+        data: (d) => d.failed && d.card == null,
+        orElse: () => true,
+      );
+      if (stillFailed) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('同步标记成功但拉取失败，请再点重试'),
+          ),
+        );
+      }
     }
   }
 

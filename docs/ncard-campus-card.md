@@ -1,4 +1,4 @@
-# 校园卡（ncard）实验功能 · v1.5.0-card.4
+# 校园卡（ncard）实验功能 · v1.5.0-card.5
 
 Read-only balance + recent turnover. No 充值 / 支付 / 挂失 automation.
 
@@ -23,7 +23,7 @@ Unauthenticated probe (2026-09-14, box `curl`, **no cookies**):
 
 H5 APIs require **mobile UA**. Desktop Chrome / desktop WebView is rejected with dialog **「请浏览器调成移动端模式访问！」**.
 
-## Mobile WebView requirement (card.4)
+## Mobile WebView requirement (card.4+) / sync harden (card.5)
 
 ncard H5 blocks non-mobile browsers. All ncard WebViews must use:
 
@@ -45,8 +45,10 @@ Soft-ref public [XJTUToolBox `app/sessions/campus_card_session.py`](https://gith
 5. **Do not** soft-warm GET `/plat/auth/synjones/oauth?ticket=` — that path returns **401**; XJTUToolBox uses POST oauth/token only.
 6. Persist `access_token` in secure storage (`ncard.access_token`); reuse on next load; clear and re-SSO on `queryCard` 401.
 7. Subsequent APIs send `Synjones-Auth` **and** `synjones-auth: bearer <access>` plus `synAccessSource: h5`.
-8. When WebView sees `ticket=` on ncard URL: prefer **Dart Dio oauth** via `NcardSso.oauthAndSave`, then optionally verify `queryCard`. Also poll sessionStorage as fallback.
-9. HeadlessInAppWebView: same iPhone UA + MOBILE mode + mobile spoof; Dart oauth on ticket; auto-dismiss 移动端 dialog.
+8. **NcardSyncPage (card.5):** when `ticket=` is seen on an ncard URL, `shouldOverrideUrlLoading` returns **CANCEL** (SPA must not navigate to `/plat/auth/synjones/oauth?ticket=` — that burns the one-time ticket). Dart then `oauthAndSave` → **must** `await verifyQueryCard` before `pop(true)`. Fail → clear token, stay on page, status「授权未通过余额校验，请再登录一次」. Storage-token poll also requires verify before pop.
+9. After CAS leaves login host / lands on ncard: CookieManager cookies for login/ywtb/ncard → `CampusSession.importCookies` so Dio oauth shares the WebView session.
+10. OAuth parse: log HTTP status + whether `access_token` key exists (never the value); also accept nested `json['data']['access_token']`. Content-Type remains form-urlencoded.
+11. HeadlessInAppWebView: same iPhone UA + MOBILE mode + mobile spoof; Dart oauth on ticket; auto-dismiss 移动端 dialog.
 
 **Important:** plain CAS / ywtb / jwxt cookies alone are **not** enough → `401 缺失令牌`. The H5 JWT (`Synjones-Auth`) is required.
 
@@ -77,7 +79,7 @@ Success business code: `code == 200`.
 - Not logged in → mock, gold banner.
 - Logged in + live OK → cache via `SnapshotCache.campusCard` (stale-while-revalidate).
 - Logged in + API fail → error + **重试** + **打开校园卡登录同步** → pushes **`/campus-card/sync`** (mobile WebView). Pop with success (`true`) auto-reloads. **Does not** silently replace with fake balance.
-- User instructions: 打开校园卡登录同步 → 若仍有弹窗点确认 → 自动返回后重试。
+- User instructions: 打开校园卡登录同步 → 若仍有弹窗点确认 → **等状态变为同步成功再自动返回**（未通过余额校验不会提前退出）。
 - Read-only. Logs only: ticket found yes/no, oauth ok yes/no, queryCard code. Do **not** log balance rows, tickets, or bearer values.
 
 ## Troubleshooting
@@ -89,8 +91,9 @@ Success business code: `code == 200`.
 | Works once then 401 | Stored bearer expired / kicked | App clears `ncard.access_token` on 401 and re-SSO; if still failing, open sync page. |
 | Off-campus + VPN still fails | ncard may be campus-net only; WebVPN not used for ncard | Try on campus Wi‑Fi / 校园网; VPN ≠ WebVPN cookie path. |
 | Dio path never gets ticket | Redirects consumed ticket into `/plat/` without query | Fixed in card.3 via manual redirect walk; card.4 also does Dart oauth from WebView ticket URL. |
-| soft-warm `/plat/auth/synjones/oauth?ticket=` → 401 | Wrong oauth path (SPA soft-warm) | card.4 skips that GET; uses POST `/berserker-auth/oauth/token` only. |
-| Headless WebView empty / `_waitForToken timed out` | Mobile dialog blocked SPA; or fetched before token | card.4: iPhone UA + dismiss dialog + Dart oauth on ticket. |
+| soft-warm `/plat/auth/synjones/oauth?ticket=` → 401 | Wrong oauth path (SPA soft-warm) | card.4+ skips that GET; uses POST `/berserker-auth/oauth/token` only. card.5 **CANCEL**s ticket URL in WebView so SPA never hits it. |
+| Sync auto-returns but still no balance | Premature `pop(true)` before queryCard OK / ticket raced | card.5: stay until `verifyQueryCard`; if sync flag true but reload fails → SnackBar「同步标记成功但拉取失败，请再点重试」. |
+| Headless WebView empty / `_waitForToken timed out` | Mobile dialog blocked SPA; or fetched before token | card.4+: iPhone UA + dismiss dialog + Dart oauth on ticket. |
 
 ## Limitations
 

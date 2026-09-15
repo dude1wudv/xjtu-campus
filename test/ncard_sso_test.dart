@@ -28,4 +28,26 @@ void main() {
     expect(CampusUrls.ncardMobileUserAgent, contains('Mobile/15E148'));
     expect(NcardMobileStealth.userAgent, CampusUrls.ncardMobileUserAgent);
   });
+
+  test('accessTokenFromJson reads top-level token', () {
+    expect(
+      NcardSso.accessTokenFromJson({'access_token': 'tok-top'}),
+      'tok-top',
+    );
+  });
+
+  test('accessTokenFromJson reads nested data.access_token', () {
+    expect(
+      NcardSso.accessTokenFromJson({
+        'code': 200,
+        'data': {'access_token': 'tok-nested'},
+      }),
+      'tok-nested',
+    );
+  });
+
+  test('accessTokenFromJson returns null when missing', () {
+    expect(NcardSso.accessTokenFromJson({'code': 401}), isNull);
+    expect(NcardSso.accessTokenFromJson(null), isNull);
+  });
 }

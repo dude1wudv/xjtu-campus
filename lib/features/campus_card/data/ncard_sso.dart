@@ -52,6 +52,19 @@ class NcardSso {
     }
   }
 
+  /// Pull `access_token` from top-level or nested `data` (never logs value).
+  static String? accessTokenFromJson(Map<String, dynamic>? json) {
+    if (json == null) return null;
+    final top = json['access_token']?.toString();
+    if (top != null && top.isNotEmpty) return top;
+    final data = json['data'];
+    if (data is Map) {
+      final nested = data['access_token']?.toString();
+      if (nested != null && nested.isNotEmpty) return nested;
+    }
+    return null;
+  }
+
   /// Warm `/plat/` only — do not hit CAS redirect (consumes one-time ticket).
   Future<void> softWarmPlat() async {
     try {
@@ -181,6 +194,8 @@ class NcardSso {
   }
 
   /// POST `/berserker-auth/oauth/token` only (XJTUToolBox path).
+  ///
+  /// Content-Type is form-urlencoded via [CampusSession.post] (`jsonBody: false`).
   Future<String?> oauthWithTicket(String ticket) async {
     final tokenResp = await _session.post(
       CampusUrls.ncardOAuthToken,
@@ -202,8 +217,17 @@ class NcardSso {
         'synAccessSource': 'h5',
       },
     );
+    final status = tokenResp.statusCode;
     final json = _session.tryJson(tokenResp);
-    final access = json?['access_token']?.toString();
+    final hasTop = json != null && json.containsKey('access_token');
+    final data = json?['data'];
+    final hasNested = data is Map && data.containsKey('access_token');
+    // Never log token values — only status + key presence.
+    AppLogger.info(
+      '校园卡 SSO oauth HTTP $status access_token key: top=$hasTop nested=$hasNested',
+    );
+
+    final access = accessTokenFromJson(json);
     if (access == null || access.isEmpty) {
       AppLogger.warn('校园卡 SSO 换取会话失败');
       return null;
