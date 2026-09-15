@@ -150,8 +150,11 @@ abstract final class CampusUrls {
   /// Official H5 platform OAuth client (public; same as campus-card SPA / XJTUToolBox).
   static const String ncardH5TokenBasicAuth =
       'Basic bW9iaWxlX3NlcnZpY2VfcGxhdGZvcm06bW9iaWxlX3NlcnZpY2VfcGxhdGZvcm1fc2VjcmV0';
+  /// Strong iPhone Safari UA — ncard H5 blocks desktop / weak mobile UAs.
   static const String ncardMobileUserAgent =
-      'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36';
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) '
+      'AppleWebKit/605.1.15 (KHTML, like Gecko) '
+      'Version/17.0 Mobile/15E148 Safari/604.1';
 
 
   static const userAgent =

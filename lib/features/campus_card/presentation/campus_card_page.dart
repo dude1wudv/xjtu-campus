@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/constants/campus_urls.dart';
 import '../../../core/l10n/app_strings.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_tokens.dart';
@@ -46,15 +45,14 @@ class _CampusCardPageState extends ConsumerState<CampusCardPage> {
   }
 
   Future<void> _openNcardSyncLogin() async {
-    await context.push(
-      '/browser',
-      extra: {
-        'url': CampusUrls.ncardCasRedirect,
-        'title': AppStrings.campusCardTitle,
-      },
-    );
+    final result = await context.push<bool>('/campus-card/sync');
     if (!mounted) return;
-    await _reload();
+    if (result == true) {
+      await _reload();
+    } else {
+      // Still retry after manual return — cookies / partial sync may help.
+      await _reload();
+    }
   }
 
   @override

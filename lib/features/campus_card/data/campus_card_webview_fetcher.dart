@@ -1,18 +1,26 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
 
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import '../../../core/constants/campus_urls.dart';
 import '../../../core/logging/app_logger.dart';
+import '../../../core/network/campus_session.dart';
+import 'ncard_mobile_stealth.dart';
+import 'ncard_sso.dart';
 
 /// Fetches ncard queryCard + turnover inside HeadlessInAppWebView.
 ///
-/// Warm `/plat` (or CAS redirect) so the H5 SPA can complete SSO and stash
-/// `access_token` in sessionStorage. Mobile UA is required by berserker H5.
+/// Uses iPhone UA + mobile spoof. On `ticket=` URL, prefers Dart Dio OAuth
+/// (not soft-warm GET `/plat/auth/synjones/oauth`).
 class CampusCardWebViewFetcher {
-  CampusCardWebViewFetcher({this.timeout = const Duration(seconds: 50)});
+  CampusCardWebViewFetcher({
+    this.session,
+    this.timeout = const Duration(seconds: 50),
+  });
 
+  final CampusSession? session;
   final Duration timeout;
 
   static const _tokenPollInterval = Duration(milliseconds: 500);
@@ -47,18 +55,36 @@ class CampusCardWebViewFetcher {
       var fetchStarted = false;
       headless = HeadlessInAppWebView(
         initialUrlRequest: URLRequest(url: WebUri(CampusUrls.ncardCasRedirect)),
+        initialUserScripts: UnmodifiableListView<UserScript>([
+          UserScript(
+            source: NcardMobileStealth.script,
+            injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+          ),
+        ]),
         initialSettings: InAppWebViewSettings(
           javaScriptEnabled: true,
           domStorageEnabled: true,
           thirdPartyCookiesEnabled: true,
-          userAgent: CampusUrls.ncardMobileUserAgent,
+          userAgent: NcardMobileStealth.userAgent,
+          preferredContentMode: UserPreferredContentMode.MOBILE,
+          supportZoom: false,
           cacheEnabled: true,
         ),
         onLoadStop: (controller, url) async {
           if (finished) return;
+          try {
+            await controller.evaluateJavascript(
+              source: NcardMobileStealth.script,
+            );
+            await controller.evaluateJavascript(
+              source: NcardMobileStealth.dismissMobileDialogScript,
+            );
+          } on Object catch (error) {
+            AppLogger.warn('WebView ncard mobile inject 失败: $error');
+          }
+
           final uri = url == null ? null : Uri.tryParse(url.toString());
           if (uri != null && uri.host.contains('login')) {
-            // CAS mid-redirect — keep waiting for ncard; do not abort.
             AppLogger.info(
               'WebView ncard CAS 跳转中: ${uri.host}${uri.path}',
             );
@@ -94,8 +120,6 @@ class CampusCardWebViewFetcher {
     return completer.future;
   }
 
-  /// Login WebView already left cookies in CookieManager; ensure they are
-  /// present for ncard origins before the headless load.
   Future<void> _seedCookiesFromManager() async {
     try {
       final manager = CookieManager.instance();
@@ -120,30 +144,62 @@ class CampusCardWebViewFetcher {
     InAppWebViewController controller,
     Uri? uri,
   ) async {
-    // If redirect landed with ticket=, exchange via JS before SPA may do so.
-    if (uri != null &&
-        uri.toString().contains('ticket=') &&
-        uri.host.contains('ncard')) {
-      final exchanged = await _jsExchangeTicket(controller, uri);
-      AppLogger.info('WebView JS oauth from ticket: $exchanged');
+    // Prefer Dart Dio oauth when ticket= is visible — skip SPA soft-warm GET.
+    if (uri != null) {
+      final ticket = NcardSso.ticketFromUri(uri);
+      if (ticket != null) {
+        final sess = session;
+        if (sess != null) {
+          final access = await NcardSso(sess).oauthAndSave(ticket);
+          AppLogger.info('WebView Dart oauth from ticket: ${access != null}');
+        } else {
+          final exchanged = await _jsExchangeTicket(controller, ticket);
+          AppLogger.info('WebView JS oauth from ticket: $exchanged');
+        }
+      }
     }
 
-    // Landed on /plat (or any ncard page): poll storage for SPA token.
     final hasToken = await _pollAccessToken(controller);
     AppLogger.info('WebView sessionStorage access_token present: $hasToken');
+
+    // If Dio saved a token but SPA storage is empty, inject for fetch headers.
+    if (!hasToken && session != null) {
+      final stored = await session!.readNcardAccessToken();
+      if (stored != null && stored.isNotEmpty) {
+        await _injectToken(controller, stored);
+      }
+    }
 
     return _runFetch(controller);
   }
 
+  Future<void> _injectToken(
+    InAppWebViewController controller,
+    String token,
+  ) async {
+    final tokenJson = jsonEncode(token);
+    try {
+      await controller.evaluateJavascript(
+        source: '''
+          (function() {
+            try {
+              sessionStorage.setItem('access_token', $tokenJson);
+              localStorage.setItem('access_token', $tokenJson);
+            } catch (e) {}
+          })();
+        ''',
+      );
+    } on Object catch (error) {
+      AppLogger.warn('WebView inject bearer 失败: $error');
+    }
+  }
+
   Future<bool> _jsExchangeTicket(
     InAppWebViewController controller,
-    Uri uri,
+    String ticket,
   ) async {
-    final ticket = uri.queryParameters['ticket'];
-    if (ticket == null || ticket.isEmpty) return false;
     final tokenUrl = CampusUrls.ncardOAuthToken;
     final basic = CampusUrls.ncardH5TokenBasicAuth;
-    // Pass ticket via JSON encoding to avoid JS injection.
     final ticketJson = jsonEncode(ticket);
     final basicJson = jsonEncode(basic);
     final tokenUrlJson = jsonEncode(tokenUrl);
@@ -189,11 +245,24 @@ class CampusCardWebViewFetcher {
 
   Future<bool> _pollAccessToken(InAppWebViewController controller) async {
     final deadline = DateTime.now().add(_tokenPollWindow);
+    var attempt = 0;
     while (DateTime.now().isBefore(deadline)) {
+      attempt++;
       final present = await _hasAccessToken(controller);
       if (present) return true;
+      if (attempt >= 12 && attempt % 4 == 0) {
+        AppLogger.info('token poll #$attempt no token');
+        try {
+          await controller.evaluateJavascript(
+            source: NcardMobileStealth.dismissMobileDialogScript,
+          );
+        } on Object {
+          // ignore
+        }
+      }
       await Future<void>.delayed(_tokenPollInterval);
     }
+    AppLogger.warn('_waitForToken timed out');
     return _hasAccessToken(controller);
   }
 
