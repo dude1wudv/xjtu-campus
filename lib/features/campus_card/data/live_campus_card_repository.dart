@@ -28,6 +28,8 @@ class LiveCampusCardRepository implements CampusCardRepository {
     'Referer': CampusUrls.ncardPlat,
   };
 
+  static const _redirectStatuses = {301, 302, 303, 307, 308};
+
   @override
   Future<CampusCardSnapshot> load() async {
     var loggedIn = false;
@@ -104,129 +106,290 @@ class LiveCampusCardRepository implements CampusCardRepository {
     }
 
     try {
+      final viaStored = await _tryStoredBearer();
+      if (viaStored != null) {
+        AppLogger.info('校园卡路径成功: Dio(stored bearer)');
+        return viaStored;
+      }
+
       await _softWarm();
       final bearer = await _exchangeSsoBearer();
-      final headers = <String, String>{..._ncardHeaders};
-      if (bearer != null && bearer.isNotEmpty) {
-        headers['Synjones-Auth'] = 'bearer $bearer';
+      final headers = _authHeaders(bearer);
+      final payload = await _queryWithHeaders(headers);
+      if (payload != null) {
+        AppLogger.info('校园卡路径成功: Dio');
       }
-      final cardResp = await _session.get(
-        CampusUrls.ncardQueryCard,
-        rewrite: false,
-        headers: headers,
-      );
-      final cardJson = _session.tryJson(cardResp);
-      if (cardJson == null || !CampusCardMapper.looksOk(cardJson)) {
-        AppLogger.warn('Dio 校园卡余额无效');
-        return null;
-      }
-      Map<String, dynamic>? turnJson;
-      try {
-        final range = _defaultTurnoverRange();
-        final turnResp = await _session.get(
-          CampusUrls.ncardTurnover,
-          rewrite: false,
-          query: {
-            'size': 30,
-            'current': 1,
-            'timeFrom': range.$1,
-            'timeTo': range.$2,
-            'synAccessSource': 'h5',
-          },
-          headers: headers,
-        );
-        turnJson = _session.tryJson(turnResp);
-      } on Object catch (error) {
-        AppLogger.warn('Dio 校园卡流水失败: $error');
-      }
-      AppLogger.info('校园卡路径成功: Dio');
-      return CampusCardRawPayload(card: cardJson, turnover: turnJson);
+      return payload;
     } on Object catch (error) {
       AppLogger.warn('Dio 校园卡失败: $error');
       return null;
     }
   }
 
+  Map<String, String> _authHeaders(String? bearer) {
+    final headers = <String, String>{..._ncardHeaders};
+    if (bearer != null && bearer.isNotEmpty) {
+      final value = 'bearer $bearer';
+      headers['Synjones-Auth'] = value;
+      headers['synjones-auth'] = value;
+    }
+    return headers;
+  }
+
+  Future<CampusCardRawPayload?> _tryStoredBearer() async {
+    final stored = await _session.readNcardAccessToken();
+    if (stored == null || stored.isEmpty) return null;
+    final headers = _authHeaders(stored);
+    final cardResp = await _session.get(
+      CampusUrls.ncardQueryCard,
+      rewrite: false,
+      headers: headers,
+    );
+    final cardJson = _session.tryJson(cardResp);
+    final code = cardJson?['code'];
+    AppLogger.info('校园卡 queryCard code(stored): $code');
+    if (cardJson == null) return null;
+    if (_isUnauthorized(cardJson)) {
+      AppLogger.warn('校园卡 stored bearer 401，清除并重新 SSO');
+      await _session.clearNcardAccessToken();
+      return null;
+    }
+    if (!CampusCardMapper.looksOk(cardJson)) return null;
+    Map<String, dynamic>? turnJson;
+    try {
+      final range = _defaultTurnoverRange();
+      final turnResp = await _session.get(
+        CampusUrls.ncardTurnover,
+        rewrite: false,
+        query: {
+          'size': 30,
+          'current': 1,
+          'timeFrom': range.$1,
+          'timeTo': range.$2,
+          'synAccessSource': 'h5',
+        },
+        headers: headers,
+      );
+      turnJson = _session.tryJson(turnResp);
+    } on Object catch (error) {
+      AppLogger.warn('Dio 校园卡流水失败(stored): $error');
+    }
+    return CampusCardRawPayload(card: cardJson, turnover: turnJson);
+  }
+
+  Future<CampusCardRawPayload?> _queryWithHeaders(
+    Map<String, String> headers,
+  ) async {
+    final cardResp = await _session.get(
+      CampusUrls.ncardQueryCard,
+      rewrite: false,
+      headers: headers,
+    );
+    final cardJson = _session.tryJson(cardResp);
+    final code = cardJson?['code'];
+    AppLogger.info('校园卡 queryCard code: $code');
+    if (cardJson == null || !CampusCardMapper.looksOk(cardJson)) {
+      AppLogger.warn('Dio 校园卡余额无效');
+      return null;
+    }
+    Map<String, dynamic>? turnJson;
+    try {
+      final range = _defaultTurnoverRange();
+      final turnResp = await _session.get(
+        CampusUrls.ncardTurnover,
+        rewrite: false,
+        query: {
+          'size': 30,
+          'current': 1,
+          'timeFrom': range.$1,
+          'timeTo': range.$2,
+          'synAccessSource': 'h5',
+        },
+        headers: headers,
+      );
+      turnJson = _session.tryJson(turnResp);
+    } on Object catch (error) {
+      AppLogger.warn('Dio 校园卡流水失败: $error');
+    }
+    return CampusCardRawPayload(card: cardJson, turnover: turnJson);
+  }
+
+  bool _isUnauthorized(Map<String, dynamic> json) {
+    final code = json['code'];
+    if (code == 401 || code?.toString() == '401') return true;
+    final message = json['message']?.toString() ?? '';
+    return message.contains('缺失令牌') || message.contains('鉴权失败');
+  }
+
   Future<void> _softWarm() async {
-    for (final url in [
-      CampusUrls.ncardPlat,
-      CampusUrls.ncardCasRedirect,
-    ]) {
-      try {
-        await _session.get(
-          url,
-          rewrite: false,
-          headers: {
-            'Accept':
-                'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'User-Agent': CampusUrls.ncardMobileUserAgent,
-            'Referer': CampusUrls.ywtbMain,
-          },
-        );
-      } on Object catch (error) {
-        AppLogger.warn('campus card soft-warm 失败: $error');
-      }
+    // Only warm /plat/. Do NOT hit ncardCasRedirect here — that would
+    // consume the one-time CAS ticket before _exchangeSsoBearer can capture it.
+    try {
+      await _session.get(
+        CampusUrls.ncardPlat,
+        rewrite: false,
+        headers: {
+          'Accept':
+              'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'User-Agent': CampusUrls.ncardMobileUserAgent,
+          'Referer': CampusUrls.ywtbMain,
+        },
+      );
+    } on Object catch (error) {
+      AppLogger.warn('campus card soft-warm 失败: $error');
     }
   }
 
   /// CAS ticket on ncard redirect → H5 OAuth access (public platform client).
+  ///
+  /// Prefer a manual redirect walk so Dio does not consume the intermediate
+  /// `ticket=` hop (final URL is often `/plat/` without the ticket).
   Future<String?> _exchangeSsoBearer() async {
-    try {
+    for (var attempt = 0; attempt < 2; attempt++) {
+      try {
+        var ticket = await _captureTicketManual();
+        ticket ??= await _captureTicketFollowed();
+        if (ticket == null || ticket.isEmpty) {
+          AppLogger.info(
+            '校园卡 SSO ticket found: false (attempt ${attempt + 1})',
+          );
+          continue;
+        }
+        AppLogger.info(
+          '校园卡 SSO ticket found: true (attempt ${attempt + 1})',
+        );
+
+        final access = await _oauthWithTicket(ticket);
+        AppLogger.info('校园卡 SSO oauth ok: ${access != null}');
+        if (access == null || access.isEmpty) continue;
+
+        await _session.saveNcardAccessToken(access);
+        AppLogger.info('校园卡 SSO 已完成');
+        return access;
+      } on Object catch (error) {
+        AppLogger.warn('校园卡 SSO 失败 (attempt ${attempt + 1}): $error');
+      }
+    }
+    return null;
+  }
+
+  Future<String?> _captureTicketManual() async {
+    var current = Uri.parse(CampusUrls.ncardCasRedirect);
+    for (var hop = 0; hop < 16; hop++) {
+      final fromCurrent = _ticketFrom(current);
+      if (fromCurrent != null) return fromCurrent;
+
       final response = await _session.get(
-        CampusUrls.ncardCasRedirect,
+        current.toString(),
         rewrite: false,
+        followRedirects: false,
+        maxRedirects: 0,
+        validateStatus: (status) => status != null && status < 500,
         headers: {
           'Accept':
               'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
           'User-Agent': CampusUrls.ncardMobileUserAgent,
         },
       );
-      final ticket = _ticketFrom(response.realUri) ??
-          _ticketFromRedirects(response.redirects.map((r) => r.location));
-      if (ticket == null || ticket.isEmpty) {
-        AppLogger.warn('校园卡 SSO 未拿到 ticket');
-        return null;
+
+      final fromReal = _ticketFrom(response.realUri);
+      if (fromReal != null) return fromReal;
+
+      final location = response.headers.value('location') ??
+          response.headers.value('Location');
+      if (location == null || location.isEmpty) {
+        break;
       }
-      final tokenResp = await _session.post(
-        CampusUrls.ncardOAuthToken,
-        rewrite: false,
-        data: {
-          'username': ticket,
-          'password': ticket,
-          'grant_type': 'password',
-          'scope': 'all',
-          'loginFrom': 'h5',
-          'logintype': 'sso',
-          'device_token': 'h5',
-          'synAccessSource': 'h5',
-        },
-        headers: {
-          'Authorization': CampusUrls.ncardH5TokenBasicAuth,
-          'User-Agent': CampusUrls.ncardMobileUserAgent,
-          'Accept': 'application/json',
-          'synAccessSource': 'h5',
-        },
-      );
-      final json = _session.tryJson(tokenResp);
-      final access = json?['access_token']?.toString();
-      if (access == null || access.isEmpty) {
-        AppLogger.warn('校园卡 SSO 换取会话失败');
-        return null;
+      final next = current.resolve(location);
+      final fromLoc = _ticketFrom(next);
+      if (fromLoc != null) return fromLoc;
+
+      final status = response.statusCode ?? 0;
+      if (!_redirectStatuses.contains(status)) {
+        break;
       }
-      AppLogger.info('校园卡 SSO 已完成');
-      return access;
-    } on Object catch (error) {
-      AppLogger.warn('校园卡 SSO 失败: $error');
+      // Stay on campus/CAS hosts only.
+      final host = next.host;
+      if (host.isNotEmpty &&
+          !host.endsWith('xjtu.edu.cn') &&
+          !host.contains('ncard')) {
+        AppLogger.warn('校园卡 SSO 手动跳转离开校园域: $host');
+        break;
+      }
+      current = next;
+    }
+    return null;
+  }
+
+  Future<String?> _captureTicketFollowed() async {
+    final response = await _session.get(
+      CampusUrls.ncardCasRedirect,
+      rewrite: false,
+      followRedirects: true,
+      maxRedirects: 12,
+      headers: {
+        'Accept':
+            'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'User-Agent': CampusUrls.ncardMobileUserAgent,
+      },
+    );
+    final fromFinal = _ticketFrom(response.realUri);
+    if (fromFinal != null) return fromFinal;
+    return _ticketFromRedirects(response.redirects.map((r) => r.location));
+  }
+
+  Future<String?> _oauthWithTicket(String ticket) async {
+    final tokenResp = await _session.post(
+      CampusUrls.ncardOAuthToken,
+      rewrite: false,
+      data: {
+        'username': ticket,
+        'password': ticket,
+        'grant_type': 'password',
+        'scope': 'all',
+        'loginFrom': 'h5',
+        'logintype': 'sso',
+        'device_token': 'h5',
+        'synAccessSource': 'h5',
+      },
+      headers: {
+        'Authorization': CampusUrls.ncardH5TokenBasicAuth,
+        'User-Agent': CampusUrls.ncardMobileUserAgent,
+        'Accept': 'application/json',
+        'synAccessSource': 'h5',
+      },
+    );
+    final json = _session.tryJson(tokenResp);
+    final access = json?['access_token']?.toString();
+    if (access == null || access.isEmpty) {
+      AppLogger.warn('校园卡 SSO 换取会话失败');
       return null;
     }
+    return access;
   }
 
   String? _ticketFrom(Uri uri) {
-    final ticket = uri.queryParameters['ticket'];
-    if (ticket == null || ticket.isEmpty) return null;
+    final rawUrl = uri.toString();
+    if (!rawUrl.contains('ticket=')) return null;
     // Ticket is issued for ncard; host may be empty on relative redirect locations.
-    if (uri.host.isEmpty || uri.host.contains('ncard')) return ticket;
-    return null;
+    if (uri.host.isNotEmpty && !uri.host.contains('ncard')) return null;
+
+    final fromParams = uri.queryParameters['ticket'];
+    if (fromParams != null && fromParams.isNotEmpty) {
+      return _decodeTicket(fromParams);
+    }
+    final match = RegExp(r'[?&]ticket=([^&#]*)').firstMatch(rawUrl);
+    final raw = match?.group(1);
+    if (raw == null || raw.isEmpty) return null;
+    return _decodeTicket(raw);
+  }
+
+  String _decodeTicket(String raw) {
+    try {
+      return Uri.decodeComponent(raw);
+    } on Object {
+      return raw;
+    }
   }
 
   String? _ticketFromRedirects(Iterable<Uri> locations) {

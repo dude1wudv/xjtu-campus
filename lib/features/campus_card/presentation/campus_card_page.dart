@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/constants/campus_urls.dart';
 import '../../../core/l10n/app_strings.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_tokens.dart';
@@ -42,6 +43,18 @@ class _CampusCardPageState extends ConsumerState<CampusCardPage> {
         totalCount: demo.totalCount,
       );
     });
+  }
+
+  Future<void> _openNcardSyncLogin() async {
+    await context.push(
+      '/browser',
+      extra: {
+        'url': CampusUrls.ncardCasRedirect,
+        'title': AppStrings.campusCardTitle,
+      },
+    );
+    if (!mounted) return;
+    await _reload();
   }
 
   @override
@@ -113,6 +126,7 @@ class _CampusCardPageState extends ConsumerState<CampusCardPage> {
                 softDemoActive: true,
                 onRetry: _reload,
                 onSoftDemo: _showSoftDemo,
+                onOpenSync: _openNcardSyncLogin,
               )
             else
               AsyncBody(
@@ -124,6 +138,7 @@ class _CampusCardPageState extends ConsumerState<CampusCardPage> {
                   softDemoActive: false,
                   onRetry: _reload,
                   onSoftDemo: _showSoftDemo,
+                  onOpenSync: _openNcardSyncLogin,
                 ),
               ),
           ],
@@ -140,6 +155,7 @@ class _SnapshotBody extends StatelessWidget {
     required this.softDemoActive,
     required this.onRetry,
     required this.onSoftDemo,
+    required this.onOpenSync,
   });
 
   final CampusCardSnapshot data;
@@ -147,6 +163,7 @@ class _SnapshotBody extends StatelessWidget {
   final bool softDemoActive;
   final Future<void> Function() onRetry;
   final Future<void> Function() onSoftDemo;
+  final Future<void> Function() onOpenSync;
 
   @override
   Widget build(BuildContext context) {
@@ -173,6 +190,10 @@ class _SnapshotBody extends StatelessWidget {
                 FilledButton(
                   onPressed: onRetry,
                   child: const Text(AppStrings.retry),
+                ),
+                OutlinedButton(
+                  onPressed: onOpenSync,
+                  child: const Text(AppStrings.campusCardOpenSyncLogin),
                 ),
                 if (showSoftDemo)
                   OutlinedButton(

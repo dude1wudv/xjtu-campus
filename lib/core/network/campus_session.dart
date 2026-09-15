@@ -189,19 +189,32 @@ class CampusSession {
   /// [useWebVpn]). Prefer direct for workflow/jwxt when SSO cookies were
   /// imported for those hosts; WebVPN rewrite without webvpn session cookies
   /// drops them and breaks sync.
+  ///
+  /// Optional [followRedirects] / [maxRedirects] / [validateStatus] override
+  /// [BaseOptions] for callers that need a manual redirect walk (e.g. ncard
+  /// CAS ticket capture). Other callers are unchanged when left null.
   Future<Response<dynamic>> get(
     String url, {
     Map<String, dynamic>? query,
     Map<String, String>? headers,
     ResponseType? responseType,
     bool rewrite = true,
+    bool? followRedirects,
+    int? maxRedirects,
+    ValidateStatus? validateStatus,
   }) {
     final target = rewrite ? _resolve(url) : url;
     _assertAllowed(target);
     return _dio.get<dynamic>(
       target,
       queryParameters: query,
-      options: Options(headers: headers, responseType: responseType),
+      options: Options(
+        headers: headers,
+        responseType: responseType,
+        followRedirects: followRedirects,
+        maxRedirects: maxRedirects,
+        validateStatus: validateStatus,
+      ),
     );
   }
 
@@ -257,9 +270,22 @@ class CampusSession {
     await _store.write(key: 'session.ywtb_id_token', value: token);
   }
 
+  static const ncardAccessTokenKey = 'ncard.access_token';
+
+  Future<void> saveNcardAccessToken(String token) async {
+    await _store.write(key: ncardAccessTokenKey, value: token);
+  }
+
+  Future<String?> readNcardAccessToken() => _store.read(ncardAccessTokenKey);
+
+  Future<void> clearNcardAccessToken() async {
+    await _store.delete(ncardAccessTokenKey);
+  }
+
   Future<void> clear() async {
     await _jar.deleteAll();
     ywtbIdToken = null;
+    await clearNcardAccessToken();
     AppLogger.info('已清除校园会话 Cookie');
   }
 

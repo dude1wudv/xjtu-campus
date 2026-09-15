@@ -202,6 +202,27 @@ class _CasWebLoginPageState extends ConsumerState<CasWebLoginPage> {
     if (_syncPhase == _SyncPhase.ncard) {
       if (_isNcardHost(uri)) {
         AppLogger.info('ncard 同步页加载完成: ${uri.host}${uri.path}');
+        // Give H5 SPA time to finish oauth and write sessionStorage.access_token.
+        if (mounted) {
+          setState(() => _status = '正在等待校园卡令牌同步…');
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 2500));
+        if (_finishing || !mounted) return;
+        try {
+          final controller = _controller;
+          if (controller != null) {
+            final hasToken = await controller.evaluateJavascript(
+              source:
+                  "(function(){try{const a=sessionStorage.getItem('access_token')||localStorage.getItem('access_token')||'';return !!(a&&String(a).length>8);}catch(e){return false;}})()",
+            );
+            final present =
+                hasToken == true || hasToken?.toString() == 'true';
+            AppLogger.info('ncard 同步 access_token present: $present');
+          }
+        } on Object catch (e) {
+          AppLogger.warn('ncard token 探测失败: $e');
+        }
+        if (_finishing || !mounted) return;
         await _finishWithCookies(warnPartial: false);
         return;
       }

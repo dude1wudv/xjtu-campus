@@ -191,7 +191,9 @@ abstract final class AppStrings {
   static const String campusCardLoginHint = '登录统一认证后可查询本人校园卡余额与流水（只读）。';
   static const String campusCardLiveBanner = '当前为校园卡实时数据（需已登录统一认证）。';
   static const String campusCardSyncFailedBanner =
-      '校园卡接口未同步成功。请重新网页登录以同步 ncard 会话；本页不回落演示数据。';
+      '校园卡接口未同步成功。余额接口需要 ncard SSO 令牌（Synjones-Auth），'
+      '仅完成一次网页登录的 CAS Cookie 往往不够。请点「打开校园卡登录同步」完成 H5 授权后返回重试；本页不回落演示数据。';
+  static const String campusCardOpenSyncLogin = '打开校园卡登录同步';
   static const String campusCardSoftDemoBanner =
       '以下为界面演示数据（已明确标注），不是你的真实余额或流水。';
   static const String campusCardErrorTitle = '校园卡同步失败';

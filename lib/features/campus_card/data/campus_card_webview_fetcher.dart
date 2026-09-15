@@ -15,6 +15,9 @@ class CampusCardWebViewFetcher {
 
   final Duration timeout;
 
+  static const _tokenPollInterval = Duration(milliseconds: 500);
+  static const _tokenPollWindow = Duration(seconds: 20);
+
   Future<CampusCardRawPayload?> fetchRaw() async {
     final completer = Completer<CampusCardRawPayload?>();
     HeadlessInAppWebView? headless;
@@ -39,6 +42,8 @@ class CampusCardWebViewFetcher {
     });
 
     try {
+      await _seedCookiesFromManager();
+
       var fetchStarted = false;
       headless = HeadlessInAppWebView(
         initialUrlRequest: URLRequest(url: WebUri(CampusUrls.ncardCasRedirect)),
@@ -53,8 +58,10 @@ class CampusCardWebViewFetcher {
           if (finished) return;
           final uri = url == null ? null : Uri.tryParse(url.toString());
           if (uri != null && uri.host.contains('login')) {
-            AppLogger.warn('WebView ncard 落到登录: ${uri.host}${uri.path}');
-            await complete(null);
+            // CAS mid-redirect — keep waiting for ncard; do not abort.
+            AppLogger.info(
+              'WebView ncard CAS 跳转中: ${uri.host}${uri.path}',
+            );
             return;
           }
           if (uri != null && !uri.host.contains('ncard')) {
@@ -66,10 +73,7 @@ class CampusCardWebViewFetcher {
           if (fetchStarted) return;
           fetchStarted = true;
           try {
-            // Give the H5 SPA a beat to write sessionStorage after redirect.
-            await Future<void>.delayed(const Duration(milliseconds: 800));
-            if (finished) return;
-            final result = await _runFetch(controller);
+            final result = await _prepareAndFetch(controller, uri);
             await complete(result);
           } on Object catch (error) {
             AppLogger.warn('WebView evaluate/fetch 校园卡失败: $error');
@@ -90,6 +94,140 @@ class CampusCardWebViewFetcher {
     return completer.future;
   }
 
+  /// Login WebView already left cookies in CookieManager; ensure they are
+  /// present for ncard origins before the headless load.
+  Future<void> _seedCookiesFromManager() async {
+    try {
+      final manager = CookieManager.instance();
+      final origins = [
+        CampusUrls.ncardOrigin,
+        CampusUrls.ncardPlat,
+        'https://login.xjtu.edu.cn/',
+        'https://ywtb.xjtu.edu.cn/',
+      ];
+      var count = 0;
+      for (final origin in origins) {
+        final cookies = await manager.getCookies(url: WebUri(origin));
+        count += cookies.length;
+      }
+      AppLogger.info('WebView ncard CookieManager 相关 Cookie 条数: $count');
+    } on Object catch (error) {
+      AppLogger.warn('WebView ncard Cookie 预检失败: $error');
+    }
+  }
+
+  Future<CampusCardRawPayload?> _prepareAndFetch(
+    InAppWebViewController controller,
+    Uri? uri,
+  ) async {
+    // If redirect landed with ticket=, exchange via JS before SPA may do so.
+    if (uri != null &&
+        uri.toString().contains('ticket=') &&
+        uri.host.contains('ncard')) {
+      final exchanged = await _jsExchangeTicket(controller, uri);
+      AppLogger.info('WebView JS oauth from ticket: $exchanged');
+    }
+
+    // Landed on /plat (or any ncard page): poll storage for SPA token.
+    final hasToken = await _pollAccessToken(controller);
+    AppLogger.info('WebView sessionStorage access_token present: $hasToken');
+
+    return _runFetch(controller);
+  }
+
+  Future<bool> _jsExchangeTicket(
+    InAppWebViewController controller,
+    Uri uri,
+  ) async {
+    final ticket = uri.queryParameters['ticket'];
+    if (ticket == null || ticket.isEmpty) return false;
+    final tokenUrl = CampusUrls.ncardOAuthToken;
+    final basic = CampusUrls.ncardH5TokenBasicAuth;
+    // Pass ticket via JSON encoding to avoid JS injection.
+    final ticketJson = jsonEncode(ticket);
+    final basicJson = jsonEncode(basic);
+    final tokenUrlJson = jsonEncode(tokenUrl);
+    final result = await controller.callAsyncJavaScript(
+      functionBody: '''
+        const ticket = $ticketJson;
+        const basic = $basicJson;
+        const tokenUrl = $tokenUrlJson;
+        const body = new URLSearchParams({
+          username: ticket,
+          password: ticket,
+          grant_type: 'password',
+          scope: 'all',
+          loginFrom: 'h5',
+          logintype: 'sso',
+          device_token: 'h5',
+          synAccessSource: 'h5',
+        });
+        const res = await fetch(tokenUrl, {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Authorization': basic,
+            'Accept': 'application/json',
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'synAccessSource': 'h5',
+          },
+          body: body.toString(),
+        });
+        let json = null;
+        try { json = await res.json(); } catch (e) { return false; }
+        const access = json && json.access_token ? String(json.access_token) : '';
+        if (!access) return false;
+        try {
+          sessionStorage.setItem('access_token', access);
+          localStorage.setItem('access_token', access);
+        } catch (e) {}
+        return true;
+      ''',
+    );
+    return result?.value == true;
+  }
+
+  Future<bool> _pollAccessToken(InAppWebViewController controller) async {
+    final deadline = DateTime.now().add(_tokenPollWindow);
+    while (DateTime.now().isBefore(deadline)) {
+      final present = await _hasAccessToken(controller);
+      if (present) return true;
+      await Future<void>.delayed(_tokenPollInterval);
+    }
+    return _hasAccessToken(controller);
+  }
+
+  Future<bool> _hasAccessToken(InAppWebViewController controller) async {
+    try {
+      final result = await controller.evaluateJavascript(
+        source: '''
+          (function() {
+            const keys = [
+              'access_token',
+              'accessToken',
+              'token',
+              'Authorization',
+              'Synjones-Auth',
+            ];
+            const stores = [sessionStorage, localStorage];
+            for (const store of stores) {
+              try {
+                for (const k of keys) {
+                  const v = store.getItem(k);
+                  if (v && String(v).length > 8) return true;
+                }
+              } catch (e) {}
+            }
+            return false;
+          })()
+        ''',
+      );
+      return result == true || result?.toString() == 'true';
+    } on Object {
+      return false;
+    }
+  }
+
   Future<CampusCardRawPayload?> _runFetch(
     InAppWebViewController controller,
   ) async {
@@ -101,11 +239,30 @@ class CampusCardWebViewFetcher {
           'Accept': 'application/json, text/plain, */*',
           'synAccessSource': 'h5',
         };
-        const token = sessionStorage.getItem('access_token')
-          || localStorage.getItem('access_token')
-          || '';
+        const pick = () => {
+          const keys = [
+            'access_token',
+            'accessToken',
+            'token',
+          ];
+          for (const store of [sessionStorage, localStorage]) {
+            try {
+              for (const k of keys) {
+                const v = store.getItem(k);
+                if (v && String(v).length > 8) return String(v);
+              }
+            } catch (e) {}
+          }
+          return '';
+        };
+        let token = pick();
+        if (token.toLowerCase().startsWith('bearer ')) {
+          token = token.slice(7).trim();
+        }
         if (token) {
-          headers['synjones-auth'] = 'bearer ' + token;
+          const auth = 'bearer ' + token;
+          headers['Synjones-Auth'] = auth;
+          headers['synjones-auth'] = auth;
         }
         const today = new Date();
         const pad = (n) => String(n).padStart(2, '0');
@@ -134,12 +291,13 @@ class CampusCardWebViewFetcher {
           credentials: 'include',
           headers,
         }));
-        return { card, turnover };
+        return { card, turnover, hasToken: !!token };
       ''',
     );
     final value = asyncResult?.value;
     if (value is Map) {
       final map = value.map((k, v) => MapEntry(k.toString(), v));
+      AppLogger.info('WebView fetch hasToken: ${map['hasToken'] == true}');
       final card = _asJsonMap(map['card']);
       final turnover = _asJsonMap(map['turnover']);
       if (card == null && turnover == null) return null;
@@ -147,6 +305,8 @@ class CampusCardWebViewFetcher {
         AppLogger.warn('WebView 校园卡余额返回非 JSON');
         return null;
       }
+      final code = card?['code'];
+      AppLogger.info('WebView 校园卡 queryCard code: $code');
       AppLogger.info('WebView 校园卡 JSON 已解析（不记录明细）');
       return CampusCardRawPayload(card: card, turnover: turnover);
     }
