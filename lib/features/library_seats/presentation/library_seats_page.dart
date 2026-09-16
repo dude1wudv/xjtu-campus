@@ -433,7 +433,7 @@ class _LibrarySeatsPageState extends ConsumerState<LibrarySeatsPage> {
                                 context.push(
                                   '/browser',
                                   extra: {
-                                    'url': 'http://www.lib.xjtu.edu.cn/',
+                                    'url': 'https://www.lib.xjtu.edu.cn/',
                                     'title': '图书馆登录',
                                   },
                                 );

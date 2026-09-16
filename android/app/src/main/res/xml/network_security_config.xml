@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 仅放行仍提供 http 的校园主机；其余走 https。 -->
+<!-- 校园内仍有多处仅提供 http（校历、图书馆门户/座位等）；按域名族放行明文。 -->
 <network-security-config>
     <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="true">one2020.xjtu.edu.cn</domain>
-        <domain includeSubdomains="true">rg.lib.xjtu.edu.cn</domain>
+        <domain includeSubdomains="true">xjtu.edu.cn</domain>
     </domain-config>
 </network-security-config>
