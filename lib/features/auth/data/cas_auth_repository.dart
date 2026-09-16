@@ -9,6 +9,7 @@ import '../../../core/constants/campus_urls.dart';
 import '../../../core/crypto/rsa_pkcs1.dart';
 import '../../../core/logging/app_logger.dart';
 import '../../../core/network/campus_session.dart';
+import '../../../core/network/imported_campus_cookie.dart';
 import '../../../core/storage/credential_store.dart';
 import '../domain/auth_repository.dart';
 import '../domain/auth_user.dart';
@@ -424,8 +425,7 @@ class CasAuthRepository implements AuthRepository {
   @override
   Future<AuthUser> completeWebLogin({
     required String studentId,
-    required List<({String name, String value, String? domain, String? path})>
-        cookies,
+    required List<ImportedCampusCookie> cookies,
   }) async {
     final id = studentId.trim();
     if (id.isEmpty) {

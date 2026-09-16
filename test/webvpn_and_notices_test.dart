@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:xjtu_campus/core/network/campus_session.dart';
+import 'package:xjtu_campus/core/network/imported_campus_cookie.dart';
 import 'package:xjtu_campus/features/notifications/data/dean_notices_parser.dart';
 import 'package:xjtu_campus/core/network/webvpn_url.dart';
 import 'package:xjtu_campus/core/storage/memory_credential_store.dart';
@@ -94,11 +95,13 @@ void main() {
     final session = CampusSession(MemoryCredentialStore());
     await session.restore();
     await session.importCookies([
-      (
+      const ImportedCampusCookie(
         name: 'client_id',
         value: 'cid_unit_test_value',
         domain: 'dean.xjtu.edu.cn',
         path: '/',
+        scheme: 'https',
+        secure: true,
       ),
     ]);
     final cookies = await session.jar.loadForRequest(
@@ -107,6 +110,49 @@ void main() {
     expect(
       cookies.any((c) => c.name == 'client_id' && c.value == 'cid_unit_test_value'),
       isTrue,
+    );
+  });
+
+  test('importCookies serves rg.lib cleartext:8086 (not https-only)', () async {
+    final session = CampusSession(MemoryCredentialStore());
+    await session.restore();
+    await session.importCookies([
+      const ImportedCampusCookie(
+        name: 'sessionid',
+        value: 'lib_seat_cookie_value',
+        domain: 'rg.lib.xjtu.edu.cn',
+        path: '/',
+        scheme: 'http',
+        port: 8086,
+        secure: false,
+      ),
+    ]);
+
+    final http8086 = await session.jar.loadForRequest(
+      Uri.parse('http://rg.lib.xjtu.edu.cn:8086/qseat'),
+    );
+    expect(
+      http8086.any(
+        (c) => c.name == 'sessionid' && c.value == 'lib_seat_cookie_value',
+      ),
+      isTrue,
+      reason: 'http://rg.lib:8086/qseat must receive imported cookies',
+    );
+    expect(
+      http8086.any((c) => c.name == 'sessionid' && c.secure == true),
+      isFalse,
+      reason: 'cleartext jar entry must not be Secure-only',
+    );
+
+    final http8010 = await session.jar.loadForRequest(
+      Uri.parse('http://rg.lib.xjtu.edu.cn:8010/qseat'),
+    );
+    expect(
+      http8010.any(
+        (c) => c.name == 'sessionid' && c.value == 'lib_seat_cookie_value',
+      ),
+      isTrue,
+      reason: 'lib host should also mirror :8010',
     );
   });
 

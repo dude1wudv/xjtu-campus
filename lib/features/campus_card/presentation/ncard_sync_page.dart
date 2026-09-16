@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/campus_urls.dart';
 import '../../../core/di/core_providers.dart';
+import '../../../core/network/imported_campus_cookie.dart';
 import '../../../core/logging/app_logger.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_tokens.dart';
@@ -83,23 +84,30 @@ class _NcardSyncPageState extends ConsumerState<NcardSyncPage> {
     if (_cookiesImported && !force) return;
     try {
       final cookieManager = CookieManager.instance();
-      final all = <Cookie>[];
-      for (final origin in _cookieOrigins) {
-        all.addAll(await cookieManager.getCookies(url: WebUri(origin)));
-      }
+      final mapped = <ImportedCampusCookie>[];
       final seen = <String>{};
-      all.retainWhere((c) => seen.add('${c.domain}|${c.name}|${c.value}'));
-      if (all.isEmpty) return;
-
-      final mapped = <({String name, String value, String? domain, String? path})>[
-        for (final c in all)
-          (
-            name: c.name,
-            value: c.value.toString(),
-            domain: c.domain,
-            path: c.path,
-          ),
-      ];
+      for (final origin in _cookieOrigins) {
+        final uri = Uri.parse(origin);
+        final batch = await cookieManager.getCookies(url: WebUri(origin));
+        for (final c in batch) {
+          final domain = (c.domain ?? uri.host).trim();
+          final key =
+              '$domain|${c.name}|${c.value}|${uri.scheme}|${uri.hasPort ? uri.port : ''}';
+          if (!seen.add(key)) continue;
+          mapped.add(
+            ImportedCampusCookie(
+              name: c.name,
+              value: c.value.toString(),
+              domain: domain,
+              path: c.path ?? '/',
+              scheme: uri.scheme,
+              port: uri.hasPort ? uri.port : null,
+              secure: c.isSecure,
+            ),
+          );
+        }
+      }
+      if (mapped.isEmpty) return;
       final session = ref.read(campusSessionProvider);
       await session.importCookies(mapped);
       _cookiesImported = true;

@@ -429,16 +429,21 @@ class _LibrarySeatsPageState extends ConsumerState<LibrarySeatsPage> {
                             const Text(AppStrings.librarySeatsAuthHint),
                             const SizedBox(height: 12),
                             FilledButton(
-                              onPressed: () {
-                                context.push(
+                              onPressed: () async {
+                                await context.push(
                                   '/browser',
                                   extra: {
-                                    'url': 'https://www.lib.xjtu.edu.cn/',
+                                    'url':
+                                        'http://rg.lib.xjtu.edu.cn:8086/seat/',
                                     'title': '图书馆登录',
                                   },
                                 );
+                                if (!context.mounted) return;
+                                await ref
+                                    .read(librarySeatsSnapshotProvider.notifier)
+                                    .refresh();
                               },
-                              child: const Text('打开图书馆登录页'),
+                              child: const Text('打开座位系统登录'),
                             ),
                           ],
                         ),

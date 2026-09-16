@@ -9,6 +9,7 @@ import '../constants/app_constants.dart';
 import '../constants/campus_urls.dart';
 import '../logging/app_logger.dart';
 import '../storage/credential_store.dart';
+import 'imported_campus_cookie.dart';
 import 'secure_cookie_storage.dart';
 import 'webvpn_url.dart';
 
@@ -107,10 +108,11 @@ class CampusSession {
   }
 
   /// 把 WebView 登录拿到的 Cookie 写入会话。
-  Future<void> importCookies(
-    Iterable<({String name, String value, String? domain, String? path})>
-        cookies,
-  ) async {
+  ///
+  /// 默认按 `https://host` 写入。图书馆座位等 cleartext 主机需保留 scheme+port：
+  /// `http://rg.lib.xjtu.edu.cn:8086` 不会带上仅存于 https jar 槽位且 `secure` 的 Cookie。
+  /// 对 `*.lib.xjtu.edu.cn` 会额外镜像 http:8086 / http:8010（及 https）变体。
+  Future<void> importCookies(Iterable<ImportedCampusCookie> cookies) async {
     final byHost = <Uri, List<Cookie>>{};
     final importedNames = <String>{};
     const mirrorHosts = [
@@ -122,19 +124,66 @@ class CampusSession {
       'ncard.xjtu.edu.cn',
     ];
 
+    bool isLibHost(String host) =>
+        host == 'lib.xjtu.edu.cn' || host.endsWith('.lib.xjtu.edu.cn');
+
     void addCookie(
       String host,
-      ({String name, String value, String? domain, String? path}) item,
-    ) {
+      ImportedCampusCookie item, {
+      required String scheme,
+      int? port,
+      required bool secure,
+    }) {
       final path = item.path ?? '/';
-      final uri = Uri(scheme: 'https', host: host, path: path);
+      final uri = (port != null && port > 0)
+          ? Uri(scheme: scheme, host: host, port: port, path: path)
+          : Uri(scheme: scheme, host: host, path: path);
       byHost.putIfAbsent(uri, () => <Cookie>[]).add(
             Cookie(item.name, item.value)
               ..domain = host
               ..path = path
               ..httpOnly = true
-              ..secure = true,
+              ..secure = secure,
           );
+    }
+
+    void addForHost(String host, ImportedCampusCookie item) {
+      final knownScheme = (item.scheme ?? '').trim().toLowerCase();
+      final knownPort = item.port;
+      final lib = isLibHost(host);
+      // Lib seats are cleartext; never mark Secure or Dio won't send on :8086
+      // once cookie_jar enforces the flag. Domain-keyed saves share one slot.
+      final preferHttp = lib ||
+          knownScheme == 'http' ||
+          (knownPort != null && (knownPort == 8086 || knownPort == 8010));
+
+      if (preferHttp) {
+        final port = (knownPort == 8086 || knownPort == 8010)
+            ? knownPort
+            : (lib ? 8086 : knownPort);
+        addCookie(
+          host,
+          item,
+          scheme: 'http',
+          port: port ?? (lib ? 8086 : null),
+          secure: false,
+        );
+      } else {
+        addCookie(
+          host,
+          item,
+          scheme: 'https',
+          secure: item.secure ?? true,
+        );
+      }
+
+      // Library seats talk cleartext :8086/:8010; always mirror both schemes.
+      if (lib) {
+        for (final port in const [8086, 8010]) {
+          addCookie(host, item, scheme: 'http', port: port, secure: false);
+        }
+        addCookie(host, item, scheme: 'https', secure: false);
+      }
     }
 
     for (final item in cookies) {
@@ -148,14 +197,18 @@ class CampusSession {
       }
 
       importedNames.add(item.name);
-      addCookie(domain, item);
+      addForHost(domain, item);
 
       // 父域 Cookie 在浏览器会发给各子域；Dio CookieJar 按 host 匹配，
       // 因此镜像到登录 / 一网通办 / 大厅，保证后续请求能带上会话。
       if (domain == 'xjtu.edu.cn') {
         for (final host in mirrorHosts) {
-          addCookie(host, item);
+          addForHost(host, item);
         }
+      }
+      // www.lib / lib portal cookies must also hit rg.lib:8086 seat API.
+      if (isLibHost(domain) && domain != 'rg.lib.xjtu.edu.cn') {
+        addForHost('rg.lib.xjtu.edu.cn', item);
       }
     }
 
@@ -325,6 +378,9 @@ class CampusSession {
       'webvpn.xjtu.edu.cn',
       'one2020.xjtu.edu.cn',
       'ncard.xjtu.edu.cn',
+      'www.lib.xjtu.edu.cn',
+      'rg.lib.xjtu.edu.cn',
+      'lib.xjtu.edu.cn',
     };
     if (!allowed.contains(host)) {
       throw ArgumentError('拒绝访问未列入校园域名白名单的地址: $host');

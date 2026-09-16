@@ -1,6 +1,8 @@
 import 'dart:convert';
 
+import 'package:cookie_jar/cookie_jar.dart';
 import 'package:dio/dio.dart';
+import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 
 import '../../../core/l10n/app_strings.dart';
 import '../domain/library_seat.dart';
@@ -12,6 +14,7 @@ import '../domain/library_seat.dart';
 class LibrarySeatApi {
   LibrarySeatApi({
     Dio? dio,
+    CookieJar? cookieJar,
     String baseUrl = defaultBaseUrl,
     Duration? connectTimeout,
   })  : baseUrl = baseUrl,
@@ -31,7 +34,11 @@ class LibrarySeatApi {
                       'text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8',
                 },
               ),
-            );
+            ) {
+    if (dio == null && cookieJar != null) {
+      _dio.interceptors.add(CookieManager(cookieJar));
+    }
+  }
 
   static const defaultBaseUrl = 'http://rg.lib.xjtu.edu.cn:8086';
 

@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+import '../../../core/network/imported_campus_cookie.dart';
+
 import 'auth_user.dart';
 
 /// CAS 登录抽象。默认实现走 login.xjtu.edu.cn；[demo] 仍可走 Mock。
@@ -23,8 +25,7 @@ abstract class AuthRepository {
   /// WebView 完成 CAS 后导入 Cookie。
   Future<AuthUser> completeWebLogin({
     required String studentId,
-    required List<({String name, String value, String? domain, String? path})>
-        cookies,
+    required List<ImportedCampusCookie> cookies,
   });
 
   Future<void> logout();

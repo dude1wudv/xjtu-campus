@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/campus_urls.dart';
+import '../../../core/network/imported_campus_cookie.dart';
+import '../../../core/network/webview_cookie_bridge.dart';
 import '../../../core/di/core_providers.dart';
 import '../../../core/l10n/app_strings.dart';
 import '../../../core/logging/app_logger.dart';
@@ -253,8 +255,7 @@ class _CasWebLoginPageState extends ConsumerState<CasWebLoginPage> {
 
     try {
       final cookieManager = CookieManager.instance();
-      final all = <Cookie>[];
-      for (final origin in [
+      final origins = [
         'https://login.xjtu.edu.cn/cas/login',
         'https://login.xjtu.edu.cn/',
         'https://ywtb.xjtu.edu.cn/',
@@ -271,17 +272,35 @@ class _CasWebLoginPageState extends ConsumerState<CasWebLoginPage> {
         'https://ncard.xjtu.edu.cn/',
         CampusUrls.ncardPlat,
         CampusUrls.ncardCasRedirect,
-      ]) {
-        all.addAll(await cookieManager.getCookies(url: WebUri(origin)));
-      }
-      // 去重
+        ...WebViewCookieBridge.libraryOrigins,
+      ];
+      final mapped = <ImportedCampusCookie>[];
       final seen = <String>{};
-      all.retainWhere((c) => seen.add('${c.domain}|${c.name}|${c.value}'));
+      for (final origin in origins) {
+        final uri = Uri.parse(origin);
+        final batch = await cookieManager.getCookies(url: WebUri(origin));
+        for (final c in batch) {
+          final domain = (c.domain ?? uri.host).trim();
+          final key = '$domain|${c.name}|${c.value}|${uri.scheme}|${uri.hasPort ? uri.port : ''}';
+          if (!seen.add(key)) continue;
+          mapped.add(
+            ImportedCampusCookie(
+              name: c.name,
+              value: c.value.toString(),
+              domain: domain,
+              path: c.path ?? '/',
+              scheme: uri.scheme,
+              port: uri.hasPort ? uri.port : null,
+              secure: c.isSecure,
+            ),
+          );
+        }
+      }
 
-      final hasWorkflowCookie = all.any(
+      final hasWorkflowCookie = mapped.any(
         (c) => (c.domain ?? '').contains('workflow'),
       );
-      final hasJwxtCookie = all.any(
+      final hasJwxtCookie = mapped.any(
         (c) => (c.domain ?? '').contains('jwxt'),
       );
       if (!hasWorkflowCookie) {
@@ -298,7 +317,7 @@ class _CasWebLoginPageState extends ConsumerState<CasWebLoginPage> {
       } else {
         AppLogger.info('已采集到 jwxt 域 Cookie');
       }
-      final hasNcardCookie = all.any(
+      final hasNcardCookie = mapped.any(
         (c) => (c.domain ?? '').contains('ncard'),
       );
       if (!hasNcardCookie) {
@@ -308,16 +327,6 @@ class _CasWebLoginPageState extends ConsumerState<CasWebLoginPage> {
       } else {
         AppLogger.info('已采集到 ncard 域 Cookie，准备 completeWebLogin');
       }
-
-      final mapped = <({String name, String value, String? domain, String? path})>[
-        for (final c in all)
-          (
-            name: c.name,
-            value: c.value.toString(),
-            domain: c.domain,
-            path: c.path,
-          ),
-      ];
 
       final user = await ref.read(authRepositoryProvider).completeWebLogin(
             studentId: widget.studentId,

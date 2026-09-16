@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/campus_urls.dart';
 import '../../../core/cache/snapshot_cache.dart';
 import '../../../core/di/core_providers.dart';
+import '../../../core/network/imported_campus_cookie.dart';
 import '../../../core/l10n/app_strings.dart';
 import '../../../core/logging/app_logger.dart';
 import '../data/dean_notices_parser.dart';
@@ -331,7 +332,14 @@ class _DeanNoticesWebViewLoaderState
       final host = Uri.parse(_currentUrl).host;
       final session = ref.read(campusSessionProvider);
       await session.importCookies([
-        (name: 'client_id', value: clientId, domain: host, path: '/'),
+        ImportedCampusCookie(
+          name: 'client_id',
+          value: clientId,
+          domain: host,
+          path: '/',
+          scheme: 'https',
+          secure: true,
+        ),
       ]);
       AppLogger.info('已从 WebView 导出 $host client_id 到 CampusSession');
     } on Object catch (error) {

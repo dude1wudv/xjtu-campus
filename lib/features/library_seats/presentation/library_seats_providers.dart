@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/di/core_providers.dart';
 import '../../alarms/data/local_notification_scheduler.dart';
+import '../data/library_seat_api.dart';
 import '../data/library_seat_areas.dart';
 import '../data/library_seat_schedule_store.dart';
 import '../data/live_library_seats_repository.dart';
@@ -11,7 +12,12 @@ import '../domain/library_seat.dart';
 import '../domain/library_seats_repository.dart';
 
 final librarySeatsRepositoryProvider = Provider<LibrarySeatsRepository>(
-  (ref) => LiveLibrarySeatsRepository(),
+  (ref) {
+    final session = ref.watch(campusSessionProvider);
+    return LiveLibrarySeatsRepository(
+      api: LibrarySeatApi(cookieJar: session.jar),
+    );
+  },
 );
 
 final librarySeatScheduleStoreProvider = Provider<LibrarySeatScheduleStore>(
