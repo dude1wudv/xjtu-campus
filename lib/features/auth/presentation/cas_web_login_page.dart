@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/campus_urls.dart';
+import '../../../core/network/imported_campus_cookie.dart';
+import '../../../core/network/webview_cookie_bridge.dart';
 import '../../../core/di/core_providers.dart';
 import '../../../core/l10n/app_strings.dart';
 import '../../../core/logging/app_logger.dart';
@@ -16,7 +18,7 @@ import '../../schedule/presentation/schedule_providers.dart';
 import 'auth_controller.dart';
 
 /// Sync phases after CAS lands on a campus portal.
-enum _SyncPhase { idle, workflow, jwxt }
+enum _SyncPhase { idle, workflow, jwxt, ncard }
 
 /// 使用学校官方 CAS 网页登录，验证码 / MFA / 滑块都在官方页完成。
 class CasWebLoginPage extends ConsumerStatefulWidget {
@@ -45,12 +47,15 @@ class _CasWebLoginPageState extends ConsumerState<CasWebLoginPage> {
             host.contains('jwxt') ||
             host.contains('webvpn') ||
             host.contains('workflow') ||
+            host.contains('ncard') ||
             host.contains('authx-service'));
   }
 
   bool _isWorkflowHost(Uri uri) => uri.host.contains('workflow');
 
   bool _isJwxtHost(Uri uri) => uri.host.contains('jwxt');
+
+  bool _isNcardHost(Uri uri) => uri.host.contains('ncard');
 
   Future<void> _tryFinish(Uri uri) async {
     if (_finishing || _syncPhase != _SyncPhase.idle) return;
@@ -85,9 +90,9 @@ class _CasWebLoginPageState extends ConsumerState<CasWebLoginPage> {
     setState(() => _status = '正在同步课表会话…');
     AppLogger.info('网页登录已落到校园门户，开始加载 workflow 课表页以同步会话');
 
-    // Overall sync timeout (~20s) covers workflow + jwxt.
+    // Overall sync timeout covers workflow + jwxt + ncard.
     _syncTimeout?.cancel();
-    _syncTimeout = Timer(const Duration(seconds: 20), () async {
+    _syncTimeout = Timer(const Duration(seconds: 28), () async {
       if (_finishing || !mounted) return;
       AppLogger.warn('课表/教室会话同步超时，仍尝试导入现有 Cookie');
       if (mounted) {
@@ -136,6 +141,30 @@ class _CasWebLoginPageState extends ConsumerState<CasWebLoginPage> {
     }
   }
 
+  Future<void> _beginNcardSync() async {
+    if (_finishing || _syncPhase != _SyncPhase.jwxt) return;
+    _syncPhase = _SyncPhase.ncard;
+    if (mounted) {
+      setState(() => _status = '正在同步校园卡会话…');
+    }
+    AppLogger.info('jwxt 已同步，开始加载 ncard 以同步校园卡会话');
+
+    try {
+      final controller = _controller;
+      if (controller == null) {
+        AppLogger.warn('WebView 控制器为空，跳过 ncard 同步');
+        await _finishWithCookies(warnPartial: true);
+        return;
+      }
+      await controller.loadUrl(
+        urlRequest: URLRequest(url: WebUri(CampusUrls.ncardCasRedirect)),
+      );
+    } on Object catch (e) {
+      AppLogger.warn('加载 ncard 失败: $e');
+      await _finishWithCookies(warnPartial: true);
+    }
+  }
+
   Future<void> _onSyncLoadStop(Uri uri) async {
     if (_finishing) return;
 
@@ -157,7 +186,7 @@ class _CasWebLoginPageState extends ConsumerState<CasWebLoginPage> {
       // CAS may briefly appear during SSO; wait for jwxt host or overall timeout.
       if (_isJwxtHost(uri)) {
         AppLogger.info('jwxt 同步页加载完成: ${uri.host}${uri.path}');
-        await _finishWithCookies(warnPartial: false);
+        await _beginNcardSync();
         return;
       }
       if (uri.host.contains('login')) {
@@ -168,6 +197,45 @@ class _CasWebLoginPageState extends ConsumerState<CasWebLoginPage> {
       }
       AppLogger.info(
         '教室会话同步中，忽略非 jwxt 页面: ${uri.host}${uri.path}',
+      );
+      return;
+    }
+
+    if (_syncPhase == _SyncPhase.ncard) {
+      if (_isNcardHost(uri)) {
+        AppLogger.info('ncard 同步页加载完成: ${uri.host}${uri.path}');
+        // Give H5 SPA time to finish oauth and write sessionStorage.access_token.
+        if (mounted) {
+          setState(() => _status = '正在等待校园卡令牌同步…');
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 2500));
+        if (_finishing || !mounted) return;
+        try {
+          final controller = _controller;
+          if (controller != null) {
+            final hasToken = await controller.evaluateJavascript(
+              source:
+                  "(function(){try{const a=sessionStorage.getItem('access_token')||localStorage.getItem('access_token')||'';return !!(a&&String(a).length>8);}catch(e){return false;}})()",
+            );
+            final present =
+                hasToken == true || hasToken?.toString() == 'true';
+            AppLogger.info('ncard 同步 access_token present: $present');
+          }
+        } on Object catch (e) {
+          AppLogger.warn('ncard token 探测失败: $e');
+        }
+        if (_finishing || !mounted) return;
+        await _finishWithCookies(warnPartial: false);
+        return;
+      }
+      if (uri.host.contains('login')) {
+        AppLogger.info(
+          '校园卡会话同步中，CAS 跳转中: ${uri.host}${uri.path}',
+        );
+        return;
+      }
+      AppLogger.info(
+        '校园卡会话同步中，忽略非 ncard 页面: ${uri.host}${uri.path}',
       );
     }
   }
@@ -187,8 +255,7 @@ class _CasWebLoginPageState extends ConsumerState<CasWebLoginPage> {
 
     try {
       final cookieManager = CookieManager.instance();
-      final all = <Cookie>[];
-      for (final origin in [
+      final origins = [
         'https://login.xjtu.edu.cn/cas/login',
         'https://login.xjtu.edu.cn/',
         'https://ywtb.xjtu.edu.cn/',
@@ -202,17 +269,38 @@ class _CasWebLoginPageState extends ConsumerState<CasWebLoginPage> {
         'https://webvpn.xjtu.edu.cn/',
         'https://workflow.xjtu.edu.cn/',
         CampusUrls.workflowKebiaoPage,
-      ]) {
-        all.addAll(await cookieManager.getCookies(url: WebUri(origin)));
-      }
-      // 去重
+        'https://ncard.xjtu.edu.cn/',
+        CampusUrls.ncardPlat,
+        CampusUrls.ncardCasRedirect,
+        ...WebViewCookieBridge.libraryOrigins,
+      ];
+      final mapped = <ImportedCampusCookie>[];
       final seen = <String>{};
-      all.retainWhere((c) => seen.add('${c.domain}|${c.name}|${c.value}'));
+      for (final origin in origins) {
+        final uri = Uri.parse(origin);
+        final batch = await cookieManager.getCookies(url: WebUri(origin));
+        for (final c in batch) {
+          final domain = (c.domain ?? uri.host).trim();
+          final key = '$domain|${c.name}|${c.value}|${uri.scheme}|${uri.hasPort ? uri.port : ''}';
+          if (!seen.add(key)) continue;
+          mapped.add(
+            ImportedCampusCookie(
+              name: c.name,
+              value: c.value.toString(),
+              domain: domain,
+              path: c.path ?? '/',
+              scheme: uri.scheme,
+              port: uri.hasPort ? uri.port : null,
+              secure: c.isSecure,
+            ),
+          );
+        }
+      }
 
-      final hasWorkflowCookie = all.any(
+      final hasWorkflowCookie = mapped.any(
         (c) => (c.domain ?? '').contains('workflow'),
       );
-      final hasJwxtCookie = all.any(
+      final hasJwxtCookie = mapped.any(
         (c) => (c.domain ?? '').contains('jwxt'),
       );
       if (!hasWorkflowCookie) {
@@ -227,18 +315,18 @@ class _CasWebLoginPageState extends ConsumerState<CasWebLoginPage> {
           '导入前未采集到 jwxt 域 Cookie；空闲教室可能仍需重新网页登录或 WebVPN',
         );
       } else {
-        AppLogger.info('已采集到 jwxt 域 Cookie，准备 completeWebLogin');
+        AppLogger.info('已采集到 jwxt 域 Cookie');
       }
-
-      final mapped = <({String name, String value, String? domain, String? path})>[
-        for (final c in all)
-          (
-            name: c.name,
-            value: c.value.toString(),
-            domain: c.domain,
-            path: c.path,
-          ),
-      ];
+      final hasNcardCookie = mapped.any(
+        (c) => (c.domain ?? '').contains('ncard'),
+      );
+      if (!hasNcardCookie) {
+        AppLogger.warn(
+          '导入前未采集到 ncard 域 Cookie；校园卡可能仍需重新网页登录',
+        );
+      } else {
+        AppLogger.info('已采集到 ncard 域 Cookie，准备 completeWebLogin');
+      }
 
       final user = await ref.read(authRepositoryProvider).completeWebLogin(
             studentId: widget.studentId,

@@ -1,0 +1,54 @@
+{
+  "card": {
+    "code": 200,
+    "message": "success",
+    "data": {
+      "card": [
+        {
+          "elec_accamt": 4250,
+          "unsettle_amount": 0,
+          "barflag": 0,
+          "freezeflag": 0,
+          "expdate": "20270831",
+          "cardname": "学生卡"
+        }
+      ]
+    }
+  },
+  "turnover": {
+    "code": 200,
+    "message": "success",
+    "data": {
+      "total": 3,
+      "records": [
+        {
+          "jndatetimeStr": "2026-09-14 12:18:03",
+          "tranamt": 1250,
+          "turnoverType": "消费",
+          "icon": "consume",
+          "resume": "梧桐苑一楼食堂-消费",
+          "toMerchant": "梧桐苑一楼食堂",
+          "cardBalance": 4250
+        },
+        {
+          "jndatetimeStr": "2026-09-13 08:02:41",
+          "tranamt": 800,
+          "turnoverType": "消费",
+          "icon": "consume",
+          "resume": "康桥苑超市-消费",
+          "toMerchant": "康桥苑超市",
+          "cardBalance": 5500
+        },
+        {
+          "jndatetimeStr": "2026-09-12 18:40:11",
+          "tranamt": 10000,
+          "turnoverType": "圈存",
+          "icon": "recharge",
+          "resume": "圈存转入",
+          "toMerchant": "",
+          "cardBalance": 6300
+        }
+      ]
+    }
+  }
+}

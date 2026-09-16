@@ -10,6 +10,7 @@ import '../../../core/widgets/app_feedback.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../data/classroom_codes.dart';
 import '../domain/classroom_slot.dart';
+import '../../../core/widgets/manual_refresh_button.dart';
 
 class ClassroomFilter extends Notifier<ClassroomQuery> {
   @override
@@ -70,6 +71,15 @@ class FreeClassroomsNotifier extends AsyncNotifier<ClassroomPageData> {
     }
     return result;
   }
+
+  /// Clear SnapshotCache for this key then rebuild (true network path).
+  Future<void> refresh({bool force = true}) async {
+    if (force) {
+      await ref.read(snapshotCacheProvider).remove(SnapshotCache.classroom);
+    }
+    ref.invalidateSelf();
+    await future;
+  }
 }
 
 /// Campus/building changes refetch; period is applied locally after a full-day parse.
@@ -112,7 +122,15 @@ class ClassroomPage extends ConsumerWidget {
         buildingItems.contains(filter.building) ? filter.building : null;
 
     return Scaffold(
-      appBar: AppBar(title: const Text(AppStrings.classroomTitle)),
+      appBar: AppBar(
+        title: const Text(AppStrings.classroomTitle),
+        actions: [
+          ManualRefreshButton(
+            onRefresh: () =>
+                ref.read(freeClassroomsProvider.notifier).refresh(force: true),
+          ),
+        ],
+      ),
       body: Column(
         children: [
           Padding(
@@ -197,13 +215,11 @@ class ClassroomPage extends ConsumerWidget {
           ),
           Expanded(
             child: RefreshIndicator(
-              onRefresh: () async {
-                ref.invalidate(freeClassroomsProvider);
-                await ref.read(freeClassroomsProvider.future);
-              },
+              onRefresh: () =>
+                  ref.read(freeClassroomsProvider.notifier).refresh(force: true),
               child: AsyncBody(
               value: rooms,
-              onRetry: () => ref.invalidate(freeClassroomsProvider),
+              onRetry: () => ref.read(freeClassroomsProvider.notifier).refresh(force: true),
               builder: (data) {
                 final items = ClassroomQueryLogic.filterByPeriod(
                   data.rooms,

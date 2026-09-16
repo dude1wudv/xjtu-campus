@@ -14,6 +14,7 @@ import '../../schedule/presentation/schedule_providers.dart';
 import '../domain/school_calendar.dart';
 import 'calendar_providers.dart';
 import 'school_month_calendar.dart';
+import '../../../core/widgets/manual_refresh_button.dart';
 
 class CalendarPage extends ConsumerWidget {
   const CalendarPage({super.key});
@@ -37,6 +38,16 @@ class CalendarPage extends ConsumerWidget {
           },
         ),
         actions: [
+          ManualRefreshButton(
+            onRefresh: () async {
+              await ref
+                  .read(scheduleSnapshotProvider.notifier)
+                  .refresh(force: true);
+              await ref
+                  .read(calendarSnapshotProvider.notifier)
+                  .refresh(force: true);
+            },
+          ),
           IconButton(
             tooltip: AppStrings.calendarOpenWeb,
             onPressed: () {
@@ -54,9 +65,8 @@ class CalendarPage extends ConsumerWidget {
       ),
       body: RefreshIndicator(
         onRefresh: () async {
-          ref.invalidate(scheduleSnapshotProvider);
-          ref.invalidate(calendarSnapshotProvider);
-          await ref.read(calendarSnapshotProvider.future);
+          await ref.read(scheduleSnapshotProvider.notifier).refresh(force: true);
+          await ref.read(calendarSnapshotProvider.notifier).refresh(force: true);
         },
         child: ListView(
           padding: AppTokens.pagePadding,
@@ -76,7 +86,7 @@ class CalendarPage extends ConsumerWidget {
             const SizedBox(height: AppTokens.spaceMd),
             AsyncBody(
               value: snap,
-              onRetry: () => ref.invalidate(calendarSnapshotProvider),
+              onRetry: () => ref.read(calendarSnapshotProvider.notifier).refresh(force: true),
               builder: (data) {
                 final term = data.currentTerm;
                 final courses = schedule.asData?.value.courses ?? const <Course>[];

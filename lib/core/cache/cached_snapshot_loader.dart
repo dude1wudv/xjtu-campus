@@ -2,7 +2,8 @@ import 'snapshot_cache.dart';
 
 /// Stale-while-revalidate helper for AsyncNotifier.build().
 ///
-/// 1. If [emit] is provided and cache hits, emit cached value immediately.
+/// 1. If [forceRefresh] is false and [emit] is provided and cache hits, emit
+///    cached value immediately.
 /// 2. Await [fetch].
 /// 3. On live success → write cache and return fresh.
 /// 4. On non-live / failure → keep cache with soft-fail banner when present.
@@ -16,11 +17,17 @@ Future<T> loadWithCache<T>({
   required T Function(T cached, DateTime savedAt) markCached,
   required T Function(T cached, DateTime savedAt) markRefreshFailed,
   void Function(T value)? emit,
+  bool forceRefresh = false,
 }) async {
-  final cached = await cache.readEnvelope(key, fromJson);
-
-  if (cached != null && emit != null) {
-    emit(markCached(cached.payload, cached.savedAt));
+  final CachedEnvelope<T>? cached;
+  if (forceRefresh) {
+    await cache.remove(key);
+    cached = null;
+  } else {
+    cached = await cache.readEnvelope(key, fromJson);
+    if (cached != null && emit != null) {
+      emit(markCached(cached.payload, cached.savedAt));
+    }
   }
 
   try {

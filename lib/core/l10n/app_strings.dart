@@ -47,7 +47,7 @@ abstract final class AppStrings {
   static const String loginDemoSuccess = '已进入演示会话';
   static const String loginRequired = '请输入学号';
   static const String guestName = '未登录';
-  static const String guestHint = '登录后可同步课表、成绩、考试、空闲教室与上课提醒';
+  static const String guestHint = '登录后可同步课表、成绩、考试、校园卡、空闲教室与上课提醒';
   static const String loggedInAs = '当前学号';
   static const String captchaLabel = '验证码';
   static const String captchaLead = '学校要求输入图形验证码。请按图片填写，应用不会自动识别。';
@@ -186,8 +186,29 @@ abstract final class AppStrings {
   static const String calendarNoClassThatDay = '当天无课';
   static const String calendarWeekSyncedShort = '已与课表同步';
 
-  static const String campusCardDeferredNote =
-      '校园卡余额/流水功能本版本暂缓（ncard 独立认证链），后续迭代再接入。';
+  static const String campusCardTitle = '校园卡';
+  static const String campusCardSubtitle = '余额与近期流水（只读，不支持充值）';
+  static const String campusCardLoginHint = '登录统一认证后可查询本人校园卡余额与流水（只读）。';
+  static const String campusCardLiveBanner = '当前为校园卡实时数据（需已登录统一认证）。';
+  static const String campusCardSyncFailedBanner =
+      '校园卡接口未同步成功。余额接口需要 ncard SSO 令牌（Synjones-Auth），'
+      '仅完成一次网页登录的 CAS Cookie 往往不够。请点「打开校园卡登录同步」完成 H5 授权后返回重试；本页不回落演示数据。';
+  static const String campusCardOpenSyncLogin = '打开校园卡登录同步';
+  static const String campusCardSoftDemoBanner =
+      '以下为界面演示数据（已明确标注），不是你的真实余额或流水。';
+  static const String campusCardErrorTitle = '校园卡同步失败';
+  static const String campusCardViewDemo = '查看界面演示';
+  static const String campusCardBalance = '校园卡余额';
+  static const String campusCardBalanceShort = '余额';
+  static const String campusCardYuan = '元';
+  static const String campusCardPending = '未结算';
+  static const String campusCardExpire = '有效期';
+  static const String campusCardLost = '已挂失';
+  static const String campusCardFrozen = '已冻结';
+  static const String campusCardTurnoverTitle = '近期流水';
+  static const String emptyCampusCardTurnover = '暂无流水记录';
+  static const String campusCardHubSubtitle = '查看余额与消费流水（实验功能）';
+
 
   static const List<String> weekdays = ['一', '二', '三', '四', '五', '六', '日'];
 
@@ -196,8 +217,20 @@ abstract final class AppStrings {
   static const String cacheRefreshFailed = '网络刷新失败，仍显示缓存';
   static const String classroomCacheBanner = '缓存 · 上次查询';
   static const String clearCache = '清除缓存';
-  static const String clearCacheSubtitle = '删除本机课表/成绩/考试等缓存（不影响登录）';
+  static const String clearCacheSubtitle = '删除本机课表/成绩/考试/校园卡等缓存（不影响登录）';
   static const String clearCacheDone = '已清除本地缓存';
+  static const String manualRefresh = '手动刷新';
+  static const String refreshingSnack = '正在刷新…';
+
+  // Library seats (experimental)
+  static const String librarySeatsTitle = '图书馆座位';
+  static const String librarySeatsSubtitle = '预约自习座位（实验 · 需校园网）';
+  static const String librarySeatsFairUse = '仅预约本人使用，勿滥用';
+  static const String librarySeatsCampusNetHint =
+      '座位系统仅校园网可达（rg.lib.xjtu.edu.cn:8086）。请连接校园 Wi‑Fi / 有线，或通过 WebVPN 后再试。';
+  static const String librarySeatsAuthHint = '需要图书馆预约登录态。请先在校园网环境下完成认证。';
+  static const String librarySeatsHubSubtitle = '浏览空座、预约与定时抢座（实验）';
+
 
   /// 「缓存数据 · 更新于 M/d HH:mm」
   static String cacheBanner(DateTime t) {

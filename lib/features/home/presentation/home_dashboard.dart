@@ -11,9 +11,12 @@ import '../../../core/widgets/app_feedback.dart';
 import '../../../core/widgets/app_surface_card.dart';
 import '../../about/presentation/about_sheet.dart';
 import '../../auth/presentation/auth_controller.dart';
+import '../../campus_card/presentation/campus_card_providers.dart';
 import '../../notifications/domain/school_notice.dart';
 import '../../schedule/domain/course.dart';
 import '../../schedule/presentation/schedule_providers.dart';
+import '../domain/greeting.dart';
+import '../../../core/widgets/manual_refresh_button.dart';
 
 /// Lightweight peek — mock/local only, no WebView / Dio on home open.
 final homeNoticesPeekProvider = FutureProvider<List<SchoolNotice>>((ref) async {
@@ -49,6 +52,17 @@ class _HomeDashboardState extends ConsumerState<HomeDashboard> {
       appBar: AppBar(
         title: const Text(AppStrings.appName),
         actions: [
+          ManualRefreshButton(
+            onRefresh: () async {
+              await ref
+                  .read(scheduleSnapshotProvider.notifier)
+                  .refresh(force: true);
+              await ref
+                  .read(campusCardSnapshotProvider.notifier)
+                  .refresh(force: true);
+              ref.invalidate(homeNoticesPeekProvider);
+            },
+          ),
           IconButton(
             tooltip: '关于 / 检查更新',
             onPressed: () => showAboutSheet(context),
@@ -81,7 +95,7 @@ class _HomeDashboardState extends ConsumerState<HomeDashboard> {
           const SizedBox(height: AppTokens.spaceLg),
           AsyncBody(
             value: snapshot,
-            onRetry: () => ref.invalidate(scheduleSnapshotProvider),
+            onRetry: () => ref.read(scheduleSnapshotProvider.notifier).refresh(force: true),
             builder: (data) {
               final todayCount = _todayCourseCount(
                 data.courses,
@@ -124,6 +138,10 @@ class _HomeDashboardState extends ConsumerState<HomeDashboard> {
           const _AcademicsShortcutCard(),
           const SizedBox(height: AppTokens.spaceMd),
           const _CalendarShortcutCard(),
+          const SizedBox(height: AppTokens.spaceMd),
+          const _CampusCardShortcutCard(),
+          const SizedBox(height: AppTokens.spaceMd),
+          const _LibrarySeatsShortcutCard(),
           const SizedBox(height: AppTokens.spaceXl),
           Text(
             AppStrings.quickActions,
@@ -208,14 +226,7 @@ class _GreetingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hour = now.hour;
-    final hello = hour < 11
-        ? '早上好'
-        : hour < 14
-            ? '中午好'
-            : hour < 19
-                ? '下午好'
-                : '晚上好';
+    final hello = greetingForHour(now.hour);
     final name = auth.isLoggedIn ? auth.user.displayName : AppStrings.guestName;
     final date = DateFormat('M月d日 EEEE', 'zh_CN').format(now);
 
@@ -870,6 +881,133 @@ class _CalendarShortcutCard extends StatelessWidget {
   }
 }
 
+class _CampusCardShortcutCard extends ConsumerWidget {
+  const _CampusCardShortcutCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final snap = ref.watch(campusCardSnapshotProvider);
+    final data = snap.asData?.value;
+    final card = data?.card;
+
+    String subtitle = AppStrings.campusCardSubtitle;
+    String? caption;
+    if (card != null && data != null) {
+      subtitle =
+          '${card.balanceLabel} ${AppStrings.campusCardYuan}';
+      if (data.fromCache && data.cachedAt != null) {
+        caption = '缓存 · ${AppStrings.updatedAtLabel(data.cachedAt!)}';
+      } else if (data.live) {
+        caption = AppStrings.freshUpdatedLabel(data.fetchedAt);
+      } else if (data.fetchedAt != null) {
+        caption = AppStrings.updatedAtLabel(data.fetchedAt!);
+      }
+    }
+
+    return AppSurfaceCard(
+      onTap: () => context.push('/campus-card'),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: const BoxDecoration(
+              color: AppColors.chip,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.credit_card_outlined,
+              color: AppColors.navy,
+            ),
+          ),
+          const SizedBox(width: AppTokens.spaceMd),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  AppStrings.campusCardTitle,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                    color: AppColors.ink,
+                  ),
+                ),
+                const SizedBox(height: AppTokens.spaceXs),
+                Text(
+                  subtitle,
+                  style: const TextStyle(fontSize: 12, color: AppColors.inkSoft),
+                ),
+                if (caption != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    caption,
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      color: AppColors.inkSoft,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const Icon(Icons.chevron_right_rounded, color: AppColors.inkSoft),
+        ],
+      ),
+    );
+  }
+}
+
+
+class _LibrarySeatsShortcutCard extends StatelessWidget {
+  const _LibrarySeatsShortcutCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return AppSurfaceCard(
+      onTap: () => context.push('/library-seats'),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: const BoxDecoration(
+              color: AppColors.chip,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.event_seat_outlined,
+              color: AppColors.navy,
+            ),
+          ),
+          const SizedBox(width: AppTokens.spaceMd),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  AppStrings.librarySeatsTitle,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                    color: AppColors.ink,
+                  ),
+                ),
+                SizedBox(height: AppTokens.spaceXs),
+                Text(
+                  AppStrings.librarySeatsSubtitle,
+                  style: TextStyle(fontSize: 12, color: AppColors.inkSoft),
+                ),
+              ],
+            ),
+          ),
+          const Icon(Icons.chevron_right_rounded, color: AppColors.inkSoft),
+        ],
+      ),
+    );
+  }
+}
+
 class _QuickActions extends StatelessWidget {
   const _QuickActions();
 
@@ -912,6 +1050,16 @@ class _QuickActions extends StatelessWidget {
           icon: Icons.calendar_month_outlined,
           label: AppStrings.calendarTitle,
           onTap: () => context.push('/calendar'),
+        ),
+        _ActionTile(
+          icon: Icons.credit_card_outlined,
+          label: AppStrings.campusCardTitle,
+          onTap: () => context.push('/campus-card'),
+        ),
+        _ActionTile(
+          icon: Icons.event_seat_outlined,
+          label: AppStrings.librarySeatsTitle,
+          onTap: () => context.push('/library-seats'),
         ),
       ],
     );

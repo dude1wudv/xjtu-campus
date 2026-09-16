@@ -34,7 +34,17 @@ class ExamsSnapshotNotifier extends AsyncNotifier<ExamsSnapshot> {
     }
     return result;
   }
+
+  /// Clear SnapshotCache for this key then rebuild (true network path).
+  Future<void> refresh({bool force = true}) async {
+    if (force) {
+      await ref.read(snapshotCacheProvider).remove(SnapshotCache.exams);
+    }
+    ref.invalidateSelf();
+    await future;
+  }
 }
+
 
 final examsSnapshotProvider =
     AsyncNotifierProvider<ExamsSnapshotNotifier, ExamsSnapshot>(

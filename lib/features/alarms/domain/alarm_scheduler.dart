@@ -7,4 +7,14 @@ abstract class AlarmScheduler {
   Future<void> cancelAlarms();
 
   Future<AlarmScheduleResult> showTestNotification();
+
+  /// One-shot local notification (e.g. library seat schedule reminder).
+  Future<AlarmScheduleResult> scheduleOneShot({
+    required int id,
+    required DateTime when,
+    required String title,
+    required String body,
+  });
+
+  Future<void> cancelOneShot(int id);
 }

@@ -4,6 +4,7 @@ import '../../../core/constants/campus_urls.dart';
 import '../../../core/l10n/app_strings.dart';
 import '../../../core/logging/app_logger.dart';
 import '../../../core/network/campus_session.dart';
+import '../../../core/network/imported_campus_cookie.dart';
 import '../domain/notice_filter.dart';
 import '../domain/notifications_repository.dart';
 import '../domain/school_notice.dart';
@@ -166,7 +167,14 @@ class LiveNotificationsRepository implements NotificationsRepository {
     }
 
     await _session.importCookies([
-      (name: 'client_id', value: clientId, domain: host, path: '/'),
+      ImportedCampusCookie(
+        name: 'client_id',
+        value: clientId,
+        domain: host,
+        path: '/',
+        scheme: 'https',
+        secure: true,
+      ),
     ]);
     await _session.jar.saveFromResponse(
       Uri.parse('$origin/'),

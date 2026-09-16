@@ -9,7 +9,10 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../features/notifications/data/dean_public_challenge.dart';
 import '../../features/notifications/data/dean_webview_stealth.dart';
 import '../constants/campus_urls.dart';
+import '../../features/campus_card/data/ncard_mobile_stealth.dart';
 import '../di/core_providers.dart';
+import '../network/imported_campus_cookie.dart';
+import '../network/webview_cookie_bridge.dart';
 import '../logging/app_logger.dart';
 import '../theme/app_theme.dart';
 
@@ -49,7 +52,28 @@ class _InAppBrowserPageState extends ConsumerState<InAppBrowserPage> {
     return host == 'dean.xjtu.edu.cn' || host == 'due.xjtu.edu.cn';
   }
 
+  bool get _isNcardHost {
+    final host = Uri.tryParse(widget.initialUrl)?.host.toLowerCase() ?? '';
+    return host.contains('ncard');
+  }
+
+  bool get _isLibHost {
+    final host = Uri.tryParse(widget.initialUrl)?.host.toLowerCase() ?? '';
+    return host == 'lib.xjtu.edu.cn' || host.endsWith('.lib.xjtu.edu.cn');
+  }
+
+  String get _webUserAgent =>
+      _isNcardHost ? CampusUrls.ncardMobileUserAgent : CampusUrls.userAgent;
+
   UnmodifiableListView<UserScript>? get _initialUserScripts {
+    if (_isNcardHost) {
+      return UnmodifiableListView<UserScript>([
+        UserScript(
+          source: NcardMobileStealth.script,
+          injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+        ),
+      ]);
+    }
     if (!_isDeanHost) return null;
     return UnmodifiableListView<UserScript>([
       UserScript(
@@ -72,11 +96,32 @@ class _InAppBrowserPageState extends ConsumerState<InAppBrowserPage> {
   }
 
   Future<void> _injectStealth(InAppWebViewController controller) async {
+    if (_isNcardHost) {
+      try {
+        await controller.evaluateJavascript(source: NcardMobileStealth.script);
+      } on Object catch (error) {
+        AppLogger.warn('InAppBrowser ncard mobile spoof 失败: $error');
+      }
+      return;
+    }
     if (!_isDeanHost) return;
     try {
       await controller.evaluateJavascript(source: DeanWebViewStealth.script);
     } on Object catch (error) {
       AppLogger.warn('InAppBrowser stealth evaluate 失败: $error');
+    }
+  }
+
+  Future<void> _dismissNcardMobileDialog(
+    InAppWebViewController controller,
+  ) async {
+    if (!_isNcardHost) return;
+    try {
+      await controller.evaluateJavascript(
+        source: NcardMobileStealth.dismissMobileDialogScript,
+      );
+    } on Object catch (error) {
+      AppLogger.warn('InAppBrowser ncard dismiss dialog 失败: $error');
     }
   }
 
@@ -96,15 +141,43 @@ class _InAppBrowserPageState extends ConsumerState<InAppBrowserPage> {
         }
       }
       if (clientId == null) return;
-      final host = Uri.parse(widget.initialUrl).host;
+      final uri = Uri.parse(widget.initialUrl);
       final session = ref.read(campusSessionProvider);
       await session.importCookies([
-        (name: 'client_id', value: clientId, domain: host, path: '/'),
+        ImportedCampusCookie(
+          name: 'client_id',
+          value: clientId,
+          domain: uri.host,
+          path: '/',
+          scheme: uri.scheme.isEmpty ? 'https' : uri.scheme,
+          port: uri.hasPort ? uri.port : null,
+          secure: true,
+        ),
       ]);
       _exportedClientId = true;
-      AppLogger.info('InAppBrowser 已导出 $host client_id 到 CampusSession');
+      AppLogger.info('InAppBrowser 已导出 ${uri.host} client_id 到 CampusSession');
     } on Object catch (error) {
       AppLogger.warn('InAppBrowser 导出 client_id 失败: $error');
+    }
+  }
+
+  Future<void> _exportLibraryCookies() async {
+    if (!_isLibHost) return;
+    try {
+      final session = ref.read(campusSessionProvider);
+      final origins = <String>{
+        widget.initialUrl,
+        ...WebViewCookieBridge.libraryOrigins,
+      };
+      final n = await WebViewCookieBridge.importOrigins(
+        session: session,
+        origins: origins,
+      );
+      if (n > 0) {
+        AppLogger.info('InAppBrowser 已导出图书馆 Cookie $n 条到 CampusSession');
+      }
+    } on Object catch (error) {
+      AppLogger.warn('InAppBrowser 导出图书馆 Cookie 失败: $error');
     }
   }
 
@@ -167,6 +240,7 @@ class _InAppBrowserPageState extends ConsumerState<InAppBrowserPage> {
 
   Future<void> _handleLoadStop(InAppWebViewController controller) async {
     await _injectStealth(controller);
+    await _dismissNcardMobileDialog(controller);
 
     final html = await _pageHtml(controller);
     final pageTitle = await _pageTitle(controller);
@@ -179,6 +253,7 @@ class _InAppBrowserPageState extends ConsumerState<InAppBrowserPage> {
 
     if (!_isDeanHost) {
       unawaited(_exportClientIdCookie());
+      unawaited(_exportLibraryCookies());
       return;
     }
 
@@ -336,8 +411,11 @@ class _InAppBrowserPageState extends ConsumerState<InAppBrowserPage> {
                       domStorageEnabled: true,
                       thirdPartyCookiesEnabled: true,
                       mediaPlaybackRequiresUserGesture: true,
-                      userAgent: CampusUrls.userAgent,
-                      supportZoom: true,
+                      userAgent: _webUserAgent,
+                      preferredContentMode: _isNcardHost
+                          ? UserPreferredContentMode.MOBILE
+                          : UserPreferredContentMode.RECOMMENDED,
+                      supportZoom: !_isNcardHost,
                       cacheEnabled: true,
                       transparentBackground: false,
                     ),

@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import '../../../core/constants/app_constants.dart';
+import '../../../core/network/imported_campus_cookie.dart';
 import '../../../core/logging/app_logger.dart';
 import '../../../core/storage/credential_store.dart';
 import '../domain/auth_repository.dart';
@@ -83,8 +84,7 @@ class MockAuthRepository implements AuthRepository {
   @override
   Future<AuthUser> completeWebLogin({
     required String studentId,
-    required List<({String name, String value, String? domain, String? path})>
-        cookies,
+    required List<ImportedCampusCookie> cookies,
   }) {
     return login(studentId: studentId, password: 'web', demo: true);
   }
