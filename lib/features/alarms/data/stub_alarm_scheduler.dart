@@ -36,4 +36,21 @@ class StubAlarmScheduler implements AlarmScheduler {
       message: '演示环境已模拟发送测试通知',
     );
   }
+
+  @override
+  Future<AlarmScheduleResult> scheduleOneShot({
+    required int id,
+    required DateTime when,
+    required String title,
+    required String body,
+  }) async {
+    return AlarmScheduleResult(
+      simulated: true,
+      count: 1,
+      message: '演示环境已模拟定时提醒',
+    );
+  }
+
+  @override
+  Future<void> cancelOneShot(int id) async {}
 }

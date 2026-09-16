@@ -11,6 +11,7 @@ import '../../auth/presentation/auth_controller.dart';
 import '../data/mock_campus_card_repository.dart';
 import '../domain/campus_card.dart';
 import 'campus_card_providers.dart';
+import '../../../core/widgets/manual_refresh_button.dart';
 
 class CampusCardPage extends ConsumerStatefulWidget {
   const CampusCardPage({super.key});
@@ -22,10 +23,9 @@ class CampusCardPage extends ConsumerStatefulWidget {
 class _CampusCardPageState extends ConsumerState<CampusCardPage> {
   CampusCardSnapshot? _softDemo;
 
-  Future<void> _reload() async {
+  Future<void> _reload({bool force = true}) async {
     setState(() => _softDemo = null);
-    ref.invalidate(campusCardSnapshotProvider);
-    await ref.read(campusCardSnapshotProvider.future);
+    await ref.read(campusCardSnapshotProvider.notifier).refresh(force: force);
   }
 
   Future<void> _showSoftDemo() async {
@@ -86,6 +86,9 @@ class _CampusCardPageState extends ConsumerState<CampusCardPage> {
             }
           },
         ),
+        actions: [
+          ManualRefreshButton(onRefresh: () => _reload(force: true)),
+        ],
       ),
       body: RefreshIndicator(
         onRefresh: _reload,

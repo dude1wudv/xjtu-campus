@@ -33,7 +33,17 @@ class CalendarSnapshotNotifier extends AsyncNotifier<CalendarSnapshot> {
     }
     return result;
   }
+
+  /// Clear SnapshotCache for this key then rebuild (true network path).
+  Future<void> refresh({bool force = true}) async {
+    if (force) {
+      await ref.read(snapshotCacheProvider).remove(SnapshotCache.calendar);
+    }
+    ref.invalidateSelf();
+    await future;
+  }
 }
+
 
 final calendarSnapshotProvider =
     AsyncNotifierProvider<CalendarSnapshotNotifier, CalendarSnapshot>(

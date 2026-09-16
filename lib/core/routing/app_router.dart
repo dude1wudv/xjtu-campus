@@ -17,6 +17,7 @@ import '../../features/home/presentation/home_dashboard.dart';
 import '../../features/home/presentation/home_shell.dart';
 import '../../features/notifications/presentation/notifications_page.dart';
 import '../../features/schedule/presentation/schedule_page.dart';
+import '../../features/library_seats/presentation/library_seats_page.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 
@@ -94,6 +95,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/campus-card/sync',
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const NcardSyncPage(),
+      ),
+      GoRoute(
+        path: '/library-seats',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const LibrarySeatsPage(),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {

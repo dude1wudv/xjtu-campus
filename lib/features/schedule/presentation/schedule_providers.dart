@@ -35,7 +35,17 @@ class ScheduleSnapshotNotifier extends AsyncNotifier<ScheduleSnapshot> {
     }
     return result;
   }
+
+  /// Clear SnapshotCache for this key then rebuild (true network path).
+  Future<void> refresh({bool force = true}) async {
+    if (force) {
+      await ref.read(snapshotCacheProvider).remove(SnapshotCache.schedule);
+    }
+    ref.invalidateSelf();
+    await future;
+  }
 }
+
 
 final scheduleSnapshotProvider =
     AsyncNotifierProvider<ScheduleSnapshotNotifier, ScheduleSnapshot>(

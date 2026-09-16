@@ -34,7 +34,17 @@ class GradesSnapshotNotifier extends AsyncNotifier<GradesSnapshot> {
     }
     return result;
   }
+
+  /// Clear SnapshotCache for this key then rebuild (true network path).
+  Future<void> refresh({bool force = true}) async {
+    if (force) {
+      await ref.read(snapshotCacheProvider).remove(SnapshotCache.grades);
+    }
+    ref.invalidateSelf();
+    await future;
+  }
 }
+
 
 final gradesSnapshotProvider =
     AsyncNotifierProvider<GradesSnapshotNotifier, GradesSnapshot>(

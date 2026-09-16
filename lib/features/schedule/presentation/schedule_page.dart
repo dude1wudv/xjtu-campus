@@ -6,6 +6,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_feedback.dart';
 import '../domain/course.dart';
 import 'schedule_providers.dart';
+import '../../../core/widgets/manual_refresh_button.dart';
 
 class SchedulePage extends ConsumerStatefulWidget {
   const SchedulePage({super.key});
@@ -32,13 +33,9 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
       appBar: AppBar(
         title: const Text(AppStrings.navSchedule),
         actions: [
-          IconButton(
-            tooltip: '刷新',
-            onPressed: () async {
-              ref.invalidate(scheduleSnapshotProvider);
-              await ref.read(scheduleSnapshotProvider.future);
-            },
-            icon: const Icon(Icons.refresh_rounded),
+          ManualRefreshButton(
+            onRefresh: () =>
+                ref.read(scheduleSnapshotProvider.notifier).refresh(force: true),
           ),
           IconButton(
             tooltip: _weekView ? AppStrings.listView : AppStrings.weekView,
@@ -49,7 +46,8 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
       ),
       body: AsyncBody(
         value: snapshot,
-        onRetry: () => ref.invalidate(scheduleSnapshotProvider),
+        onRetry: () =>
+            ref.read(scheduleSnapshotProvider.notifier).refresh(force: true),
         builder: (data) {
           final week = data.week;
           final items = data.courses

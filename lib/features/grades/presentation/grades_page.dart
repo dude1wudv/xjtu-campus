@@ -11,6 +11,7 @@ import '../../auth/presentation/auth_controller.dart';
 import '../domain/grade_record.dart';
 import '../domain/grade_stats.dart';
 import 'grades_providers.dart';
+import '../../../core/widgets/manual_refresh_button.dart';
 
 class GradesPage extends ConsumerStatefulWidget {
   const GradesPage({super.key});
@@ -41,12 +42,16 @@ class _GradesPageState extends ConsumerState<GradesPage> {
             }
           },
         ),
+        actions: [
+          ManualRefreshButton(
+            onRefresh: () =>
+                ref.read(gradesSnapshotProvider.notifier).refresh(force: true),
+          ),
+        ],
       ),
       body: RefreshIndicator(
-        onRefresh: () async {
-          ref.invalidate(gradesSnapshotProvider);
-          await ref.read(gradesSnapshotProvider.future);
-        },
+        onRefresh: () =>
+            ref.read(gradesSnapshotProvider.notifier).refresh(force: true),
         child: ListView(
           padding: AppTokens.pagePadding,
           children: [
@@ -80,7 +85,7 @@ class _GradesPageState extends ConsumerState<GradesPage> {
             const SizedBox(height: AppTokens.spaceMd),
             AsyncBody(
               value: snap,
-              onRetry: () => ref.invalidate(gradesSnapshotProvider),
+              onRetry: () => ref.read(gradesSnapshotProvider.notifier).refresh(force: true),
               builder: (data) {
                 if (data.records.isEmpty) {
                   return const AppSurfaceCard(

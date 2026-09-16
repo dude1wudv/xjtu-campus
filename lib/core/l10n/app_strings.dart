@@ -219,6 +219,18 @@ abstract final class AppStrings {
   static const String clearCache = '清除缓存';
   static const String clearCacheSubtitle = '删除本机课表/成绩/考试/校园卡等缓存（不影响登录）';
   static const String clearCacheDone = '已清除本地缓存';
+  static const String manualRefresh = '手动刷新';
+  static const String refreshingSnack = '正在刷新…';
+
+  // Library seats (experimental)
+  static const String librarySeatsTitle = '图书馆座位';
+  static const String librarySeatsSubtitle = '预约自习座位（实验 · 需校园网）';
+  static const String librarySeatsFairUse = '仅预约本人使用，勿滥用';
+  static const String librarySeatsCampusNetHint =
+      '座位系统仅校园网可达（rg.lib.xjtu.edu.cn:8086）。请连接校园 Wi‑Fi / 有线，或通过 WebVPN 后再试。';
+  static const String librarySeatsAuthHint = '需要图书馆预约登录态。请先在校园网环境下完成认证。';
+  static const String librarySeatsHubSubtitle = '浏览空座、预约与定时抢座（实验）';
+
 
   /// 「缓存数据 · 更新于 M/d HH:mm」
   static String cacheBanner(DateTime t) {

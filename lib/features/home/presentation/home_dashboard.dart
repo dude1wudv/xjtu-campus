@@ -16,6 +16,7 @@ import '../../notifications/domain/school_notice.dart';
 import '../../schedule/domain/course.dart';
 import '../../schedule/presentation/schedule_providers.dart';
 import '../domain/greeting.dart';
+import '../../../core/widgets/manual_refresh_button.dart';
 
 /// Lightweight peek — mock/local only, no WebView / Dio on home open.
 final homeNoticesPeekProvider = FutureProvider<List<SchoolNotice>>((ref) async {
@@ -51,6 +52,17 @@ class _HomeDashboardState extends ConsumerState<HomeDashboard> {
       appBar: AppBar(
         title: const Text(AppStrings.appName),
         actions: [
+          ManualRefreshButton(
+            onRefresh: () async {
+              await ref
+                  .read(scheduleSnapshotProvider.notifier)
+                  .refresh(force: true);
+              await ref
+                  .read(campusCardSnapshotProvider.notifier)
+                  .refresh(force: true);
+              ref.invalidate(homeNoticesPeekProvider);
+            },
+          ),
           IconButton(
             tooltip: '关于 / 检查更新',
             onPressed: () => showAboutSheet(context),
@@ -83,7 +95,7 @@ class _HomeDashboardState extends ConsumerState<HomeDashboard> {
           const SizedBox(height: AppTokens.spaceLg),
           AsyncBody(
             value: snapshot,
-            onRetry: () => ref.invalidate(scheduleSnapshotProvider),
+            onRetry: () => ref.read(scheduleSnapshotProvider.notifier).refresh(force: true),
             builder: (data) {
               final todayCount = _todayCourseCount(
                 data.courses,
@@ -128,6 +140,8 @@ class _HomeDashboardState extends ConsumerState<HomeDashboard> {
           const _CalendarShortcutCard(),
           const SizedBox(height: AppTokens.spaceMd),
           const _CampusCardShortcutCard(),
+          const SizedBox(height: AppTokens.spaceMd),
+          const _LibrarySeatsShortcutCard(),
           const SizedBox(height: AppTokens.spaceXl),
           Text(
             AppStrings.quickActions,
@@ -944,6 +958,56 @@ class _CampusCardShortcutCard extends ConsumerWidget {
   }
 }
 
+
+class _LibrarySeatsShortcutCard extends StatelessWidget {
+  const _LibrarySeatsShortcutCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return AppSurfaceCard(
+      onTap: () => context.push('/library-seats'),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: const BoxDecoration(
+              color: AppColors.chip,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.event_seat_outlined,
+              color: AppColors.navy,
+            ),
+          ),
+          const SizedBox(width: AppTokens.spaceMd),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  AppStrings.librarySeatsTitle,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                    color: AppColors.ink,
+                  ),
+                ),
+                SizedBox(height: AppTokens.spaceXs),
+                Text(
+                  AppStrings.librarySeatsSubtitle,
+                  style: TextStyle(fontSize: 12, color: AppColors.inkSoft),
+                ),
+              ],
+            ),
+          ),
+          const Icon(Icons.chevron_right_rounded, color: AppColors.inkSoft),
+        ],
+      ),
+    );
+  }
+}
+
 class _QuickActions extends StatelessWidget {
   const _QuickActions();
 
@@ -991,6 +1055,11 @@ class _QuickActions extends StatelessWidget {
           icon: Icons.credit_card_outlined,
           label: AppStrings.campusCardTitle,
           onTap: () => context.push('/campus-card'),
+        ),
+        _ActionTile(
+          icon: Icons.event_seat_outlined,
+          label: AppStrings.librarySeatsTitle,
+          onTap: () => context.push('/library-seats'),
         ),
       ],
     );

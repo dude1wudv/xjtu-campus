@@ -1,17 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/l10n/app_strings.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/app_surface_card.dart';
+import '../../../core/widgets/manual_refresh_button.dart';
+import '../../calendar/presentation/calendar_providers.dart';
+import '../../campus_card/presentation/campus_card_providers.dart';
+import '../../exams/presentation/exams_providers.dart';
+import '../../grades/presentation/grades_providers.dart';
 
 /// Hub for grades + exams (keeps bottom tabs at 5).
-class AcademicsPage extends StatelessWidget {
+class AcademicsPage extends ConsumerWidget {
   const AcademicsPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
       appBar: AppBar(
         title: const Text(AppStrings.academicsTitle),
@@ -25,6 +31,24 @@ class AcademicsPage extends StatelessWidget {
             }
           },
         ),
+        actions: [
+          ManualRefreshButton(
+            onRefresh: () async {
+              await ref
+                  .read(gradesSnapshotProvider.notifier)
+                  .refresh(force: true);
+              await ref
+                  .read(examsSnapshotProvider.notifier)
+                  .refresh(force: true);
+              await ref
+                  .read(calendarSnapshotProvider.notifier)
+                  .refresh(force: true);
+              await ref
+                  .read(campusCardSnapshotProvider.notifier)
+                  .refresh(force: true);
+            },
+          ),
+        ],
       ),
       body: ListView(
         padding: AppTokens.pagePadding,
@@ -60,6 +84,13 @@ class AcademicsPage extends StatelessWidget {
             title: AppStrings.campusCardTitle,
             subtitle: AppStrings.campusCardHubSubtitle,
             onTap: () => context.push('/campus-card'),
+          ),
+          const SizedBox(height: AppTokens.spaceMd),
+          _HubTile(
+            icon: Icons.event_seat_outlined,
+            title: AppStrings.librarySeatsTitle,
+            subtitle: AppStrings.librarySeatsHubSubtitle,
+            onTap: () => context.push('/library-seats'),
           ),
         ],
       ),

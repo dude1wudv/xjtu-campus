@@ -10,6 +10,7 @@ import '../../../core/widgets/app_surface_card.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../domain/exam_arrangement.dart';
 import 'exams_providers.dart';
+import '../../../core/widgets/manual_refresh_button.dart';
 
 class ExamsPage extends ConsumerWidget {
   const ExamsPage({super.key});
@@ -32,12 +33,16 @@ class ExamsPage extends ConsumerWidget {
             }
           },
         ),
+        actions: [
+          ManualRefreshButton(
+            onRefresh: () =>
+                ref.read(examsSnapshotProvider.notifier).refresh(force: true),
+          ),
+        ],
       ),
       body: RefreshIndicator(
-        onRefresh: () async {
-          ref.invalidate(examsSnapshotProvider);
-          await ref.read(examsSnapshotProvider.future);
-        },
+        onRefresh: () =>
+            ref.read(examsSnapshotProvider.notifier).refresh(force: true),
         child: ListView(
           padding: AppTokens.pagePadding,
           children: [
@@ -76,7 +81,7 @@ class ExamsPage extends ConsumerWidget {
             const SizedBox(height: AppTokens.spaceMd),
             AsyncBody(
               value: snap,
-              onRetry: () => ref.invalidate(examsSnapshotProvider),
+              onRetry: () => ref.read(examsSnapshotProvider.notifier).refresh(force: true),
               builder: (data) {
                 if (data.exams.isEmpty) {
                   return const AppSurfaceCard(

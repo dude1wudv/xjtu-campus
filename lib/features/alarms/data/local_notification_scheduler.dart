@@ -172,4 +172,91 @@ class LocalNotificationScheduler implements AlarmScheduler {
       // 未初始化时忽略。
     }
   }
+
+  static const int librarySeatNotifyId = 71001;
+
+  @override
+  Future<AlarmScheduleResult> scheduleOneShot({
+    required int id,
+    required DateTime when,
+    required String title,
+    required String body,
+  }) async {
+    try {
+      await ensureReady();
+    } on Object {
+      return const AlarmScheduleResult(
+        simulated: true,
+        count: 0,
+        message: '当前平台无法注册系统通知',
+      );
+    }
+    final shanghai = tz.getLocation('Asia/Shanghai');
+    final whenTz = tz.TZDateTime.from(when, shanghai);
+    if (whenTz.isBefore(tz.TZDateTime.now(shanghai))) {
+      return const AlarmScheduleResult(
+        simulated: true,
+        count: 0,
+        message: '开始时间已过期',
+      );
+    }
+    const details = NotificationDetails(
+      android: AndroidNotificationDetails(
+        'library_seats',
+        '图书馆座位',
+        channelDescription: '定时座位预约提醒（仅本地）',
+        importance: Importance.high,
+        priority: Priority.high,
+      ),
+      iOS: DarwinNotificationDetails(),
+    );
+    try {
+      await _plugin.zonedSchedule(
+        id: id,
+        title: title,
+        body: body,
+        scheduledDate: whenTz,
+        notificationDetails: details,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        payload: 'library_seat_book',
+      );
+      return AlarmScheduleResult(
+        simulated: false,
+        count: 1,
+        message: '已设置本地提醒',
+      );
+    } on Object {
+      try {
+        await _plugin.zonedSchedule(
+          id: id,
+          title: title,
+          body: body,
+          scheduledDate: whenTz,
+          notificationDetails: details,
+          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+          payload: 'library_seat_book',
+        );
+        return const AlarmScheduleResult(
+          simulated: false,
+          count: 1,
+          message: '已设置本地提醒（非精确闹钟）',
+        );
+      } on Object {
+        return const AlarmScheduleResult(
+          simulated: true,
+          count: 0,
+          message: '未能写入系统通知，请检查权限',
+        );
+      }
+    }
+  }
+
+  @override
+  Future<void> cancelOneShot(int id) async {
+    try {
+      await _plugin.cancel(id: id);
+    } on Object {
+      // ignore
+    }
+  }
 }

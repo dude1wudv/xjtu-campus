@@ -10,6 +10,8 @@ import '../../../core/widgets/app_feedback.dart';
 import '../domain/notice_filter.dart';
 import '../domain/school_notice.dart';
 import 'dean_notices_webview_loader.dart';
+import '../../../core/widgets/manual_refresh_button.dart';
+import '../../../core/cache/snapshot_cache.dart';
 
 class NoticeFilterController extends Notifier<NoticeFilterRule> {
   @override
@@ -34,7 +36,10 @@ final noticesFallbackProvider = FutureProvider<NoticesSnapshot>((ref) {
 class NotificationsPage extends ConsumerWidget {
   const NotificationsPage({super.key});
 
-  void _refresh(WidgetRef ref) {
+  Future<void> _refresh(WidgetRef ref, {bool force = true}) async {
+    if (force) {
+      await ref.read(snapshotCacheProvider).remove(SnapshotCache.notices);
+    }
     ref.read(liveDeanNoticesProvider.notifier).markLoading();
     ref.read(deanNoticesReloadTickProvider.notifier).bump();
     // Clear stale Dio fallback so a later failure reloads.
@@ -113,11 +118,7 @@ class NotificationsPage extends ConsumerWidget {
       appBar: AppBar(
         title: const Text(AppStrings.noticesTitle),
         actions: [
-          IconButton(
-            tooltip: '刷新',
-            onPressed: () => _refresh(ref),
-            icon: const Icon(Icons.refresh_rounded),
-          ),
+          ManualRefreshButton(onRefresh: () => _refresh(ref, force: true)),
         ],
       ),
       body: Stack(
@@ -218,12 +219,12 @@ class NotificationsPage extends ConsumerWidget {
               Expanded(
                 child: AsyncBody(
                   value: snapshot,
-                  onRetry: () => _refresh(ref),
+                  onRetry: () { _refresh(ref, force: true); },
                   builder: (data) {
                     final items = data.notices;
                     if (items.isEmpty) {
                       return RefreshIndicator(
-                        onRefresh: () async => _refresh(ref),
+                        onRefresh: () => _refresh(ref, force: true),
                         child: ListView(
                           physics: const AlwaysScrollableScrollPhysics(),
                           children: const [
@@ -237,7 +238,7 @@ class NotificationsPage extends ConsumerWidget {
                       );
                     }
                     return RefreshIndicator(
-                      onRefresh: () async => _refresh(ref),
+                      onRefresh: () => _refresh(ref, force: true),
                       child: ListView.separated(
                         physics: const AlwaysScrollableScrollPhysics(),
                         padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),

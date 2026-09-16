@@ -34,7 +34,17 @@ class CampusCardSnapshotNotifier extends AsyncNotifier<CampusCardSnapshot> {
     }
     return result;
   }
+
+  /// Clear SnapshotCache for this key then rebuild (true network path).
+  Future<void> refresh({bool force = true}) async {
+    if (force) {
+      await ref.read(snapshotCacheProvider).remove(SnapshotCache.campusCard);
+    }
+    ref.invalidateSelf();
+    await future;
+  }
 }
+
 
 final campusCardSnapshotProvider =
     AsyncNotifierProvider<CampusCardSnapshotNotifier, CampusCardSnapshot>(
