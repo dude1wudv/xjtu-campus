@@ -1,8 +1,26 @@
 # 交大校园助手（xjtu_campus）
 
-面向西安交通大学在校学生的跨平台校园助手。用自己的学号登录学校统一认证后，可读取课表与成绩、查询考试安排与空闲教室、查看校历教学周与校园卡余额/流水，并按课表在本机创建起床闹钟与上课提醒。
+面向西安交通大学在校学生的跨平台校园助手。用自己的学号登录学校统一认证后，可读取课表与成绩、查询考试安排与空闲教室、查看校历教学周与校园卡余额/流水、在校园网使用图书馆座位预约辅助，并按课表在本机创建起床闹钟与上课提醒。
 
 产品语言为简体中文。仅支持**学生本人**登录自己的账号，用于个人课表 / 教室 / 通知；不提供抢课、验证码识别、绕过二次验证或把密码上传到第三方。
+
+## 当前正式版
+
+**v1.5.0**（GitHub Latest）。相对 v1.4.0 新增校园卡余额/流水、图书馆座位（校园网）、手动强制刷新，并修复图书馆登录 Cookie 在 `http://rg.lib.xjtu.edu.cn:8086` 下的落盘与协议匹配。
+
+## 下载与更新
+
+- 发布页：[GitHub Releases](https://github.com/dude1wudv/xjtu-campus/releases/latest)
+- 推荐安装包：`xjtu-campus-arm64-release.apk`（Android arm64）
+- 应用内：关于页「检查更新」，或首页自动检查（对照 `/releases/latest`）
+- 覆盖安装保留本地数据（同包名、同签名）
+
+本地打包示例：
+
+```bash
+flutter build apk --release --target-platform=android-arm64
+# 产物：build/app/outputs/flutter-apk/app-release.apk
+```
 
 ## 如何运行
 
@@ -59,9 +77,10 @@ flutter test
 - **考试安排**：`studentWdksapApp/wdksap.do`；本学期无数据时显示「本学期暂无考试安排」。
 - **校历**：登录后优先教务学期起止；公开站 `one2020` 作补充；教学周与课表同步。
 - **加权绩点**：成绩页按学分加权 `Σ(绩点×学分)/Σ(学分)`，支持学期筛选。
-- **校园卡**（实验）：`ncard.xjtu.edu.cn` 余额 + 近 90 天流水（只读）。未登录为演示；已登录失败则报错重试，不静默用假余额。详见 `docs/ncard-campus-card.md`。
+- **校园卡**：`ncard.xjtu.edu.cn` 余额 + 近 90 天流水（只读）。未登录为演示；已登录失败则报错重试，不静默用假余额。首次可能需「打开校园卡登录同步」。详见 `docs/ncard-campus-card.md`。
+- **图书馆座位**（需校园网）：查询区域空座、配置偏好座位与有限次回退尝试；登录态经共享 `CampusSession` 落盘，Cookie 保留 `http` + `:8086`/`:8010`。详见 `docs/library-seats.md`。
 
-入口：首页「学业」「校历」「校园卡」卡片。路由：`/academics`、`/grades`、`/exams`、`/calendar`、`/campus-card`。
+入口：首页「学业」「校历」「校园卡」「图书馆座位」等卡片。路由：`/academics`、`/grades`、`/exams`、`/calendar`、`/campus-card`、`/library-seats`。
 
 ## 本地缓存（stale-while-revalidate）
 
@@ -117,15 +136,17 @@ CAS 登录的 service 必须用一网通办/ehall（已注册）；不要用 jwx
 
 ```
 lib/
-  core/           主题、路由、安全存储、校园会话、RSA、中文文案
+  core/           主题、路由、安全存储、校园会话、更新检查、RSA、中文文案
   features/
     auth/         CAS 登录 + AuthRepository；Mock 仅用于演示
     schedule/     课表模型 / jwxt·ehall 适配器 / 列表与周视图
     classroom/    空闲教室筛选与教务 kxjas 适配器
-    notifications/教务通知列表与本地过滤规则（仍为本地样例）
+    notifications/教务通知列表与本地过滤规则
     alarms/       起床/课前提醒计算 + flutter_local_notifications
     home/         底部导航壳与首页
     campus_card/  校园卡余额与流水（ncard，只读）
+    library_seats/图书馆座位查询与预约辅助（校园网）
+    about/        关于页、检查更新与应用内安装 APK
 ```
 
 状态管理使用 **Riverpod 3**，路由使用 **go_router 18**。替换数据源时改 `lib/core/di/core_providers.dart`。默认仓库为 CAS / 实时适配器；`login(demo: true)` 仍走 Mock。
@@ -134,3 +155,13 @@ lib/
 
 - 显示名：交大校园助手
 - 包名：`xjtu_campus`（Android/iOS：`cn.edu.xjtu.xjtu_campus`）
+- 正式版版本：见 `pubspec.yaml`（当前 **1.5.0+17**）
+
+## 相关文档
+
+| 文档 | 说明 |
+| --- | --- |
+| `docs/ncard-campus-card.md` | 校园卡 SSO / 故障排查 |
+| `docs/library-seats.md` | 图书馆座位 API 与使用约束 |
+| `docs/grades-exams-calendar.md` | 成绩 / 考试 / 校历 |
+| `docs/RELEASE-NOTES.md` | 产品发布说明（按版本） |

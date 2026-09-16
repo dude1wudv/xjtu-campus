@@ -202,4 +202,4 @@ Tabs: **我的课表**, **我的成绩**, **我的考试安排**, **我的课程
 
 Shipped in app **v1.3.0**: grades (`cjcx`), exams (`wdksap`), calendar (one2020 public + jwxt week fallback). See `docs/grades-exams-calendar.md`.
 
-**Shipped (pre-release v1.5.0-card.1 on `feat/campus-card`):** 校园卡 (`ncard`) — see `docs/ncard-campus-card.md`. Not merged to Latest/main.
+**Shipped in stable v1.5.0 (Latest / `main`):** 校园卡 (`ncard`) + 图书馆座位 — see `docs/ncard-campus-card.md`, `docs/library-seats.md`, `docs/RELEASE-NOTES.md`.

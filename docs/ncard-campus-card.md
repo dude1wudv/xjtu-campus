@@ -1,4 +1,4 @@
-# 校园卡（ncard）实验功能 · v1.5.0-card.5
+# 校园卡（ncard）· v1.5.0
 
 Read-only balance + recent turnover. No 充值 / 支付 / 挂失 automation.
 

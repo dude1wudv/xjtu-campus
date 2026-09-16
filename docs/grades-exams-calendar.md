@@ -44,7 +44,7 @@ Prefer public one2020 over ywtb `portal-api` (JWT/`没有访问权限01`).
 
 ## 校园卡（ncard）
 
-Implemented on experimental branch `feat/campus-card` as **v1.5.0-card.1** (GitHub pre-release, not Latest). See `docs/ncard-campus-card.md`.
+Shipped in stable **v1.5.0** (GitHub Latest / `main`). See `docs/ncard-campus-card.md` and `docs/RELEASE-NOTES.md`.
 
 ## Navigation
 
