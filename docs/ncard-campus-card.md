@@ -100,4 +100,4 @@ Success business code: `code == 200`.
 - First-time ncard SSO may need **打开校园卡登录同步** or 网页登录 so mobile WebView can complete H5 oauth.
 - Turnover is last **90 days**, first page (30). Not a full bill export.
 - No payment, QR, recharge, or 挂失.
-- Pre-release only: UpdateChecker `/releases/latest` ignores this tag; stable stays on 1.4.0 until a non-pre release.
+- Stable `v1.5.0` is published as GitHub Latest (includes campus card + library seats). Older `v1.5.0-card.*` tags remain pre-releases for history.
