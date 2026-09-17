@@ -17,6 +17,7 @@ Future<void> openHomeworkSite(BuildContext context, WidgetRef ref) async {
   if (!context.mounted) return;
   ref.invalidate(homeworkProvider);
   ref.invalidate(homeworkDetailProvider);
+  ref.invalidate(homeworkTermProvider);
 }
 
 class HomeworkPage extends ConsumerStatefulWidget {
@@ -26,16 +27,31 @@ class HomeworkPage extends ConsumerStatefulWidget {
 }
 
 class _HomeworkPageState extends ConsumerState<HomeworkPage> {
+  String? _term;
   String _query = '';
+  Future<void> _refresh() async {
+    if (_term case final term?) {
+      ref.invalidate(homeworkTermProvider(term));
+      try { await ref.read(homeworkTermProvider(term).future); } catch (_) {}
+    } else {
+      ref.invalidate(homeworkProvider);
+      try { await ref.read(homeworkProvider.future); } catch (_) {}
+    }
+  }
   int? _course;
   String _filter = '全部';
   @override
   Widget build(BuildContext context) {
-    final value = ref.watch(homeworkProvider);
+    final current = ref.watch(homeworkProvider);
+    final value = _term == null ? current : ref.watch(homeworkTermProvider(_term!));
+    final terms = {for (final term in current.asData?.value.terms ?? <HomeworkTerm>[]) term.id: term,
+      for (final term in value.asData?.value.terms ?? <HomeworkTerm>[]) term.id: term};
+    final statuses = ref.watch(homeworkStatusesProvider);
     final data = value.asData?.value;
     final courses = <int, String>{for (final item in data?.items ?? <Homework>[]) item.courseId: item.courseName};
     final effectiveCourse = courses.containsKey(_course) ? _course : null;
-    final items = (data?.items ?? <Homework>[]).where((item) =>
+    final items = (data?.items ?? <Homework>[]).map((item) => statuses.containsKey(item.id)
+      ? item.withStatus(statuses[item.id]!) : item).where((item) =>
       (effectiveCourse == null || item.courseId == effectiveCourse) &&
       '${item.title} ${item.courseName}'.toLowerCase().contains(_query.toLowerCase()) &&
       (_filter == '全部' || (_filter == '待确认' && item.status == HomeworkStatus.unknown) ||
@@ -47,28 +63,37 @@ class _HomeworkPageState extends ConsumerState<HomeworkPage> {
         IconButton(tooltip: '思源学堂', icon: const Icon(Icons.open_in_browser),
           onPressed: () => openHomeworkSite(context, ref)),
         IconButton(tooltip: '同步作业', icon: const Icon(Icons.refresh),
-          onPressed: value.isLoading ? null : () => ref.invalidate(homeworkProvider)),
+          onPressed: value.isLoading ? null : _refresh),
       ]),
       body: RefreshIndicator(
-        onRefresh: () async {
-          ref.invalidate(homeworkProvider);
-          try { await ref.read(homeworkProvider.future); } catch (_) { /* Inline error below. */ }
-        },
+        onRefresh: _refresh,
         child: ListView.builder(padding: AppTokens.pagePadding,
           physics: const AlwaysScrollableScrollPhysics(),
           itemCount: items.length + 1,
           itemBuilder: (context, index) {
-            if (index > 0) return HomeworkTile(item: items[index - 1]);
+            if (index > 0) {
+              final item = items[index - 1];
+              return HomeworkTile(item: item);
+            }
             return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           AppSurfaceCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('思源学堂 · 当前课程', style: Theme.of(context).textTheme.titleMedium),
+            Text('思源学堂 · ${data?.termLabel ?? (_term == null ? '本学期' : terms[_term]?.label ?? '所选学期')}', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
-            const Text('汇总当前课程的作业与截止时间。打开详情更新提交状态，小组作业请到学校页面确认。'),
+            const Text('默认仅同步本学期作业，其他学期按需加载。打开详情更新提交状态，小组作业请到学校页面确认。'),
             if (data != null) Text('${data.fromCache ? '缓存' : '更新于'} ${DateFormat('M/d HH:mm').format(campusTime(data.updatedAt))}（北京时间）'),
             if (data?.fromCache == true) const Text('当前显示缓存，可下拉重新同步。'),
             if ((data?.failedCourses ?? 0) > 0) Text('${data!.failedCourses} 门课程未同步，当前列表可能不完整。'),
           ])),
           const SizedBox(height: 16),
+          DropdownButton<String>(isExpanded: true, value: _term,
+            hint: const Text('本学期'), items: [
+              const DropdownMenuItem<String>(value: null, child: Text('本学期（默认）')),
+              for (final term in terms.values) DropdownMenuItem(value: term.id,
+                child: Text(term.label, overflow: TextOverflow.ellipsis)),
+              if (_term != null && !terms.containsKey(_term))
+                DropdownMenuItem(value: _term, child: const Text('所选学期')),
+            ], onChanged: (term) => setState(() { _term = term; _course = null; })),
+          const SizedBox(height: 8),
           TextField(onChanged: (text) => setState(() => _query = text.trim()),
             decoration: const InputDecoration(hintText: '搜索课程或作业', prefixIcon: Icon(Icons.search))),
           const SizedBox(height: 8),
@@ -95,19 +120,23 @@ class _HomeworkPageState extends ConsumerState<HomeworkPage> {
 }
 
 class HomeworkDetailPage extends ConsumerWidget {
-  const HomeworkDetailPage({super.key, required this.id});
+  const HomeworkDetailPage({super.key, required this.id, this.initialItem});
+  final Homework? initialItem;
   final int id;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final summary = ref.watch(homeworkProvider).asData?.value;
-    Homework? item;
+    Homework? item = initialItem;
     for (final entry in summary?.items ?? <Homework>[]) {
       if (entry.id == id) { item = entry; break; }
     }
     final detail = ref.watch(homeworkDetailProvider(id));
     ref.listen(homeworkDetailProvider(id), (previous, next) {
       final value = next.asData?.value;
-      if (value != null) ref.read(homeworkProvider.notifier).updateStatus(id, value.status);
+      if (value != null) {
+        ref.read(homeworkProvider.notifier).updateStatus(id, value.status);
+        ref.read(homeworkStatusesProvider.notifier).update(id, value.status);
+      }
     });
     return AppPageScaffold(
       appBar: AppBar(title: const Text('作业详情'), actions: [

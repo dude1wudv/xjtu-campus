@@ -1,3 +1,4 @@
+import '../../features/homework/domain/homework.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -34,7 +35,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/homework', builder: (context, state) => const HomeworkPage()),
       GoRoute(path: '/homework/:id', builder: (context, state) {
         final id = int.tryParse(state.pathParameters['id'] ?? '');
-        return id == null ? const HomeworkPage() : HomeworkDetailPage(id: id);
+        return id == null ? const HomeworkPage() : HomeworkDetailPage(id: id, initialItem: state.extra is Homework ? state.extra as Homework : null);
       }),
       GoRoute(path: '/attendance/login', builder: (context, state) => const AttendanceLoginPage()),
       GoRoute(path: '/agreement', builder: (context, state) => const AgreementPage()),

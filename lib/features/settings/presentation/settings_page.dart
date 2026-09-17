@@ -39,7 +39,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         AppSurfaceCard(padding: EdgeInsets.zero, child: Column(children: [
           SwitchListTile.adaptive(title: const Text('液态玻璃效果'), subtitle: const Text('关闭后使用清晰的实色面板，减少图形开销'),
             value: settings.glass, onChanged: settings.loaded ? (v) => ref.read(settingsProvider.notifier).save(glass: v) : null),
-          const ListTile(title: Text('双击返回退出'), subtitle: Text('主页面 2 秒内再按一次返回键退出；子页面正常返回')),
         ])),
         const SizedBox(height: 24), const Text('桌面与后台'), const SizedBox(height: 10),
         AppSurfaceCard(padding: EdgeInsets.zero, child: Column(children: [

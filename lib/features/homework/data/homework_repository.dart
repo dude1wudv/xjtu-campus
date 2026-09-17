@@ -36,7 +36,7 @@ class HomeworkRepository {
     return data;
   }
 
-  Future<HomeworkSnapshot> load() async {
+  Future<HomeworkSnapshot> load({String? termId}) async {
     await session.restore();
     Map<String, dynamic> courses;
     try {
@@ -47,6 +47,34 @@ class HomeworkRepository {
     }
     final list = courses['courses'];
     if (list is! List) throw const FormatException('无法读取思源学堂课程列表');
+    final terms = <String, HomeworkTerm>{};
+    for (final raw in list.whereType<Map>()) {
+      final term = HomeworkTerm.fromCourse(raw);
+      terms[term.id] = term;
+    }
+    // Resolve the school's current term before requesting any activity lists.
+    // Never substitute the newest enrolled course (it may be a historical term).
+    String? currentCode;
+    if (termId == null) {
+      try {
+        final response = await session.post(CampusUrls.jwxtCurrentTerm,
+          cancelToken: _cancel, headers: {'X-Requested-With': 'XMLHttpRequest'});
+        final json = session.tryJson(response);
+        final rows = json?['datas']?['dqxnxq']?['rows'];
+        if (rows is List && rows.isNotEmpty && rows.first is Map) {
+          currentCode = rows.first['DM']?.toString();
+        }
+      } catch (_) { if (_cancel.isCancelled) rethrow; }
+    }
+    final now = campusTime(DateTime.now());
+    final startYear = now.month >= 8 ? now.year : now.year - 1;
+    final estimated = currentCode == null;
+    currentCode ??= '$startYear-${startYear + 1}-${now.month >= 8 || now.month == 1 ? 1 : 2}';
+    final selected = termId == null
+        ? terms.values.where((term) => term.code == currentCode).map((term) => term.id).toSet()
+        : {termId};
+    final label = termId == null ? '$currentCode${estimated ? '（按日期推算）' : ''}'
+        : terms[termId]?.label ?? '所选学期';
     final items = <int, Homework>{};
     var failures = 0;
     // Sequential requests inside the shared queue avoid flooding the school.
@@ -55,10 +83,7 @@ class HomeworkRepository {
       if (raw is! Map) { failures++; continue; }
       final courseId = int.tryParse('${raw['id']}');
       if (courseId == null) { failures++; continue; }
-      // Past courses remain available on the official site. Startup only warms
-      // active courses; do not discard a course whose end date is absent.
-      final end = homeworkDate(raw['end_date']);
-      if (end != null && end.isBefore(DateTime.now().subtract(const Duration(days: 14)))) continue;
+      if (!selected.contains(HomeworkTerm.fromCourse(raw).id)) continue;
       try {
         final data = await _json('/api/courses/$courseId/activities');
         final activities = data['activities'];
@@ -87,7 +112,8 @@ class HomeworkRepository {
       if (b.dueAt == null) return -1;
       return a.dueAt!.compareTo(b.dueAt!);
     });
-    return HomeworkSnapshot(sorted, DateTime.now(), failedCourses: failures);
+    return HomeworkSnapshot(sorted, DateTime.now(), failedCourses: failures,
+      terms: terms.values.toList()..sort((a, b) => b.label.compareTo(a.label)), termLabel: label);
   }
 
   Future<HomeworkDetail> detail(int id) async {

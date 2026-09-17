@@ -22,7 +22,10 @@ class HomeworkNotifier extends AsyncNotifier<HomeworkSnapshot> {
     final store = ref.read(credentialStoreProvider);
     final repository = HomeworkRepository(session);
     ref.onDispose(() { active = false; repository.cancel(); });
-    final key = 'homework.snapshot.${auth.$2.studentId}';
+    final day = campusTime(DateTime.now());
+    // Versioned, month-scoped cache prevents old unfiltered snapshots leaking
+    // into the current semester, including across term boundaries.
+    final key = 'homework.v2.${auth.$2.studentId}.current.${day.year}-${day.month}';
     HomeworkSnapshot? cached;
     try {
       final raw = await store.read(key);
@@ -55,7 +58,8 @@ class HomeworkNotifier extends AsyncNotifier<HomeworkSnapshot> {
     if (data == null) return;
     state = AsyncData(HomeworkSnapshot(
       [for (final item in data.items) item.id == id ? item.withStatus(status) : item],
-      data.updatedAt, fromCache: data.fromCache, failedCourses: data.failedCourses));
+      data.updatedAt, fromCache: data.fromCache, failedCourses: data.failedCourses,
+      terms: data.terms, termLabel: data.termLabel));
   }
 }
 
@@ -79,3 +83,32 @@ final homeworkDetailProvider = FutureProvider.autoDispose.family<HomeworkDetail,
     throw TimeoutException('作业详情加载超时');
   });
 }, retry: (count, error) => null);
+
+// Historical selections are isolated from home/calendar/widget preloading.
+final homeworkTermProvider = FutureProvider.autoDispose.family<HomeworkSnapshot, String>((ref, termId) async {
+  final auth = ref.watch(authControllerProvider.select((s) => (s.initialized, s.user)));
+  ref.watch(campusConnectionRevisionProvider);
+  if (!auth.$1 || auth.$2.isGuest || auth.$2.isDemo) throw const HomeworkAuthRequired();
+  final session = ref.read(campusSessionProvider);
+  final repository = HomeworkRepository(session);
+  var active = true;
+  ref.onDispose(() { active = false; repository.cancel(); });
+  return session.readQueue.run(() {
+    if (!active) throw StateError('Homework selection superseded');
+    return repository.load(termId: termId);
+  }).timeout(const Duration(seconds: 120), onTimeout: () {
+    repository.cancel();
+    throw TimeoutException('作业同步超时');
+  });
+}, retry: (count, error) => null);
+
+class HomeworkStatuses extends Notifier<Map<int, HomeworkStatus>> {
+  @override
+  Map<int, HomeworkStatus> build() {
+    ref.watch(authControllerProvider.select((s) => (s.initialized, s.user)));
+    ref.watch(campusConnectionRevisionProvider);
+    return {};
+  }
+  void update(int id, HomeworkStatus status) => state = {...state, id: status};
+}
+final homeworkStatusesProvider = NotifierProvider<HomeworkStatuses, Map<int, HomeworkStatus>>(HomeworkStatuses.new);

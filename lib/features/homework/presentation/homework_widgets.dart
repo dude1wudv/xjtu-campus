@@ -18,7 +18,7 @@ class HomeworkTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) => AppSurfaceCard(
     margin: const EdgeInsets.only(bottom: 10),
-    onTap: () => context.push('/homework/${item.id}'),
+    onTap: () => context.push('/homework/${item.id}', extra: item),
     child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
       const Icon(Icons.assignment_outlined, color: AppColors.accent),
       const SizedBox(width: 12),
