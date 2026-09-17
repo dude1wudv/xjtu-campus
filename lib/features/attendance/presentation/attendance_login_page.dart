@@ -54,9 +54,37 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
   void _arm() {
     _timer?.cancel();
     _timer = Timer(const Duration(seconds: 50), () {
-      if (mounted && !_saving) setState(() => _error = '认证尚未完成。请完成页面中的登录；若一直停在跳转页，可重新发起授权。');
+      if (mounted && !_saving) {
+        AttendanceDiagnostics.add('authentication-timeout');
+        if (_controller != null) _recordPage(_controller!);
+        setState(() => _error = '认证尚未完成。请完成页面中的登录；若一直停在跳转页，可重新发起授权。');
+      }
     });
   }
+  Future<void> _recordPage(InAppWebViewController controller) async {
+    if (!mounted || !_diagnosticMode) return;
+    try {
+      final url = await controller.getUrl();
+      final uri = Uri.tryParse('$url');
+      if (uri == null || !['login.xjtu.edu.cn', 'org.xjtu.edu.cn', _system.host]
+          .any((host) => WebVpnUrl.matchesHost(uri, host))) return;
+      // Return fixed categories only, never DOM text or form values.
+      final kind = await controller.evaluateJavascript(source: r"""
+        (() => {
+          if (document.querySelector('input[type="password"]')) return 'login-form';
+          const text = document.body?.innerText || '';
+          if (text.includes('正在完成登录')) return 'login-redirect-wait';
+          if (text.includes('404 Not Found')) return 'page-not-found';
+          return 'page-loaded';
+        })()
+      """);
+      const allowed = ['login-form', 'login-redirect-wait', 'page-not-found', 'page-loaded'];
+      if (mounted && _diagnosticMode && allowed.contains(kind)) {
+        AttendanceDiagnostics.add('$kind', url: url?.toString());
+      }
+    } catch (_) { /* Diagnostics must not interrupt authentication. */ }
+  }
+
   Future<void> _capture(WebUri? value) async {
     if (!mounted || value == null || _saving) return;
     final uri = Uri.tryParse(value.toString());
@@ -122,10 +150,11 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
       IconButton(tooltip: '重新授权', onPressed: _retry, icon: const Icon(Icons.refresh)),
     ]), body: Column(children: [
       SwitchListTile(title: const Text('接口诊断模式'),
-        subtitle: const Text('开启后重新授权，并在官方页面打开考勤记录；返回查看脱敏诊断。'),
+        subtitle: const Text('开启不会刷新登录页。完成登录后打开考勤记录，再查看脱敏诊断。'),
         value: _diagnosticMode, onChanged: (value) {
           setState(() { _diagnosticMode = value; _saving = false; _error = null; });
           AttendanceDiagnostics.add(value ? 'diagnostic-start' : 'diagnostic-stop');
+          if (value && _controller != null) _recordPage(_controller!);
           _arm();
         }),
       if (_progress < 1) LinearProgressIndicator(value: _progress == 0 ? null : _progress),
@@ -136,9 +165,8 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
           child: Text(_portal ? '切换学校统一授权入口' : '切换考勤系统入口')),
       ])),
       Expanded(child: !_ready ? const Center(child: CircularProgressIndicator()) : InAppWebView(
-        key: ValueKey(_diagnosticMode),
         initialUserScripts: UnmodifiableListView<UserScript>([
-          if (_diagnosticMode) UserScript(source: AttendanceDiagnostics.script,
+          UserScript(source: AttendanceDiagnostics.script,
             injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START, forMainFrameOnly: true),
         ]),
         initialUrlRequest: URLRequest(url: WebUri(_entry())),
@@ -171,9 +199,13 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
           AttendanceDiagnostics.add('navigation', url: url?.toString());
           _capture(url);
         },
-        onUpdateVisitedHistory: (_, url, _) => _capture(url),
+        onUpdateVisitedHistory: (_, url, _) {
+          if (_diagnosticMode) AttendanceDiagnostics.add('history', url: url?.toString());
+          _capture(url);
+        },
         onProgressChanged: (_, progress) { if (mounted) setState(() => _progress = progress / 100); },
         onLoadStop: (controller, url) async {
+          await _recordPage(controller);
           await _capture(url);
           if (!mounted || _saving) return;
           try {

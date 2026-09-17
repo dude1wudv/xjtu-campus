@@ -29,6 +29,11 @@ abstract final class AttendanceDiagnostics {
     if (uri == null || !(uri.host == 'xjtu.edu.cn' || uri.host.endsWith('.xjtu.edu.cn'))) return '[other origin]';
     // Only API/auth route segments; all unrecognized page paths are omitted.
     final path = uri.path;
+    if (uri.host == 'login.xjtu.edu.cn') {
+      final stage = path.endsWith('/cas/login') ? 'cas-login'
+          : path.endsWith('/cas/logout') ? 'cas-logout' : 'authentication-page';
+      return '${uri.host}/[$stage]';
+    }
     final markers = ['/attendance-student/', '/berserker-auth/', '/api/'];
     final marker = markers.map(path.indexOf).where((index) => index >= 0).fold<int>(-1, (a, b) => a < 0 || b < a ? b : a);
     if (marker >= 0) {
