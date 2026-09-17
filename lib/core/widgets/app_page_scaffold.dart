@@ -17,7 +17,12 @@ class AppPageScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return DecoratedBox(
+      decoration: const BoxDecoration(gradient: LinearGradient(
+        begin: Alignment.topLeft, end: Alignment.bottomRight,
+        colors: [Color(0xFFE8F0FF), Color(0xFFF7F6FB), Color(0xFFEAF5F2)],
+      )),
+      child: Scaffold(backgroundColor: Colors.transparent,
       appBar: appBar,
       body: SafeArea(
         top: appBar == null,
@@ -47,6 +52,7 @@ class AppPageScaffold extends StatelessWidget {
                 ),
               ),
             ),
+    ),
     );
   }
 }

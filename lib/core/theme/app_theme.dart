@@ -5,18 +5,18 @@ import 'app_tokens.dart';
 
 /// Campus blue, cool neutral surfaces, and shared semantic status colors.
 abstract final class AppColors {
-  static const Color ink = Color(0xFF18243A);
-  static const Color inkSoft = Color(0xFF5D6B80);
-  static const Color navy = Color(0xFF2457A7);
-  static const Color navyDeep = Color(0xFF18376B);
-  static const Color accent = Color(0xFF4479D5);
+  static const Color ink = Color(0xFF1C1C1E);
+  static const Color inkSoft = Color(0xFF6E7583);
+  static const Color navy = Color(0xFF007AFF);
+  static const Color navyDeep = Color(0xFF18335E);
+  static const Color accent = Color(0xFF5856D6);
   static const Color gold = Color(0xFF966510);
-  static const Color cream = Color(0xFFF3F6FB);
-  static const Color surface = Color(0xFFF8FAFD);
+  static const Color cream = Color(0xFFF2F4FA);
+  static const Color surface = Color(0xFFF6F8FC);
   static const Color card = Color(0xFFFFFFFF);
-  static const Color line = Color(0xFFE2E8F1);
-  static const Color success = Color(0xFF1F7A4C);
-  static const Color alert = Color(0xFFC62828);
+  static const Color line = Color(0xFFE7EBF3);
+  static const Color success = Color(0xFF248A3D);
+  static const Color alert = Color(0xFFFF453A);
   static const Color chip = Color(0xFFEAF0FA);
 }
 
@@ -28,7 +28,7 @@ abstract final class AppTheme {
   static ThemeData _buildLight() {
     const textTheme = TextTheme(
       headlineMedium: TextStyle(
-        fontSize: 28,
+        fontSize: 32,
         fontWeight: FontWeight.w700,
         letterSpacing: -0.6,
         color: AppColors.ink,
@@ -73,6 +73,11 @@ abstract final class AppTheme {
 
     return ThemeData(
       useMaterial3: true,
+      pageTransitionsTheme: const PageTransitionsTheme(builders: {
+        TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+        TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+      }),
+      fontFamilyFallback: const ['SF Pro Display', 'PingFang SC', 'Noto Sans CJK SC'],
       colorScheme: colorScheme,
       scaffoldBackgroundColor: AppColors.cream,
       textTheme: textTheme,
@@ -109,16 +114,17 @@ abstract final class AppTheme {
         ),
       ),
       appBarTheme: const AppBarTheme(
-        backgroundColor: AppColors.cream,
+        backgroundColor: Colors.transparent,
         foregroundColor: AppColors.ink,
         elevation: 0,
+        surfaceTintColor: Colors.transparent,
         scrolledUnderElevation: 0,
         centerTitle: false,
         titleSpacing: 16,
-        toolbarHeight: 60,
+        toolbarHeight: 64,
         systemOverlayStyle: SystemUiOverlayStyle.dark,
         titleTextStyle: TextStyle(
-          fontSize: 18,
+          fontSize: 22,
           fontWeight: FontWeight.w700,
           color: AppColors.ink,
           letterSpacing: -0.2,

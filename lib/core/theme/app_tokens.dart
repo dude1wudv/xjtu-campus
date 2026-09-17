@@ -10,8 +10,8 @@ abstract final class AppTokens {
   // —— Radii ——
   static const double radiusSm = 12;
   static const double radiusMd = 16;
-  static const double radiusLg = 20;
-  static const double radiusXl = 24;
+  static const double radiusLg = 26;
+  static const double radiusXl = 32;
   static const double radiusPill = 999;
 
   static BorderRadius get borderSm => BorderRadius.circular(radiusSm);
@@ -30,10 +30,10 @@ abstract final class AppTokens {
   static const double spaceSection = 32;
 
   static const EdgeInsets pagePadding = EdgeInsets.fromLTRB(
-    spaceLg,
+    spaceXl,
     spaceMd,
-    spaceLg,
-    spaceSection,
+    spaceXl,
+    112,
   );
 
   static const EdgeInsets cardPadding = EdgeInsets.all(spaceLg);

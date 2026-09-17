@@ -19,7 +19,22 @@ enum AttendanceSystem {
   // The attendance HTTP port refuses connections. Keep interactive and
   // background authentication on the same HTTPS origin as the API.
   String entryUrl({required bool useWebVpn}) => useWebVpn
-      ? WebVpnUrl.convert('$origin/') : loginUrl;
+      ? WebVpnUrl.convert(loginUrl) : loginUrl;
+
+  String navigationUrl(String raw, {required bool useWebVpn}) {
+    var url = raw;
+    final uri = Uri.tryParse(raw);
+    if (uri == null) return raw;
+    if (uri.host == host && uri.scheme == 'http') {
+      url = uri.replace(scheme: 'https', port: 443).toString();
+    } else if (WebVpnUrl.isWebVpn(raw)) {
+      final oldPrefix = WebVpnUrl.convert('http://$host/');
+      if (raw.startsWith(oldPrefix)) {
+        url = '${WebVpnUrl.convert('$origin/')}${raw.substring(oldPrefix.length)}';
+      }
+    }
+    return WebVpnUrl.maybeConvert(url, enabled: useWebVpn);
+  }
 
   String get loginUrl => Uri.https('org.xjtu.edu.cn', '/openplatform/oauth/authorize', {
     'appId': appId,
@@ -158,7 +173,19 @@ class AttendanceRepository {
         initialUrlRequest: URLRequest(url: WebUri(entry)),
         initialSettings: InAppWebViewSettings(javaScriptEnabled: true,
           domStorageEnabled: true, thirdPartyCookiesEnabled: true,
+          useShouldOverrideUrlLoading: true,
           userAgent: CampusUrls.userAgent),
+        shouldOverrideUrlLoading: (controller, action) async {
+          final raw = action.request.url?.toString();
+          if (action.isForMainFrame != false && raw != null) {
+            final target = system.navigationUrl(raw, useWebVpn: session.useWebVpn);
+            if (target != raw) {
+              await controller.loadUrl(urlRequest: URLRequest(url: WebUri(target)));
+              return NavigationActionPolicy.CANCEL;
+            }
+          }
+          return NavigationActionPolicy.ALLOW;
+        },
         onLoadStart: (_, url) => capture(url),
         onLoadStop: (controller, url) async {
           if (result.isCompleted) return;

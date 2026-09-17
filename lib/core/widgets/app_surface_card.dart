@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../theme/app_theme.dart';
+import 'glass_surface.dart';
 import '../theme/app_tokens.dart';
 
 /// Shared surface with an ink layer for both whole-card and nested actions.
@@ -31,25 +31,13 @@ class AppSurfaceCard extends StatelessWidget {
       child: child,
     );
 
-    return Container(
-      margin: margin,
-      decoration: BoxDecoration(
-        color: AppColors.card,
-        borderRadius: borderRadius,
-        border: Border.all(color: AppColors.line),
-        boxShadow: softShadow ? AppTokens.softCardShadow : null,
-      ),
-      child: Material(
-        color: AppColors.card,
-        borderRadius: borderRadius,
-        clipBehavior: Clip.antiAlias,
-        child: onTap == null
-            ? content
-            : InkWell(
-                onTap: onTap,
-                borderRadius: borderRadius,
-                child: content,
-              ),
+    return Padding(
+      padding: margin ?? EdgeInsets.zero,
+      child: GlassSurface(radius: r, blur: false,
+        child: Material(color: Colors.transparent, borderRadius: borderRadius,
+          clipBehavior: Clip.antiAlias,
+          child: onTap == null ? content : InkWell(onTap: onTap,
+            borderRadius: borderRadius, child: content)),
       ),
     );
   }

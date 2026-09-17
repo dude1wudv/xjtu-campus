@@ -3,6 +3,7 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import '../../../core/constants/app_constants.dart';
@@ -135,6 +136,11 @@ class CasAuthRepository implements AuthRepository {
   @override
   Future<void> logout() async {
     _pending = null;
+    try {
+      const platform = MethodChannel('campus/platform');
+      await platform.invokeMethod('background', false);
+      await platform.invokeMethod('widget', <String, String>{});
+    } catch (_) { /* Native desktop support is Android-only. */ }
     await _session.clear();
     try {
       await CookieManager.instance().deleteAllCookies();

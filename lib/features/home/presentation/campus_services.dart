@@ -34,7 +34,7 @@ class CampusService {
     CampusService('校园卡', '余额查询 · 消费记录', Icons.credit_card_outlined,
         '/campus-card'),
     CampusService('课程闹钟', '课前提醒 · 起床闹钟', Icons.alarm_outlined,
-        '/alarms', isTab: true),
+        '/alarms'),
   ];
 }
 

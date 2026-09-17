@@ -227,7 +227,10 @@ class LibrarySeatApi {
       if ((res.statusCode ?? 0) == 401 || (res.statusCode ?? 0) == 403) {
         throw StateError('auth');
       }
-      return _parseMyBookings(res.data ?? '');
+      final body = res.data ?? '';
+      if ((body.toLowerCase().contains('login') && body.toLowerCase().contains('password')) ||
+          body.contains('统一身份认证')) throw StateError('auth');
+      return _parseMyBookings(body);
     } on DioException catch (e) {
       if (_isNetworkFailure(e)) {
         throw StateError('unreachable');
@@ -236,7 +239,10 @@ class LibrarySeatApi {
         _url('/my/'),
         options: Options(responseType: ResponseType.plain),
       );
-      return _parseMyBookings(res.data ?? '');
+      final body = res.data ?? '';
+      if ((body.toLowerCase().contains('login') && body.toLowerCase().contains('password')) ||
+          body.contains('统一身份认证')) throw StateError('auth');
+      return _parseMyBookings(body);
     }
   }
 

@@ -26,12 +26,7 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
   DateTimeRange? _range;
 
   Future<void> _openOfficial() async {
-    final system = ref.read(attendanceSystemProvider);
-    final session = ref.read(campusSessionProvider);
-    await context.push('/browser', extra: {
-      'url': system.entryUrl(useWebVpn: session.useWebVpn),
-      'title': '官方考勤系统',
-    });
+    await context.push('/attendance/login');
     if (mounted) ref.invalidate(attendanceSnapshotProvider);
   }
 

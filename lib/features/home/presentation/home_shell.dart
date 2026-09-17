@@ -1,77 +1,67 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/widgets/glass_surface.dart';
 
-import '../../../core/l10n/app_strings.dart';
-import '../../../core/theme/app_theme.dart';
-
-class HomeShell extends StatelessWidget {
+class HomeShell extends StatefulWidget {
   const HomeShell({super.key, required this.navigationShell});
-
   final StatefulNavigationShell navigationShell;
-
-  static const _destinations = [
-    (label: AppStrings.navHome, icon: Icons.home_outlined, selected: Icons.home_rounded),
-    (label: AppStrings.navSchedule, icon: Icons.calendar_view_week_outlined, selected: Icons.calendar_view_week),
-    (label: AppStrings.navClassroom, icon: Icons.meeting_room_outlined, selected: Icons.meeting_room),
-    (label: AppStrings.navNotices, icon: Icons.campaign_outlined, selected: Icons.campaign),
-    (label: AppStrings.navAlarms, icon: Icons.alarm_outlined, selected: Icons.alarm),
-  ];
-
-  void _select(int index) {
-    // Preserve scroll and filters when the current destination is tapped again.
-    if (index != navigationShell.currentIndex) navigationShell.goBranch(index);
-  }
-
   @override
-  Widget build(BuildContext context) {
-    final wide = MediaQuery.sizeOf(context).width >= 840;
-    final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
-    return Scaffold(
-      body: Row(
-        children: [
-          if (wide) ...[
-            SafeArea(
-              child: NavigationRail(
-                selectedIndex: navigationShell.currentIndex,
-                onDestinationSelected: _select,
-                labelType: NavigationRailLabelType.all,
-                backgroundColor: AppColors.card,
-                indicatorColor: AppColors.chip,
-                destinations: [
-                  for (final destination in _destinations)
-                    NavigationRailDestination(
-                      icon: Icon(destination.icon),
-                      selectedIcon: Icon(destination.selected),
-                      label: Text(destination.label),
-                    ),
-                ],
-              ),
+  State<HomeShell> createState() => _HomeShellState();
+}
+class _HomeShellState extends State<HomeShell> {
+  DateTime? _lastBack;
+  static const _tabs = [
+    ('今天', CupertinoIcons.square_grid_2x2_fill),
+    ('课表', CupertinoIcons.calendar),
+    ('自习', CupertinoIcons.book),
+    ('通知', CupertinoIcons.bell),
+    ('设置', CupertinoIcons.gear_alt),
+  ];
+  @override
+  Widget build(BuildContext context) => PopScope(
+    canPop: false,
+    onPopInvokedWithResult: (didPop, result) {
+      if (didPop) return;
+      final now = DateTime.now();
+      if (_lastBack != null && now.difference(_lastBack!) < const Duration(seconds: 2)) {
+        SystemNavigator.pop();
+      } else {
+        _lastBack = now;
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('再按一次返回键退出'), duration: Duration(seconds: 2)));
+      }
+    },
+    child: Scaffold(
+      extendBody: true,
+      body: widget.navigationShell,
+      bottomNavigationBar: MediaQuery.viewInsetsOf(context).bottom > 0 ? null : SafeArea(
+        minimum: const EdgeInsets.fromLTRB(18, 0, 18, 10),
+        child: GlassSurface(child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+          child: Row(children: [for (var i = 0; i < _tabs.length; i++) Expanded(
+            child: Semantics(selected: widget.navigationShell.currentIndex == i,
+              child: InkWell(borderRadius: BorderRadius.circular(22), onTap: () {
+                _lastBack = null;
+                widget.navigationShell.goBranch(i);
+              }, child: AnimatedContainer(duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                decoration: BoxDecoration(borderRadius: BorderRadius.circular(22),
+                  color: widget.navigationShell.currentIndex == i ? Colors.white.withValues(alpha: .85) : Colors.transparent),
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(_tabs[i].$2, size: 22, color: widget.navigationShell.currentIndex == i
+                      ? const Color(0xFF007AFF) : const Color(0xFF747A87)),
+                  const SizedBox(height: 4),
+                  Text(_tabs[i].$1, style: TextStyle(fontSize: 11,
+                    fontWeight: widget.navigationShell.currentIndex == i ? FontWeight.w700 : FontWeight.w500)),
+                ]),
+              )),
             ),
-            const VerticalDivider(width: 1),
-          ],
-          Expanded(child: navigationShell),
-        ],
+          )]),
+        )),
       ),
-      bottomNavigationBar: wide || keyboardOpen
-          ? null
-          : DecoratedBox(
-              decoration: const BoxDecoration(
-                color: AppColors.card,
-                border: Border(top: BorderSide(color: AppColors.line)),
-              ),
-              child: NavigationBar(
-                selectedIndex: navigationShell.currentIndex,
-                onDestinationSelected: _select,
-                destinations: [
-                  for (final destination in _destinations)
-                    NavigationDestination(
-                      icon: Icon(destination.icon),
-                      selectedIcon: Icon(destination.selected),
-                      label: destination.label,
-                    ),
-                ],
-              ),
-            ),
-    );
-  }
+    ),
+  );
 }
