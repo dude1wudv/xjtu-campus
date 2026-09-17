@@ -367,6 +367,7 @@ class CampusSession {
     await _store.delete('session.ywtb_id_token');
     await clearNcardAccessToken();
     await clearAttendanceToken('bkkq.xjtu.edu.cn');
+    await clearAttendanceToken('bk-kq.xjtu.edu.cn');
     await clearAttendanceToken('yjskq.xjtu.edu.cn');
     AppLogger.info('已清除校园会话 Cookie');
   }
@@ -411,6 +412,7 @@ class CampusSession {
       'rg.lib.xjtu.edu.cn',
       'lib.xjtu.edu.cn',
       'bkkq.xjtu.edu.cn',
+      'bk-kq.xjtu.edu.cn',
       'yjskq.xjtu.edu.cn',
       'lms.xjtu.edu.cn',
     };

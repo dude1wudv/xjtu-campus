@@ -111,7 +111,9 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
                 ),
               ],
               if (value.hasError && !value.isLoading) AppSurfaceCard(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                Text(value.error is AttendanceAuthRequired
+                Text(value.error is AttendanceWebOnly
+                    ? '本科生考勤已迁移至新版工作台。请打开工作台查询，应用内考勤同步与课程关联待适配。'
+                    : value.error is AttendanceAuthRequired
                     ? (useWebVpn
                         ? 'WebVPN 已启用，考勤系统仍需单独认证。请打开官方考勤系统完成登录，返回后自动同步。'
                         : '请打开官方考勤系统完成认证；校外访问可先连接 WebVPN。')
@@ -121,14 +123,14 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
                             ? '学校返回的数据结构无法解析。请打开接口诊断，复制脱敏信息反馈。'
                             : '考勤同步未完成，请查看接口诊断或稍后重试。'),
                 const SizedBox(height: 12),
-                if (value.error is AttendanceAuthRequired)
+                if (value.error is AttendanceAuthRequired || value.error is AttendanceWebOnly)
                   FilledButton(onPressed: _openOfficial, child: const Text('打开官方考勤系统'))
                 else
                   FilledButton(onPressed: () => ref.invalidate(attendanceSnapshotProvider),
                       child: const Text('重新同步考勤')),
                 if (!useWebVpn)
                   TextButton(onPressed: () => context.push('/webvpn'), child: const Text('连接 WebVPN')),
-                if (value.error is! AttendanceAuthRequired)
+                if (value.error is! AttendanceAuthRequired && value.error is! AttendanceWebOnly)
                   TextButton(onPressed: _openOfficial, child: const Text('打开官方考勤系统')),
               ])),
               if (data != null && records.isEmpty)

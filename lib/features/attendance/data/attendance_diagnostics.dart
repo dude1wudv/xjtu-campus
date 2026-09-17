@@ -29,6 +29,7 @@ abstract final class AttendanceDiagnostics {
     if (uri == null || !(uri.host == 'xjtu.edu.cn' || uri.host.endsWith('.xjtu.edu.cn'))) return '[other origin]';
     // Only API/auth route segments; all unrecognized page paths are omitted.
     final path = uri.path;
+    if (path.endsWith('/studentpc/workbench')) return '${uri.host}/studentpc/workbench';
     if (uri.host == 'login.xjtu.edu.cn') {
       // Keep fixed CAS route names and structural errors while stripping
       // session IDs and arbitrary path segments. Never export query values.

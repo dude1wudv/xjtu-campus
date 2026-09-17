@@ -52,6 +52,7 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
   }
   void _arm() {
     _timer?.cancel();
+    if (!_system.usesLegacyApi) return;
     _timer = Timer(const Duration(seconds: 50), () {
       if (mounted && !_saving) {
         AttendanceDiagnostics.add('authentication-timeout');
@@ -98,7 +99,7 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
   }
 
   Future<void> _capture(WebUri? value) async {
-    if (!mounted || value == null || _saving) return;
+    if (!mounted || value == null || _saving || !_system.usesLegacyApi) return;
     final uri = Uri.tryParse(value.toString());
     if (uri == null || !WebVpnUrl.matchesHost(uri, _system.host)) return;
     final token = AttendanceRepository.tokenFromUri(uri);
@@ -126,7 +127,8 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
   }
   String _entry() {
     final session = ref.read(campusSessionProvider);
-    return _portal ? session.resolveUrl('${_system.origin}/') : _system.loginUrl;
+    return _portal ? session.resolveUrl(_system.workbenchUrl)
+        : _system.entryUrl(useWebVpn: session.useWebVpn);
   }
   Future<void> _httpFailure(int status) async {
     if (!mounted || _saving) return;
@@ -153,7 +155,7 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
   @override
   Widget build(BuildContext context) {
     final session = ref.read(campusSessionProvider);
-    return AppPageScaffold(appBar: AppBar(title: Text('${_system.label}考勤认证'), actions: [
+    return AppPageScaffold(appBar: AppBar(title: Text('${_system.label}${_system.usesLegacyApi ? '考勤认证' : '考勤工作台'}'), actions: [
       IconButton(tooltip: '接口诊断', onPressed: () => showAttendanceDiagnostics(context), icon: const Icon(Icons.bug_report_outlined)),
       IconButton(tooltip: '重新授权', onPressed: _retry, icon: const Icon(Icons.refresh)),
     ]), body: Column(children: [
@@ -169,7 +171,7 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
       if (_error != null) Padding(padding: const EdgeInsets.all(12), child: Column(children: [
         Text(_error!),
         TextButton(onPressed: _retry, child: const Text('重新发起授权')),
-        TextButton(onPressed: () { _portal = !_portal; _retry(); },
+        if (_system.usesLegacyApi) TextButton(onPressed: () { _portal = !_portal; _retry(); },
           child: Text(_portal ? '切换学校统一授权入口' : '切换考勤系统入口')),
       ])),
       Expanded(child: !_ready ? const Center(child: CircularProgressIndicator()) : InAppWebView(

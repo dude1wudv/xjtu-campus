@@ -37,7 +37,7 @@ class AttendanceSnapshotNotifier extends AsyncNotifier<AttendanceSnapshot> {
     final session = ref.read(campusSessionProvider);
     final repository = AttendanceRepository(session);
     ref.onDispose(repository.cancel);
-    final key = 'attendance.snapshot.${auth.$2.studentId}.${system.name}';
+    final key = 'attendance.snapshot.${auth.$2.studentId}.${system.name}.${system.host}';
     AttendanceSnapshot? cached;
     try {
       final raw = await store.read(key);

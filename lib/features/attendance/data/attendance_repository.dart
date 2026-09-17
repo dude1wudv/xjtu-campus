@@ -11,17 +11,20 @@ import '../../../core/network/webvpn_url.dart';
 import '../domain/attendance_record.dart';
 
 enum AttendanceSystem {
-  undergraduate('本科生', 'bkkq.xjtu.edu.cn', '1372'),
+  undergraduate('本科生', 'bk-kq.xjtu.edu.cn', ''),
   postgraduate('研究生', 'yjskq.xjtu.edu.cn', '1245');
   const AttendanceSystem(this.label, this.host, this.appId);
   final String label, host, appId;
   String get origin => 'https://$host';
+  bool get usesLegacyApi => this == AttendanceSystem.postgraduate;
+  String get workbenchUrl => usesLegacyApi ? '$origin/' : '$origin/studentpc/workbench';
 
   // The attendance HTTP port refuses connections. Keep interactive and
   // background authentication on the same HTTPS origin as the API.
   // The public OAuth gateway must retain its own origin and redirect chain.
   // Proxy only the private attendance host, not the authorization gateway.
-  String entryUrl({required bool useWebVpn}) => loginUrl;
+  String entryUrl({required bool useWebVpn}) => usesLegacyApi
+      ? loginUrl : WebVpnUrl.maybeConvert(workbenchUrl, enabled: useWebVpn);
 
   String navigationUrl(String raw, {required bool useWebVpn}) {
     var url = raw;
@@ -39,7 +42,7 @@ enum AttendanceSystem {
         ? WebVpnUrl.maybeConvert(url, enabled: useWebVpn) : url;
   }
 
-  String get loginUrl => Uri.https('org.xjtu.edu.cn', '/openplatform/oauth/authorize', {
+  String get loginUrl => !usesLegacyApi ? workbenchUrl : Uri.https('org.xjtu.edu.cn', '/openplatform/oauth/authorize', {
     'appId': appId,
     'redirectUri': '$origin/berserker-auth/auth/attendance-pc/casReturn',
     'responseType': 'code', 'scope': 'user_info', 'state': '1234',
@@ -66,6 +69,9 @@ class AttendanceRepository {
   }
 
   Future<AttendanceSnapshot> _load(AttendanceSystem system) async {
+    // The new undergraduate site has a different frontend and unverified API.
+    // Never send the old bearer protocol to guessed endpoints on the new host.
+    if (!system.usesLegacyApi) throw const AttendanceWebOnly();
     await session.restore();
     var token = await session.readAttendanceToken(system.host);
     for (var attempt = 0; attempt < 2; attempt++) {
@@ -286,4 +292,10 @@ class AttendanceConnectionFailed implements Exception {
 
   @override
   String toString() => '考勤系统暂时无法连接，请稍后重试';
+}
+
+class AttendanceWebOnly implements Exception {
+  const AttendanceWebOnly();
+  @override
+  String toString() => '本科生考勤已迁移，请在新版工作台查询；应用内同步待适配。';
 }
