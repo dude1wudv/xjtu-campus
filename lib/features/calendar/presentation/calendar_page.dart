@@ -12,6 +12,7 @@ import '../../../core/widgets/app_page_scaffold.dart';
 import '../../../core/widgets/app_surface_card.dart';
 import '../../../core/widgets/manual_refresh_button.dart';
 import '../../attendance/presentation/attendance_providers.dart';
+import '../../homework/presentation/homework_providers.dart';
 import '../../schedule/domain/course.dart';
 import '../../schedule/presentation/schedule_providers.dart';
 import '../domain/school_calendar.dart';
@@ -43,6 +44,7 @@ class CalendarPage extends ConsumerWidget {
           ManualRefreshButton(
             onRefresh: () async {
               ref.invalidate(attendanceSnapshotProvider);
+          ref.invalidate(homeworkProvider);
               await ref
                   .read(scheduleSnapshotProvider.notifier)
                   .refresh(force: true);
@@ -69,6 +71,7 @@ class CalendarPage extends ConsumerWidget {
       body: RefreshIndicator(
         onRefresh: () async {
           ref.invalidate(attendanceSnapshotProvider);
+          ref.invalidate(homeworkProvider);
           await ref.read(scheduleSnapshotProvider.notifier).refresh(force: true);
           await ref.read(calendarSnapshotProvider.notifier).refresh(force: true);
         },

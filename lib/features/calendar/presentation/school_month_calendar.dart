@@ -10,6 +10,9 @@ import '../../attendance/domain/attendance_record.dart';
 import '../../attendance/presentation/attendance_providers.dart';
 import '../../attendance/presentation/course_attendance_badge.dart';
 import '../../schedule/domain/course.dart';
+import '../../homework/domain/homework.dart';
+import '../../homework/presentation/homework_providers.dart';
+import '../../homework/presentation/homework_widgets.dart';
 import '../domain/calendar_day_logic.dart';
 import '../domain/school_calendar.dart';
 
@@ -37,6 +40,15 @@ class _SchoolMonthCalendarState extends ConsumerState<SchoolMonthCalendar> {
   @override
   Widget build(BuildContext context) {
     final attendance = ref.watch(attendanceSnapshotProvider).asData?.value;
+    final homeworkValue = ref.watch(homeworkProvider);
+    final homework = homeworkValue.asData?.value;
+    final deadlines = <DateTime, List<Homework>>{};
+    for (final item in homework?.items ?? <Homework>[]) {
+      if (item.dueAt == null) continue;
+      final day = calendarDateOnly(campusTime(item.dueAt!));
+      (deadlines[day] ??= []).add(item);
+    }
+    final dueToday = deadlines[_selected] ?? <Homework>[];
     final courses = coursesOnDay(widget.courses, _selected,
         term: widget.term, fallbackWeek: widget.fallbackWeek);
     final events = eventsOnDay(_selected, widget.events);
@@ -51,13 +63,14 @@ class _SchoolMonthCalendarState extends ConsumerState<SchoolMonthCalendar> {
       final today = isSameDay(day, now);
       final hasCourse = dayHasClass(widget.courses, day,
           term: widget.term, fallbackWeek: widget.fallbackWeek);
+      final hasHomework = deadlines.containsKey(calendarDateOnly(day));
       final holiday = holidayLabelForDay(day, widget.events);
       final attention = attendance?.records.any((r) => isSameDay(r.date, day) &&
           (r.status == AttendanceStatus.absent || r.status == AttendanceStatus.late ||
               r.status == AttendanceStatus.earlyLeave)) ?? false;
       return Semantics(
         label: '${DateFormat('M月d日').format(day)}${today ? '，今天' : ''}'
-            '${hasCourse ? '，有课' : ''}${attention ? '，有考勤异常' : ''}',
+            '${hasCourse ? '，有课' : ''}${attention ? '，有考勤异常' : ''}${hasHomework ? '，有作业截止' : ''}',
         selected: selected,
         child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
           Container(
@@ -77,6 +90,7 @@ class _SchoolMonthCalendarState extends ConsumerState<SchoolMonthCalendar> {
           Row(mainAxisSize: MainAxisSize.min, children: [
             if (hasCourse && !outside) const _Dot(AppColors.navy),
             if (holiday != null && !outside) const _Dot(AppColors.gold),
+            if (hasHomework && !outside) const _Dot(Color(0xFF7755AA)),
             if (attention && !outside) const _Dot(AppColors.alert),
           ]),
         ])),
@@ -122,7 +136,7 @@ class _SchoolMonthCalendarState extends ConsumerState<SchoolMonthCalendar> {
           const SizedBox(height: 8),
           const Wrap(spacing: 16, runSpacing: 8, children: [
             _Legend('有课', AppColors.navy), _Legend('假期', AppColors.gold),
-            _Legend('考勤异常', AppColors.alert),
+            _Legend('考勤异常', AppColors.alert), _Legend('作业截止', Color(0xFF7755AA)),
           ]),
         ]),
       ),
@@ -130,10 +144,16 @@ class _SchoolMonthCalendarState extends ConsumerState<SchoolMonthCalendar> {
       Text(DateFormat('M月d日 EEEE', 'zh_CN').format(_selected),
           style: Theme.of(context).textTheme.titleMedium),
       const SizedBox(height: 4),
-      Text('${courses.length} 门课程 · ${records.length} 条考勤'
+      Text('${courses.length} 门课程 · ${dueToday.length} 项作业截止 · ${records.length} 条考勤'
           '${attendance?.fromCache == true ? '（缓存）' : ''}',
           style: Theme.of(context).textTheme.bodySmall),
       const SizedBox(height: 12),
+      if (homeworkValue.isLoading) const Text('正在同步作业截止时间…'),
+      if (homeworkValue.hasError && !homeworkValue.isLoading)
+        const Text('作业尚未同步，请到作业中心登录或重试。'),
+      if (homework?.fromCache == true) const Text('作业截止时间来自缓存'),
+      if ((homework?.failedCourses ?? 0) > 0) const Text('部分课程作业未同步，截止标记可能不完整'),
+      for (final item in dueToday) HomeworkTile(item: item),
       if (courses.isEmpty) const AppSurfaceCard(child: Text('当前课表中没有这一天的课程')),
       for (final course in courses)
         AppSurfaceCard(

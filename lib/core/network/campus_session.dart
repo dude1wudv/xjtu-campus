@@ -264,6 +264,7 @@ class CampusSession {
   Future<Response<dynamic>> get(
     String url, {
     Map<String, dynamic>? query,
+    CancelToken? cancelToken,
     Map<String, String>? headers,
     ResponseType? responseType,
     bool rewrite = true,
@@ -276,6 +277,7 @@ class CampusSession {
     return _dio.get<dynamic>(
       target,
       queryParameters: query,
+      cancelToken: cancelToken,
       options: Options(
         headers: _resolveHeaders(headers, rewrite),
         responseType: responseType,
@@ -410,6 +412,7 @@ class CampusSession {
       'lib.xjtu.edu.cn',
       'bkkq.xjtu.edu.cn',
       'yjskq.xjtu.edu.cn',
+      'lms.xjtu.edu.cn',
     };
     if (!allowed.contains(host)) {
       throw ArgumentError('拒绝访问未列入校园域名白名单的地址: $host');

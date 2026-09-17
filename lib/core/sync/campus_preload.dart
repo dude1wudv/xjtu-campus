@@ -10,6 +10,7 @@ import '../../features/campus_card/presentation/campus_card_providers.dart';
 import '../../features/classroom/presentation/classroom_page.dart';
 import '../../features/exams/presentation/exams_providers.dart';
 import '../../features/grades/presentation/grades_providers.dart';
+import '../../features/homework/presentation/homework_providers.dart';
 import '../../features/library_seats/presentation/library_seats_providers.dart';
 import '../../features/notifications/presentation/dean_notices_webview_loader.dart';
 import '../../features/notifications/presentation/notifications_page.dart';
@@ -51,6 +52,11 @@ class CampusPreload extends Notifier<CampusPreloadState> {
         var data = await ref.read(attendanceSnapshotProvider.future);
         data = await ref.read(attendanceSnapshotProvider.notifier).pending ?? data;
         return _status(true, data.fromCache);
+      },
+      '作业': () async {
+        var data = await ref.read(homeworkProvider.future);
+        data = await ref.read(homeworkProvider.notifier).pending ?? data;
+        return data.failedCourses > 0 ? PreloadStatus.failed : _status(true, data.fromCache);
       },
       '成绩': () async {
         var data = await ref.read(gradesSnapshotProvider.future);
@@ -120,6 +126,7 @@ class CampusPreload extends Notifier<CampusPreloadState> {
         .map((entry) => entry.key).toSet();
     if (failed.contains('课表')) ref.invalidate(scheduleSnapshotProvider);
     if (failed.contains('考勤')) ref.invalidate(attendanceSnapshotProvider);
+    if (failed.contains('作业')) ref.invalidate(homeworkProvider);
     if (failed.contains('成绩')) ref.invalidate(gradesSnapshotProvider);
     if (failed.contains('考试')) ref.invalidate(examsSnapshotProvider);
     if (failed.contains('校园卡')) ref.invalidate(campusCardSnapshotProvider);

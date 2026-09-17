@@ -14,6 +14,7 @@ import '../../features/classroom/presentation/classroom_page.dart';
 import '../../features/exams/presentation/exams_page.dart';
 import '../../features/grades/presentation/grades_page.dart';
 import '../../features/home/presentation/home_dashboard.dart';
+import '../../features/homework/presentation/homework_page.dart';
 import '../../features/home/presentation/home_shell.dart';
 import '../../features/library_seats/presentation/library_seats_page.dart';
 import '../../features/network/presentation/webvpn_page.dart';
@@ -28,6 +29,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     navigatorKey: _rootNavigatorKey,
     initialLocation: '/home',
     routes: [
+      GoRoute(path: '/homework', builder: (context, state) => const HomeworkPage()),
+      GoRoute(path: '/homework/:id', builder: (context, state) {
+        final id = int.tryParse(state.pathParameters['id'] ?? '');
+        return id == null ? const HomeworkPage() : HomeworkDetailPage(id: id);
+      }),
       GoRoute(path: '/attendance', builder: (context, state) => const AttendancePage()),
       GoRoute(path: '/webvpn', builder: (context, state) => const WebVpnPage()),
       GoRoute(

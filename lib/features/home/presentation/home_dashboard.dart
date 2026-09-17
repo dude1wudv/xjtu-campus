@@ -17,6 +17,7 @@ import '../domain/greeting.dart';
 import '../../../core/widgets/app_section_header.dart';
 import 'campus_services.dart';
 import 'campus_connection_card.dart';
+import '../../homework/presentation/homework_widgets.dart';
 import '../../../core/widgets/manual_refresh_button.dart';
 
 class HomeDashboard extends ConsumerStatefulWidget {
@@ -125,6 +126,7 @@ class _HomeDashboardState extends ConsumerState<HomeDashboard> {
               );
             },
           ),
+          const HomeworkHomeCard(),
           const AppSectionHeader(title: '学习教务', subtitle: '课程、成绩与考试，集中查看'),
           const CampusServiceGrid(services: CampusService.learning),
           const AppSectionHeader(title: '校园生活', subtitle: '自习、消费与提醒，随手可达'),

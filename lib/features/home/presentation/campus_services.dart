@@ -17,6 +17,7 @@ class CampusService {
   final bool isTab;
 
   static const learning = [
+    CampusService('作业中心', '思源学堂 · 截止日期', Icons.assignment_outlined, '/homework'),
     CampusService('考勤查询', '课程考勤 · 状态明细', Icons.fact_check_outlined, '/attendance'),
     CampusService('课程表', '每日安排 · 每周课表', Icons.calendar_view_week_outlined,
         '/schedule', isTab: true),

@@ -243,6 +243,14 @@ class _InAppBrowserPageState extends ConsumerState<InAppBrowserPage> {
   Future<void> _handleLoadStop(InAppWebViewController controller) async {
     await _injectStealth(controller);
     await _dismissNcardMobileDialog(controller);
+    final url = await controller.getUrl();
+    if (url != null && WebVpnUrl.matchesHost(Uri.parse(url.toString()), 'lms.xjtu.edu.cn')) {
+      final session = ref.read(campusSessionProvider);
+      await WebViewCookieBridge.importOrigins(session: session, origins: [
+        url.toString(), 'https://lms.xjtu.edu.cn/',
+        'https://lms.xjtu.edu.cn/api/my-courses',
+      ]);
+    }
 
     final html = await _pageHtml(controller);
     final pageTitle = await _pageTitle(controller);
