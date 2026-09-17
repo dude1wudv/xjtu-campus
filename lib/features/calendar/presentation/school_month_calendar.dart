@@ -1,530 +1,200 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:table_calendar/table_calendar.dart';
 
-import '../../../core/l10n/app_strings.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/app_surface_card.dart';
+import '../../attendance/domain/attendance_record.dart';
+import '../../attendance/presentation/attendance_providers.dart';
+import '../../attendance/presentation/course_attendance_badge.dart';
 import '../../schedule/domain/course.dart';
 import '../domain/calendar_day_logic.dart';
 import '../domain/school_calendar.dart';
 
-/// Month grid with class / free / holiday markers and selected-day detail.
-class SchoolMonthCalendar extends StatefulWidget {
-  const SchoolMonthCalendar({
-    super.key,
-    required this.courses,
-    required this.events,
-    this.term,
-    this.fallbackWeek,
-    this.teachingWeek,
-  });
-
+/// Quiet month grid: round selection, tiny event dots, and readable day cards.
+class SchoolMonthCalendar extends ConsumerStatefulWidget {
+  const SchoolMonthCalendar({super.key, required this.courses,
+    required this.events, this.term, this.fallbackWeek, this.teachingWeek});
   final List<Course> courses;
   final List<CalendarEvent> events;
   final SchoolTermInfo? term;
-  final int? fallbackWeek;
-  final int? teachingWeek;
+  final int? fallbackWeek, teachingWeek;
 
   @override
-  State<SchoolMonthCalendar> createState() => _SchoolMonthCalendarState();
+  ConsumerState<SchoolMonthCalendar> createState() => _SchoolMonthCalendarState();
 }
 
-class _SchoolMonthCalendarState extends State<SchoolMonthCalendar> {
-  late DateTime _focused;
-  late DateTime _selected;
+class _SchoolMonthCalendarState extends ConsumerState<SchoolMonthCalendar> {
+  DateTime _focused = calendarDateOnly(DateTime.now());
+  DateTime _selected = calendarDateOnly(DateTime.now());
 
-  @override
-  void initState() {
-    super.initState();
-    final now = calendarDateOnly(DateTime.now());
-    _focused = now;
-    _selected = now;
-  }
-
-  bool _hasClass(DateTime day) => dayHasClass(
-        widget.courses,
-        day,
-        term: widget.term,
-        fallbackWeek: widget.fallbackWeek,
-      );
-
-  String? _holiday(DateTime day) =>
-      holidayLabelForDay(day, widget.events);
-
-  @override
-  Widget build(BuildContext context) {
-    final selectedCourses = coursesOnDay(
-      widget.courses,
-      _selected,
-      term: widget.term,
-      fallbackWeek: widget.fallbackWeek,
-    );
-    final holiday = _holiday(_selected);
-    final dayEvents = eventsOnDay(_selected, widget.events);
-    final weekOfSelected = widget.term?.teachingWeekOf(_selected);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        AppSurfaceCard(
-          padding: const EdgeInsets.fromLTRB(8, 8, 8, 12),
-          child: Column(
-            children: [
-              if (widget.teachingWeek != null || weekOfSelected != null)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
-                  child: Row(
-                    children: [
-                      _WeekChip(
-                        label:
-                            '第${weekOfSelected ?? widget.teachingWeek}${AppStrings.weekSuffix}',
-                      ),
-                      const Spacer(),
-                      Text(
-                        DateFormat('yyyy年M月', 'zh_CN').format(_focused),
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.ink,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              TableCalendar<void>(
-                locale: 'zh_CN',
-                firstDay: DateTime.utc(2024, 1, 1),
-                lastDay: DateTime.utc(2028, 12, 31),
-                focusedDay: _focused,
-                selectedDayPredicate: (d) => isSameDay(d, _selected),
-                calendarFormat: CalendarFormat.month,
-                availableCalendarFormats: const {
-                  CalendarFormat.month: '月',
-                },
-                startingDayOfWeek: StartingDayOfWeek.monday,
-                headerVisible: false,
-                daysOfWeekHeight: 28,
-                rowHeight: 52,
-                onDaySelected: (selected, focused) {
-                  setState(() {
-                    _selected = calendarDateOnly(selected);
-                    _focused = focused;
-                  });
-                },
-                onPageChanged: (focused) {
-                  setState(() => _focused = focused);
-                },
-                calendarBuilders: CalendarBuilders(
-                  defaultBuilder: (context, day, focused) =>
-                      _DayCell(
-                    day: day,
-                    hasClass: _hasClass(day),
-                    holiday: _holiday(day),
-                    selected: false,
-                    today: false,
-                  ),
-                  todayBuilder: (context, day, focused) =>
-                      _DayCell(
-                    day: day,
-                    hasClass: _hasClass(day),
-                    holiday: _holiday(day),
-                    selected: isSameDay(day, _selected),
-                    today: true,
-                  ),
-                  selectedBuilder: (context, day, focused) =>
-                      _DayCell(
-                    day: day,
-                    hasClass: _hasClass(day),
-                    holiday: _holiday(day),
-                    selected: true,
-                    today: isSameDay(day, DateTime.now()),
-                  ),
-                  outsideBuilder: (context, day, focused) =>
-                      _DayCell(
-                    day: day,
-                    hasClass: false,
-                    holiday: null,
-                    selected: false,
-                    today: false,
-                    outside: true,
-                  ),
-                ),
-                calendarStyle: const CalendarStyle(
-                  outsideDaysVisible: false,
-                  markersMaxCount: 0,
-                ),
-                daysOfWeekStyle: DaysOfWeekStyle(
-                  weekdayStyle: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.inkSoft.withValues(alpha: 0.9),
-                    fontWeight: FontWeight.w600,
-                  ),
-                  weekendStyle: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.inkSoft.withValues(alpha: 0.75),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              const SizedBox(height: AppTokens.spaceSm),
-              const _LegendRow(),
-            ],
-          ),
-        ),
-        const SizedBox(height: AppTokens.spaceMd),
-        _SelectedDayDetail(
-          day: _selected,
-          courses: selectedCourses,
-          holidayLabel: holiday,
-          events: dayEvents,
-          teachingWeek: weekOfSelected,
-        ),
-      ],
-    );
-  }
-}
-
-class _WeekChip extends StatelessWidget {
-  const _WeekChip({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: AppColors.navy.withValues(alpha: 0.1),
-        borderRadius: AppTokens.borderPill,
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: AppColors.navy,
-          fontWeight: FontWeight.w700,
-          fontSize: 12.5,
-        ),
-      ),
-    );
-  }
-}
-
-class _DayCell extends StatelessWidget {
-  const _DayCell({
-    required this.day,
-    required this.hasClass,
-    required this.holiday,
-    required this.selected,
-    required this.today,
-    this.outside = false,
+  void _moveMonth(int offset) => setState(() {
+    _focused = DateTime(_focused.year, _focused.month + offset);
   });
 
-  final DateTime day;
-  final bool hasClass;
-  final String? holiday;
-  final bool selected;
-  final bool today;
-  final bool outside;
-
   @override
   Widget build(BuildContext context) {
-    Color? fill;
-    if (outside) {
-      fill = Colors.transparent;
-    } else if (holiday != null) {
-      fill = AppColors.gold.withValues(alpha: 0.22);
-    } else if (hasClass) {
-      fill = AppColors.navy.withValues(alpha: 0.12);
-    } else if (day.weekday <= DateTime.friday) {
-      fill = AppColors.success.withValues(alpha: 0.08);
+    final attendance = ref.watch(attendanceSnapshotProvider).asData?.value;
+    final courses = coursesOnDay(widget.courses, _selected,
+        term: widget.term, fallbackWeek: widget.fallbackWeek);
+    final events = eventsOnDay(_selected, widget.events);
+    final records = attendance?.records.where((r) => isSameDay(r.date, _selected)).toList()
+        ?? const <AttendanceRecord>[];
+    final now = DateTime.now();
+    final first = DateTime(now.year - 3);
+    final last = DateTime(now.year + 3, 12, 31);
+    final largeText = MediaQuery.textScalerOf(context).scale(14) > 20;
+    Widget cell(DateTime day, {bool outside = false}) {
+      final selected = isSameDay(day, _selected);
+      final today = isSameDay(day, now);
+      final hasCourse = dayHasClass(widget.courses, day,
+          term: widget.term, fallbackWeek: widget.fallbackWeek);
+      final holiday = holidayLabelForDay(day, widget.events);
+      final attention = attendance?.records.any((r) => isSameDay(r.date, day) &&
+          (r.status == AttendanceStatus.absent || r.status == AttendanceStatus.late ||
+              r.status == AttendanceStatus.earlyLeave)) ?? false;
+      return Semantics(
+        label: '${DateFormat('M月d日').format(day)}${today ? '，今天' : ''}'
+            '${hasCourse ? '，有课' : ''}${attention ? '，有考勤异常' : ''}',
+        selected: selected,
+        child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+            width: largeText ? 42 : 34, height: largeText ? 42 : 34,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: selected ? AppColors.navy : null,
+              border: today && !selected ? Border.all(color: AppColors.navy) : null,
+            ),
+            child: Text('${day.day}', style: TextStyle(
+              fontSize: 14, fontWeight: selected || today ? FontWeight.w700 : FontWeight.w500,
+              color: selected ? Colors.white : outside ? AppColors.inkSoft : AppColors.ink,
+            )),
+          ),
+          const SizedBox(height: 3),
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            if (hasCourse && !outside) const _Dot(AppColors.navy),
+            if (holiday != null && !outside) const _Dot(AppColors.gold),
+            if (attention && !outside) const _Dot(AppColors.alert),
+          ]),
+        ])),
+      );
     }
 
-    final border = selected
-        ? Border.all(color: AppColors.navy, width: 2)
-        : today
-            ? Border.all(color: AppColors.accent, width: 1.6)
-            : null;
-
-    return Container(
-      margin: const EdgeInsets.all(2),
-      decoration: BoxDecoration(
-        color: fill,
-        borderRadius: BorderRadius.circular(10),
-        border: border,
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            '${day.day}',
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-              fontSize: 14,
-              color: outside
-                  ? AppColors.inkSoft.withValues(alpha: 0.35)
-                  : holiday != null
-                      ? const Color(0xFF8A6A00)
-                      : AppColors.ink,
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      AppSurfaceCard(
+        padding: const EdgeInsets.fromLTRB(8, 8, 8, 16),
+        child: Column(children: [
+          Row(children: [
+            IconButton(tooltip: '上个月',
+                onPressed: _focused.year == first.year && _focused.month == 1 ? null : () => _moveMonth(-1),
+                icon: const Icon(Icons.chevron_left)),
+            Expanded(child: Text(DateFormat('yyyy年 M月').format(_focused), textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.titleMedium)),
+            IconButton(tooltip: '下个月',
+                onPressed: _focused.year == last.year && _focused.month == 12 ? null : () => _moveMonth(1),
+                icon: const Icon(Icons.chevron_right)),
+            TextButton(onPressed: () => setState(() {
+              _focused = calendarDateOnly(now); _selected = _focused;
+            }), child: const Text('今天')),
+          ]),
+          TableCalendar<void>(
+            locale: 'zh_CN', firstDay: first, lastDay: last, focusedDay: _focused,
+            headerVisible: false, startingDayOfWeek: StartingDayOfWeek.monday,
+            calendarFormat: CalendarFormat.month,
+            availableCalendarFormats: const {CalendarFormat.month: '月'},
+            daysOfWeekHeight: largeText ? 36 : 28, rowHeight: largeText ? 70 : 54,
+            selectedDayPredicate: (day) => isSameDay(day, _selected),
+            onDaySelected: (selected, focused) => setState(() {
+              _selected = calendarDateOnly(selected); _focused = focused;
+            }),
+            onPageChanged: (day) => setState(() => _focused = day),
+            calendarStyle: const CalendarStyle(outsideDaysVisible: false, markersMaxCount: 0),
+            calendarBuilders: CalendarBuilders(
+              defaultBuilder: (_, day, _) => cell(day),
+              selectedBuilder: (_, day, _) => cell(day),
+              todayBuilder: (_, day, _) => cell(day),
+              outsideBuilder: (_, day, _) => cell(day, outside: true),
             ),
           ),
-          if (holiday != null && !outside)
-            Text(
-              holiday!.length > 2 ? holiday!.substring(0, 2) : holiday!,
-              style: const TextStyle(
-                fontSize: 9,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF8A6A00),
-                height: 1.1,
-              ),
-            )
-          else if (hasClass && !outside)
+          const SizedBox(height: 8),
+          const Wrap(spacing: 16, runSpacing: 8, children: [
+            _Legend('有课', AppColors.navy), _Legend('假期', AppColors.gold),
+            _Legend('考勤异常', AppColors.alert),
+          ]),
+        ]),
+      ),
+      const SizedBox(height: 20),
+      Text(DateFormat('M月d日 EEEE', 'zh_CN').format(_selected),
+          style: Theme.of(context).textTheme.titleMedium),
+      const SizedBox(height: 4),
+      Text('${courses.length} 门课程 · ${records.length} 条考勤'
+          '${attendance?.fromCache == true ? '（缓存）' : ''}',
+          style: Theme.of(context).textTheme.bodySmall),
+      const SizedBox(height: 12),
+      if (courses.isEmpty) const AppSurfaceCard(child: Text('当前课表中没有这一天的课程')),
+      for (final course in courses)
+        AppSurfaceCard(
+          margin: const EdgeInsets.only(bottom: 12),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Container(
-              width: 5,
-              height: 5,
-              margin: const EdgeInsets.only(top: 2),
-              decoration: const BoxDecoration(
-                color: AppColors.navy,
-                shape: BoxShape.circle,
-              ),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(color: AppColors.chip, borderRadius: AppTokens.borderSm),
+              child: Text('${course.startPeriod}–${course.endPeriod}\n节', textAlign: TextAlign.center,
+                  style: const TextStyle(color: AppColors.navy, fontWeight: FontWeight.w700)),
             ),
-        ],
-      ),
-    );
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(course.name, style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 4),
+              Text(course.periodLabelFor(_selected), style: Theme.of(context).textTheme.bodySmall),
+              Text(course.location, style: Theme.of(context).textTheme.bodySmall),
+              CourseAttendanceBadge(course: course, day: _selected),
+            ])),
+          ]),
+        ),
+      // Preserve official records even if a changed timetable cannot be matched.
+      for (final record in records.where((r) => !courses.any((c) => r.matches(c, _selected))))
+        AppSurfaceCard(
+          margin: const EdgeInsets.only(bottom: 12),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(record.courseName.isEmpty ? '学校考勤记录' : record.courseName,
+                style: Theme.of(context).textTheme.titleMedium),
+            Text('第${record.startPeriod}–${record.endPeriod}节 · ${record.location}'),
+            Text(record.status.label, style: TextStyle(color: attendanceColor(record.status))),
+          ]),
+        ),
+      for (final event in events)
+        AppSurfaceCard(
+          margin: const EdgeInsets.only(bottom: 12),
+          child: Row(children: [
+            const Icon(Icons.event_outlined, color: AppColors.gold),
+            const SizedBox(width: 12),
+            Expanded(child: Text(event.remark.isEmpty ? event.name : '${event.name}\n${event.remark}')),
+          ]),
+        ),
+    ]);
   }
 }
 
-class _LegendRow extends StatelessWidget {
-  const _LegendRow();
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      child: Row(
-        children: const [
-          _LegendItem(
-            color: Color(0x1F1A3A5C),
-            dot: AppColors.navy,
-            label: AppStrings.calendarLegendHasClass,
-          ),
-          SizedBox(width: 12),
-          _LegendItem(
-            color: Color(0x141F7A4C),
-            label: AppStrings.calendarLegendNoClass,
-          ),
-          SizedBox(width: 12),
-          _LegendItem(
-            color: Color(0x38D4A017),
-            label: AppStrings.calendarLegendHoliday,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _LegendItem extends StatelessWidget {
-  const _LegendItem({
-    required this.color,
-    required this.label,
-    this.dot,
-  });
-
+class _Dot extends StatelessWidget {
+  const _Dot(this.color);
   final Color color;
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 4, height: 4, margin: const EdgeInsets.symmetric(horizontal: 2),
+    decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+  );
+}
+
+class _Legend extends StatelessWidget {
+  const _Legend(this.label, this.color);
   final String label;
-  final Color? dot;
-
+  final Color color;
   @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 14,
-          height: 14,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: dot == null
-              ? null
-              : Center(
-                  child: Container(
-                    width: 4,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: dot,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-        ),
-        const SizedBox(width: 4),
-        Text(
-          label,
-          style: const TextStyle(fontSize: 11.5, color: AppColors.inkSoft),
-        ),
-      ],
-    );
-  }
-}
-
-class _SelectedDayDetail extends StatelessWidget {
-  const _SelectedDayDetail({
-    required this.day,
-    required this.courses,
-    required this.holidayLabel,
-    required this.events,
-    this.teachingWeek,
-  });
-
-  final DateTime day;
-  final List<Course> courses;
-  final String? holidayLabel;
-  final List<CalendarEvent> events;
-  final int? teachingWeek;
-
-  @override
-  Widget build(BuildContext context) {
-    final title = DateFormat('M月d日 EEEE', 'zh_CN').format(day);
-    return AppSurfaceCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 15,
-                  ),
-                ),
-              ),
-              if (teachingWeek != null)
-                Text(
-                  '${AppStrings.weekPrefix}$teachingWeek${AppStrings.weekSuffix}',
-                  style: const TextStyle(
-                    fontSize: 12.5,
-                    color: AppColors.inkSoft,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-            ],
-          ),
-          if (holidayLabel != null) ...[
-            const SizedBox(height: AppTokens.spaceSm),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: AppColors.gold.withValues(alpha: 0.15),
-                borderRadius: AppTokens.borderPill,
-              ),
-              child: Text(
-                '节假日 · $holidayLabel',
-                style: const TextStyle(
-                  color: Color(0xFF8A6A00),
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13,
-                ),
-              ),
-            ),
-          ],
-          const SizedBox(height: AppTokens.spaceMd),
-          Text(
-            AppStrings.calendarDayCourses,
-            style: TextStyle(
-              color: AppColors.navy.withValues(alpha: 0.9),
-              fontWeight: FontWeight.w600,
-              fontSize: 13,
-            ),
-          ),
-          const SizedBox(height: AppTokens.spaceSm),
-          if (courses.isEmpty)
-            const Text(
-              AppStrings.calendarNoClassThatDay,
-              style: TextStyle(color: AppColors.inkSoft, height: 1.4),
-            )
-          else
-            for (final c in courses) ...[
-              _CourseLine(course: c, day: day),
-              const SizedBox(height: AppTokens.spaceSm),
-            ],
-          if (events.isNotEmpty) ...[
-            const SizedBox(height: AppTokens.spaceSm),
-            Text(
-              AppStrings.calendarDayEvents,
-              style: TextStyle(
-                color: AppColors.navy.withValues(alpha: 0.9),
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-              ),
-            ),
-            const SizedBox(height: AppTokens.spaceSm),
-            for (final e in events)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Text(
-                  e.remark.isEmpty ? e.name : '${e.name}（${e.remark}）',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: AppColors.inkSoft,
-                    height: 1.35,
-                  ),
-                ),
-              ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _CourseLine extends StatelessWidget {
-  const _CourseLine({required this.course, required this.day});
-
-  final Course course;
-  final DateTime day;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 4,
-          height: 36,
-          decoration: BoxDecoration(
-            color: AppColors.navy,
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                course.name,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 14,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                '${course.periodLabelFor(day)} · ${course.location}',
-                style: const TextStyle(
-                  fontSize: 12.5,
-                  color: AppColors.inkSoft,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
+  Widget build(BuildContext context) => Row(mainAxisSize: MainAxisSize.min, children: [
+    _Dot(color), const SizedBox(width: 4), Text(label, style: Theme.of(context).textTheme.bodySmall),
+  ]);
 }

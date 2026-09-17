@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/widgets/app_page_scaffold.dart';
 import '../../../core/di/core_providers.dart';
 import '../../../core/l10n/app_strings.dart';
+import '../../../core/network/campus_connection.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_tokens.dart';
+import '../../../core/widgets/app_page_scaffold.dart';
 import '../../../core/widgets/app_surface_card.dart';
 import 'auth_controller.dart';
 
@@ -124,6 +125,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 : (v) async {
                     setState(() => _webVpn = v);
                     await ref.read(campusSessionProvider).setUseWebVpn(v);
+                    ref.read(campusConnectionRevisionProvider.notifier).changed();
                   },
           ),
           const SizedBox(height: 12),

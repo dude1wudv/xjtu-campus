@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/widgets/app_page_scaffold.dart';
 import '../../../core/l10n/app_strings.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_tokens.dart';
-import '../../../core/widgets/app_surface_card.dart';
 import '../../../core/widgets/app_feedback.dart';
+import '../../../core/widgets/app_page_scaffold.dart';
+import '../../../core/widgets/app_surface_card.dart';
+import '../../../core/widgets/manual_refresh_button.dart';
+import '../../attendance/domain/attendance_record.dart';
+import '../../attendance/presentation/attendance_providers.dart';
+import '../../attendance/presentation/course_attendance_badge.dart';
 import '../domain/course.dart';
 import 'schedule_providers.dart';
-import '../../../core/widgets/manual_refresh_button.dart';
 
 class SchedulePage extends ConsumerStatefulWidget {
   const SchedulePage({super.key});
@@ -37,8 +40,10 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
         title: const Text(AppStrings.navSchedule),
         actions: [
           ManualRefreshButton(
-            onRefresh: () =>
-                ref.read(scheduleSnapshotProvider.notifier).refresh(force: true),
+            onRefresh: () {
+              ref.invalidate(attendanceSnapshotProvider);
+              return ref.read(scheduleSnapshotProvider.notifier).refresh(force: true);
+            },
           ),
           IconButton(
             tooltip: _weekView ? AppStrings.listView : AppStrings.weekView,
@@ -94,6 +99,7 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
                 child: _weekView
                     ? _WeekGrid(courses: items)
                     : _DayList(
+                        day: DateTime.now().add(Duration(days: _weekday - DateTime.now().weekday)),
                         courses: items
                             .where((course) => course.weekday == _weekday)
                             .toList(),
@@ -143,7 +149,9 @@ class _WeekdayStrip extends StatelessWidget {
 }
 
 class _DayList extends StatelessWidget {
-  const _DayList({required this.courses});
+  const _DayList({required this.courses, required this.day});
+
+  final DateTime day;
 
   final List<Course> courses;
 
@@ -161,13 +169,15 @@ class _DayList extends StatelessWidget {
       padding: AppTokens.pagePadding,
       itemCount: sorted.length,
       separatorBuilder: (context, index) => const SizedBox(height: AppTokens.spaceMd),
-      itemBuilder: (context, index) => _CourseCard(course: sorted[index]),
+      itemBuilder: (context, index) => _CourseCard(course: sorted[index], day: day),
     );
   }
 }
 
 class _CourseCard extends StatelessWidget {
-  const _CourseCard({required this.course});
+  const _CourseCard({required this.course, required this.day});
+
+  final DateTime day;
 
   final Course course;
 
@@ -201,12 +211,13 @@ class _CourseCard extends StatelessWidget {
               children: [
                 Text(course.name, style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: AppTokens.spaceSm),
-                Text(course.periodLabel, style: Theme.of(context).textTheme.bodySmall),
+                Text(course.periodLabelFor(day), style: Theme.of(context).textTheme.bodySmall),
                 const SizedBox(height: AppTokens.spaceSm),
                 Text(course.location),
                 const SizedBox(height: AppTokens.spaceXs),
                 Text('${course.teacher} · ${course.weeksLabel}',
                     style: Theme.of(context).textTheme.bodySmall),
+                CourseAttendanceBadge(course: course, day: day),
               ],
             ),
           ),
@@ -216,13 +227,15 @@ class _CourseCard extends StatelessWidget {
   }
 }
 
-class _WeekGrid extends StatelessWidget {
+class _WeekGrid extends ConsumerWidget {
   const _WeekGrid({required this.courses});
 
   final List<Course> courses;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final attendance = ref.watch(attendanceSnapshotProvider).asData?.value;
+    final now = DateTime.now();
     // Index once instead of scanning all courses for every timetable cell.
     final cells = <(int, int), Course>{};
     for (final course in courses) {
@@ -249,7 +262,12 @@ class _WeekGrid extends StatelessWidget {
                 children: [
                   _HeadCell('${period.index}\n${period.formatClock()}'),
                   for (var day = 1; day <= 7; day++)
-                    _Cell(course: cells[(day, period.index)]),
+                    _Cell(
+                      course: cells[(day, period.index)],
+                      attendance: cells[(day, period.index)] == null ? null
+                          : attendance?.forCourse(cells[(day, period.index)]!,
+                              now.add(Duration(days: day - now.weekday))),
+                    ),
                 ],
               ),
           ],
@@ -281,24 +299,29 @@ class _HeadCell extends StatelessWidget {
 }
 
 class _Cell extends StatelessWidget {
-  const _Cell({required this.course});
+  const _Cell({required this.course, this.attendance});
+
+  final AttendanceRecord? attendance;
 
   final Course? course;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 64,
+      height: 88,
       padding: const EdgeInsets.all(4),
       color: course == null ? Colors.white : AppColors.navy.withValues(alpha: 0.08),
       child: course == null
           ? const SizedBox.shrink()
-          : Text(
-              '${course!.name}\n${course!.room}',
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 11),
-            ),
+          : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('${course!.name}\n${course!.room}', maxLines: 3,
+                  overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11)),
+              if (attendance != null) ...[
+                const SizedBox(height: 4),
+                Text(attendance!.status.label, maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 10, color: attendanceColor(attendance!.status))),
+              ],
+            ]),
     );
   }
 }

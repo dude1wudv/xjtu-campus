@@ -5,6 +5,9 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import '../../../core/constants/campus_urls.dart';
 import '../../../core/logging/app_logger.dart';
+import '../../../core/network/campus_session.dart';
+import '../../../core/network/webview_cookie_bridge.dart';
+import '../../../core/network/webvpn_url.dart';
 import '../domain/classroom_slot.dart';
 import 'classroom_codes.dart';
 
@@ -18,9 +21,12 @@ class ClassroomWebViewResult {
 /// Fetches kxjas empty-room JSON inside [HeadlessInAppWebView] so requests share
 /// the CAS web-login cookie jar (same pattern as schedule workflow).
 class ClassroomWebViewFetcher {
-  ClassroomWebViewFetcher({this.timeout = const Duration(seconds: 50)});
+  ClassroomWebViewFetcher({this.session, this.timeout = const Duration(seconds: 50)});
 
   final Duration timeout;
+  final CampusSession? session;
+
+  String _url(String url) => session?.resolveUrl(url) ?? url;
 
   Future<ClassroomWebViewResult?> fetchFreeRooms(ClassroomQuery query) async {
     final completer = Completer<ClassroomWebViewResult?>();
@@ -51,7 +57,7 @@ class ClassroomWebViewFetcher {
       var fetchStarted = false;
       headless = HeadlessInAppWebView(
         initialUrlRequest: URLRequest(
-          url: WebUri(CampusUrls.jwxtKxjasIndex),
+          url: WebUri(_url(CampusUrls.jwxtKxjasIndex)),
         ),
         initialSettings: InAppWebViewSettings(
           javaScriptEnabled: true,
@@ -63,7 +69,7 @@ class ClassroomWebViewFetcher {
         onLoadStop: (controller, url) async {
           if (fetchStarted || finished) return;
           final uri = url == null ? null : Uri.tryParse(url.toString());
-          if (uri != null && uri.host.contains('login')) {
+          if (uri != null && WebVpnUrl.isLoginPage(uri)) {
             AppLogger.warn(
               'WebView kxjas 落到登录: ${uri.host}${uri.path}',
             );
@@ -85,7 +91,14 @@ class ClassroomWebViewFetcher {
       );
 
       AppLogger.info('WebView 开始拉取空闲教室');
-      await headless.run();
+      final activeSession = session;
+      if (activeSession != null) {
+        await WebViewCookieBridge.seedOrigins(
+          session: activeSession,
+          origins: [CampusUrls.casLogin, _url(CampusUrls.jwxtKxjasIndex)],
+        );
+      }
+      if (!finished) await headless.run();
     } on Object catch (error) {
       AppLogger.warn('Classroom HeadlessInAppWebView 启动失败: $error');
       await complete(null);
@@ -386,9 +399,9 @@ class ClassroomWebViewFetcher {
           });
         ''',
         arguments: {
-          'campusCodeUrl': CampusUrls.jwxtCampusCode,
-          'buildingCodeUrl': CampusUrls.jwxtBuildingCode,
-          'emptyRoomUrl': CampusUrls.jwxtEmptyRoom,
+          'campusCodeUrl': _url(CampusUrls.jwxtCampusCode),
+          'buildingCodeUrl': _url(CampusUrls.jwxtBuildingCode),
+          'emptyRoomUrl': _url(CampusUrls.jwxtEmptyRoom),
           'campusName': campusName,
           'buildingName': buildingName,
           'date': date,

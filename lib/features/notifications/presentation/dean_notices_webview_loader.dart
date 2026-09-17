@@ -235,7 +235,7 @@ class _DeanNoticesWebViewLoaderState
       AppLogger.warn('教务通知 WebView 超时，改试 due.xjtu.edu.cn');
       try {
         await _controller?.loadUrl(
-          urlRequest: URLRequest(url: WebUri(_currentUrl)),
+          urlRequest: URLRequest(url: WebUri(ref.read(campusSessionProvider).resolveUrl(_currentUrl))),
         );
         _armTimeout();
       } on Object catch (error) {
@@ -269,7 +269,7 @@ class _DeanNoticesWebViewLoaderState
     _armTimeout();
     try {
       await _controller?.loadUrl(
-        urlRequest: URLRequest(url: WebUri(_currentUrl)),
+        urlRequest: URLRequest(url: WebUri(ref.read(campusSessionProvider).resolveUrl(_currentUrl))),
       );
     } on Object catch (error) {
       AppLogger.warn('教务通知 WebView reload 失败: $error');
@@ -318,7 +318,7 @@ class _DeanNoticesWebViewLoaderState
   Future<void> _exportClientIdCookie() async {
     try {
       final manager = CookieManager.instance();
-      final cookies = await manager.getCookies(url: WebUri(_currentUrl));
+      final cookies = await manager.getCookies(url: WebUri(ref.read(campusSessionProvider).resolveUrl(_currentUrl)));
       String? clientId;
       for (final c in cookies) {
         if (c.name != 'client_id') continue;
@@ -367,7 +367,7 @@ class _DeanNoticesWebViewLoaderState
       width: 1,
       height: 1,
       child: InAppWebView(
-        initialUrlRequest: URLRequest(url: WebUri(_currentUrl)),
+        initialUrlRequest: URLRequest(url: WebUri(ref.read(campusSessionProvider).resolveUrl(_currentUrl))),
         initialUserScripts: UnmodifiableListView<UserScript>([
           _stealthUserScript,
         ]),

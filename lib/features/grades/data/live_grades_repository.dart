@@ -14,7 +14,7 @@ class LiveGradesRepository implements GradesRepository {
     required this._session,
     required this._mock,
     GradesWebViewFetcher? webViewFetcher,
-  }) : _webViewFetcher = webViewFetcher ?? GradesWebViewFetcher();
+  }) : _webViewFetcher = webViewFetcher ?? GradesWebViewFetcher(session: _session);
 
   final CampusSession _session;
   final MockGradesRepository _mock;
@@ -114,7 +114,7 @@ class LiveGradesRepository implements GradesRepository {
   }
 
   List<bool> _rewriteModes() {
-    if (_session.useWebVpn) return const [false, true];
+    if (_session.useWebVpn) return const [true];
     return const [false];
   }
 

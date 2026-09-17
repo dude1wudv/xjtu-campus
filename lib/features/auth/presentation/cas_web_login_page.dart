@@ -6,11 +6,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/campus_urls.dart';
-import '../../../core/network/imported_campus_cookie.dart';
-import '../../../core/network/webview_cookie_bridge.dart';
 import '../../../core/di/core_providers.dart';
 import '../../../core/l10n/app_strings.dart';
 import '../../../core/logging/app_logger.dart';
+import '../../../core/network/campus_connection.dart';
+import '../../../core/network/imported_campus_cookie.dart';
+import '../../../core/network/webview_cookie_bridge.dart';
+import '../../../core/network/webvpn_url.dart';
 import '../../classroom/presentation/classroom_page.dart';
 import '../../notifications/presentation/dean_notices_webview_loader.dart';
 import '../../notifications/presentation/notifications_page.dart';
@@ -37,9 +39,13 @@ class _CasWebLoginPageState extends ConsumerState<CasWebLoginPage> {
   String? _status;
   Timer? _syncTimeout;
 
-  Uri get _startUrl => Uri.parse(CampusUrls.casLoginYwtb);
+  String _url(String url) => ref.read(campusSessionProvider).resolveUrl(url);
+
+  Uri get _startUrl => Uri.parse(ref.read(campusSessionProvider).useWebVpn
+      ? _url(CampusUrls.ywtbMain) : CampusUrls.casLoginYwtb);
 
   bool _isCampusLanding(Uri uri) {
+    if (WebVpnUrl.isLoginPage(uri)) return false;
     final host = uri.host;
     return host.endsWith('xjtu.edu.cn') &&
         (host.contains('ehall') ||
@@ -51,11 +57,11 @@ class _CasWebLoginPageState extends ConsumerState<CasWebLoginPage> {
             host.contains('authx-service'));
   }
 
-  bool _isWorkflowHost(Uri uri) => uri.host.contains('workflow');
+  bool _isWorkflowHost(Uri uri) => WebVpnUrl.matchesHost(uri, 'workflow.xjtu.edu.cn');
 
-  bool _isJwxtHost(Uri uri) => uri.host.contains('jwxt');
+  bool _isJwxtHost(Uri uri) => WebVpnUrl.matchesHost(uri, 'jwxt.xjtu.edu.cn');
 
-  bool _isNcardHost(Uri uri) => uri.host.contains('ncard');
+  bool _isNcardHost(Uri uri) => WebVpnUrl.matchesHost(uri, 'ncard.xjtu.edu.cn');
 
   Future<void> _tryFinish(Uri uri) async {
     if (_finishing || _syncPhase != _SyncPhase.idle) return;
@@ -109,7 +115,7 @@ class _CasWebLoginPageState extends ConsumerState<CasWebLoginPage> {
         return;
       }
       await controller.loadUrl(
-        urlRequest: URLRequest(url: WebUri(CampusUrls.workflowKebiaoPage)),
+        urlRequest: URLRequest(url: WebUri(_url(CampusUrls.workflowKebiaoPage))),
       );
     } on Object catch (e) {
       AppLogger.warn('加载 workflow 课表页失败: $e');
@@ -133,7 +139,7 @@ class _CasWebLoginPageState extends ConsumerState<CasWebLoginPage> {
         return;
       }
       await controller.loadUrl(
-        urlRequest: URLRequest(url: WebUri(CampusUrls.jwxtKxjasIndex)),
+        urlRequest: URLRequest(url: WebUri(_url(CampusUrls.jwxtKxjasIndex))),
       );
     } on Object catch (e) {
       AppLogger.warn('加载 jwxt kxjas 失败: $e');
@@ -157,7 +163,7 @@ class _CasWebLoginPageState extends ConsumerState<CasWebLoginPage> {
         return;
       }
       await controller.loadUrl(
-        urlRequest: URLRequest(url: WebUri(CampusUrls.ncardCasRedirect)),
+        urlRequest: URLRequest(url: WebUri(_url(CampusUrls.ncardCasRedirect))),
       );
     } on Object catch (e) {
       AppLogger.warn('加载 ncard 失败: $e');
@@ -276,7 +282,7 @@ class _CasWebLoginPageState extends ConsumerState<CasWebLoginPage> {
       ];
       final mapped = <ImportedCampusCookie>[];
       final seen = <String>{};
-      for (final origin in origins) {
+      for (final origin in {...origins, ...origins.map(_url)}) {
         final uri = Uri.parse(origin);
         final batch = await cookieManager.getCookies(url: WebUri(origin));
         for (final c in batch) {
@@ -333,6 +339,7 @@ class _CasWebLoginPageState extends ConsumerState<CasWebLoginPage> {
             cookies: mapped,
           );
       await ref.read(authControllerProvider.notifier).applyExternalLogin(user);
+      ref.read(campusConnectionRevisionProvider.notifier).changed();
       ref.invalidate(scheduleSnapshotProvider);
       ref.read(liveDeanNoticesProvider.notifier).markLoading();
       ref.read(deanNoticesReloadTickProvider.notifier).bump();

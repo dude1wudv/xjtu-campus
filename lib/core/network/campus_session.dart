@@ -12,6 +12,7 @@ import '../storage/credential_store.dart';
 import 'imported_campus_cookie.dart';
 import 'secure_cookie_storage.dart';
 import 'webvpn_url.dart';
+import 'campus_read_queue.dart';
 
 /// 带 Cookie 的校园 HTTP 客户端。仅允许学校相关域名。
 class CampusSession {
@@ -44,6 +45,7 @@ class CampusSession {
   }
 
   final CredentialStore _store;
+  final readQueue = CampusReadQueue();
   late final PersistCookieJar _jar;
   late final Dio _dio;
 
@@ -53,7 +55,11 @@ class CampusSession {
   String? ywtbIdToken;
   bool useWebVpn = false;
 
-  Future<void> restore() async {
+  Future<void>? _restoreFuture;
+
+  Future<void> restore() => _restoreFuture ??= _restore();
+
+  Future<void> _restore() async {
     try {
       await _jar.forceInit().timeout(const Duration(seconds: 3));
       ywtbIdToken = await _store.read('session.ywtb_id_token');
@@ -72,6 +78,7 @@ class CampusSession {
   }
 
   Future<bool> hasCasCookie() async {
+    await restore();
     try {
       final origins = [
         CampusUrls.casLogin,
@@ -80,6 +87,7 @@ class CampusSession {
         CampusUrls.jwxtHome,
         CampusUrls.workflowKebiaoPage,
         CampusUrls.ncardPlat,
+        CampusUrls.webVpn,
       ];
       for (final origin in origins) {
         final cookies = await _jar.loadForRequest(Uri.parse(origin));
@@ -192,7 +200,7 @@ class CampusSession {
         domain = 'login.xjtu.edu.cn';
       }
       // 仅接受交大相关域名（含裸 xjtu.edu.cn / webvpn）。
-      if (!domain.endsWith('xjtu.edu.cn')) {
+      if (domain != 'xjtu.edu.cn' && !domain.endsWith('.xjtu.edu.cn')) {
         continue;
       }
 
@@ -223,25 +231,32 @@ class CampusSession {
     }
   }
 
+  /// WebVPN authentication is interactive. Never repeatedly warm its login
+  /// endpoint from every service request; that can restart an active session.
   Future<void> ensureWebVpnSession() async {
-    if (!useWebVpn) return;
-    try {
-      await get(CampusUrls.webVpnLogin, rewrite: false);
-      AppLogger.info('已尝试建立 WebVPN 会话');
-    } on Object {
-      AppLogger.warn('WebVPN 会话建立失败，将继续直连并在失败时回退');
-    }
+    await restore();
   }
 
-  String _resolve(String url) =>
+  String resolveUrl(String url) =>
       WebVpnUrl.maybeConvert(url, enabled: useWebVpn);
+
+  Map<String, String>? _resolveHeaders(Map<String, String>? headers, bool rewrite) {
+    if (headers == null || !rewrite || !useWebVpn) return headers;
+    return headers.map((key, value) {
+      final name = key.toLowerCase();
+      if (name == 'referer') return MapEntry(key, resolveUrl(value));
+      if (name == 'origin' && WebVpnUrl.isCampusUrl(value)) {
+        return MapEntry(key, WebVpnUrl.base);
+      }
+      return MapEntry(key, value);
+    });
+  }
 
   /// GET with optional WebVPN rewrite.
   ///
   /// Pass [rewrite]: `false` to hit the original host directly (ignores
-  /// [useWebVpn]). Prefer direct for workflow/jwxt when SSO cookies were
-  /// imported for those hosts; WebVPN rewrite without webvpn session cookies
-  /// drops them and breaks sync.
+  /// [useWebVpn]). Campus services should use the default so a verified
+  /// WebVPN session is shared consistently across native and WebView paths.
   ///
   /// Optional [followRedirects] / [maxRedirects] / [validateStatus] override
   /// [BaseOptions] for callers that need a manual redirect walk (e.g. ncard
@@ -256,13 +271,13 @@ class CampusSession {
     int? maxRedirects,
     ValidateStatus? validateStatus,
   }) {
-    final target = rewrite ? _resolve(url) : url;
+    final target = rewrite ? resolveUrl(url) : url;
     _assertAllowed(target);
     return _dio.get<dynamic>(
       target,
       queryParameters: query,
       options: Options(
-        headers: headers,
+        headers: _resolveHeaders(headers, rewrite),
         responseType: responseType,
         followRedirects: followRedirects,
         maxRedirects: maxRedirects,
@@ -303,13 +318,13 @@ class CampusSession {
     bool rewrite = true,
     ResponseType? responseType,
   }) {
-    final target = rewrite ? _resolve(url) : url;
+    final target = rewrite ? resolveUrl(url) : url;
     _assertAllowed(target);
     return _dio.post<dynamic>(
       target,
       data: data,
       options: Options(
-        headers: headers,
+        headers: _resolveHeaders(headers, rewrite),
         responseType: responseType,
         contentType: jsonBody
             ? Headers.jsonContentType
@@ -335,10 +350,20 @@ class CampusSession {
     await _store.delete(ncardAccessTokenKey);
   }
 
+  Future<void> saveAttendanceToken(String host, String token) =>
+      _store.write(key: 'attendance.token.$host', value: token);
+
+  Future<String?> readAttendanceToken(String host) => _store.read('attendance.token.$host');
+
+  Future<void> clearAttendanceToken(String host) => _store.delete('attendance.token.$host');
+
   Future<void> clear() async {
     await _jar.deleteAll();
     ywtbIdToken = null;
+    await _store.delete('session.ywtb_id_token');
     await clearNcardAccessToken();
+    await clearAttendanceToken('bkkq.xjtu.edu.cn');
+    await clearAttendanceToken('yjskq.xjtu.edu.cn');
     AppLogger.info('已清除校园会话 Cookie');
   }
 
@@ -381,6 +406,8 @@ class CampusSession {
       'www.lib.xjtu.edu.cn',
       'rg.lib.xjtu.edu.cn',
       'lib.xjtu.edu.cn',
+      'bkkq.xjtu.edu.cn',
+      'yjskq.xjtu.edu.cn',
     };
     if (!allowed.contains(host)) {
       throw ArgumentError('拒绝访问未列入校园域名白名单的地址: $host');

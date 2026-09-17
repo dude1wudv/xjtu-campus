@@ -16,6 +16,7 @@ import '../../schedule/presentation/schedule_providers.dart';
 import '../domain/greeting.dart';
 import '../../../core/widgets/app_section_header.dart';
 import 'campus_services.dart';
+import 'campus_connection_card.dart';
 import '../../../core/widgets/manual_refresh_button.dart';
 
 class HomeDashboard extends ConsumerStatefulWidget {
@@ -71,6 +72,8 @@ class _HomeDashboardState extends ConsumerState<HomeDashboard> {
         children: [
           _GreetingCard(auth: auth, now: now, week: snapshot.value?.week),
           const SizedBox(height: AppTokens.spaceMd),
+          const CampusConnectionCard(),
+          const SizedBox(height: AppTokens.spaceMd),
           snapshot.when(
             data: (data) =>
                 DataSourceBanner(
@@ -83,6 +86,7 @@ class _HomeDashboardState extends ConsumerState<HomeDashboard> {
             loading: () => const SizedBox.shrink(),
             error: (_, _) => const SizedBox.shrink(),
           ),
+          const SizedBox(height: AppTokens.spaceMd),
           const AppSectionHeader(title: '今日安排'),
           AsyncBody(
             value: snapshot,

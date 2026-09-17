@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 
 import '../../../core/l10n/app_strings.dart';
+import '../../../core/network/campus_session.dart';
 import '../domain/library_seat.dart';
 
 /// HTTP client for `http://rg.lib.xjtu.edu.cn:8086` (campus-net).
@@ -13,6 +14,7 @@ import '../domain/library_seat.dart';
 /// by the caller; this client itself never stores passwords.
 class LibrarySeatApi {
   LibrarySeatApi({
+    this.session,
     Dio? dio,
     CookieJar? cookieJar,
     String baseUrl = defaultBaseUrl,
@@ -35,21 +37,27 @@ class LibrarySeatApi {
                 },
               ),
             ) {
-    if (dio == null && cookieJar != null) {
-      _dio.interceptors.add(CookieManager(cookieJar));
+    if (dio == null && (cookieJar != null || session != null)) {
+      _dio.interceptors.add(CookieManager(cookieJar ?? session!.jar));
     }
   }
 
   static const defaultBaseUrl = 'http://rg.lib.xjtu.edu.cn:8086';
 
+  final CampusSession? session;
   final Dio _dio;
+
+  String _url(String path) {
+    final absolute = Uri.parse(baseUrl).resolve(path).toString();
+    return session?.resolveUrl(absolute) ?? absolute;
+  }
   final String baseUrl;
 
   /// Probe reachability (campus-net).
   Future<bool> isReachable() async {
     try {
       final res = await _dio.get<dynamic>(
-        '/',
+        _url('/'),
         options: Options(
           receiveTimeout: const Duration(seconds: 5),
           followRedirects: true,
@@ -66,7 +74,7 @@ class LibrarySeatApi {
   Future<LibrarySeatsSnapshot> listSeats(String areaCode) async {
     try {
       final res = await _dio.get<dynamic>(
-        '/qseat',
+        _url('/qseat'),
         queryParameters: {'sp': areaCode},
         options: Options(
           responseType: ResponseType.plain,
@@ -159,12 +167,12 @@ class LibrarySeatApi {
   }) async {
     try {
       final res = await _dio.get<dynamic>(
-        '/seat/',
+        _url('/seat/'),
         queryParameters: {'kid': seatId, 'sp': areaCode},
         options: Options(
           responseType: ResponseType.plain,
           followRedirects: true,
-          headers: {'Referer': '$baseUrl/seat/'},
+          headers: {'Referer': _url('/seat/')},
         ),
       );
       final finalUrl = res.realUri.toString();
@@ -213,7 +221,7 @@ class LibrarySeatApi {
   Future<List<LibraryBooking>> myBookings() async {
     try {
       final res = await _dio.get<String>(
-        '/seat/my/',
+        _url('/seat/my/'),
         options: Options(responseType: ResponseType.plain),
       );
       if ((res.statusCode ?? 0) == 401 || (res.statusCode ?? 0) == 403) {
@@ -225,7 +233,7 @@ class LibrarySeatApi {
         throw StateError('unreachable');
       }
       final res = await _dio.get<String>(
-        '/my/',
+        _url('/my/'),
         options: Options(responseType: ResponseType.plain),
       );
       return _parseMyBookings(res.data ?? '');
@@ -238,7 +246,7 @@ class LibrarySeatApi {
       final path = booking.cancelPath;
       if (path != null && path.isNotEmpty) {
         final res = await _dio.get<dynamic>(
-          path,
+          _url(path),
           options: Options(responseType: ResponseType.plain),
         );
         if ((res.statusCode ?? 500) < 400) {
@@ -251,7 +259,7 @@ class LibrarySeatApi {
       ]) {
         try {
           final res = await _dio.get<dynamic>(
-            probe,
+            _url(probe),
             options: Options(
               responseType: ResponseType.plain,
               validateStatus: (_) => true,

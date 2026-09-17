@@ -206,6 +206,7 @@ class AuthController extends Notifier<AuthState> {
 
   Future<void> logout() async {
     await _repo.logout();
+    await ref.read(snapshotCacheProvider).clearAll();
     state = const AuthState(initialized: true, user: AuthUser.guest);
   }
 }

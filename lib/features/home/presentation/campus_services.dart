@@ -17,6 +17,7 @@ class CampusService {
   final bool isTab;
 
   static const learning = [
+    CampusService('考勤查询', '课程考勤 · 状态明细', Icons.fact_check_outlined, '/attendance'),
     CampusService('课程表', '每日安排 · 每周课表', Icons.calendar_view_week_outlined,
         '/schedule', isTab: true),
     CampusService('成绩查询', '学期成绩 · 学分绩点', Icons.grade_outlined, '/grades'),

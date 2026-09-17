@@ -3,19 +3,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
-import '../../../core/widgets/app_page_scaffold.dart';
 import '../../../core/constants/campus_urls.dart';
 import '../../../core/l10n/app_strings.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/app_feedback.dart';
+import '../../../core/widgets/app_page_scaffold.dart';
 import '../../../core/widgets/app_surface_card.dart';
+import '../../../core/widgets/manual_refresh_button.dart';
+import '../../attendance/presentation/attendance_providers.dart';
 import '../../schedule/domain/course.dart';
 import '../../schedule/presentation/schedule_providers.dart';
 import '../domain/school_calendar.dart';
 import 'calendar_providers.dart';
 import 'school_month_calendar.dart';
-import '../../../core/widgets/manual_refresh_button.dart';
 
 class CalendarPage extends ConsumerWidget {
   const CalendarPage({super.key});
@@ -41,6 +42,7 @@ class CalendarPage extends ConsumerWidget {
         actions: [
           ManualRefreshButton(
             onRefresh: () async {
+              ref.invalidate(attendanceSnapshotProvider);
               await ref
                   .read(scheduleSnapshotProvider.notifier)
                   .refresh(force: true);
@@ -66,6 +68,7 @@ class CalendarPage extends ConsumerWidget {
       ),
       body: RefreshIndicator(
         onRefresh: () async {
+          ref.invalidate(attendanceSnapshotProvider);
           await ref.read(scheduleSnapshotProvider.notifier).refresh(force: true);
           await ref.read(calendarSnapshotProvider.notifier).refresh(force: true);
         },
@@ -149,78 +152,32 @@ class _CompactWeekHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fmt = DateFormat('yyyy-MM-dd');
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(AppTokens.radiusXl),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [AppColors.navyDeep, AppColors.navy, Color(0xFF2A5A8C)],
+    final fmt = DateFormat('M月d日');
+    return AppSurfaceCard(
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(color: AppColors.chip, borderRadius: AppTokens.borderMd),
+          child: Column(children: [
+            Text('$week', style: const TextStyle(fontSize: 28,
+                color: AppColors.navy, fontWeight: FontWeight.w800)),
+            const Text('教学周', style: TextStyle(fontSize: 12, color: AppColors.navy)),
+          ]),
         ),
-      ),
-      padding: const EdgeInsets.fromLTRB(
-        AppTokens.spaceLg,
-        AppTokens.spaceMd + 2,
-        AppTokens.spaceLg,
-        AppTokens.spaceMd + 2,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(
-                '${AppStrings.weekPrefix}$week${AppStrings.weekSuffix}',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.3,
-                ),
-              ),
-              if (synced) ...[
-                const SizedBox(width: 8),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.18),
-                    borderRadius: AppTokens.borderPill,
-                  ),
-                  child: Text(
-                    AppStrings.calendarWeekSyncedShort,
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.9),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            termLabel,
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.85),
-              height: 1.3,
-              fontSize: 13,
-            ),
-          ),
-          if (term != null) ...[
-            const SizedBox(height: 2),
-            Text(
-              '${AppStrings.calendarTermRange} ${fmt.format(term!.startDate)} — ${fmt.format(term!.endDate)}',
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.68),
-                fontSize: 12,
-              ),
-            ),
+        const SizedBox(width: 16),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(termLabel, style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 6),
+          if (term != null)
+            Text('${fmt.format(term!.startDate)} — ${fmt.format(term!.endDate)}',
+                style: Theme.of(context).textTheme.bodySmall),
+          if (synced) ...[
+            const SizedBox(height: 6),
+            Text(AppStrings.calendarWeekSyncedShort,
+                style: Theme.of(context).textTheme.bodySmall),
           ],
-        ],
-      ),
+        ])),
+      ]),
     );
   }
 }

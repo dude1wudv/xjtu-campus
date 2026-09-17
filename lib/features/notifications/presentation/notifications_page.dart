@@ -3,17 +3,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
-import '../../../core/widgets/app_page_scaffold.dart';
+import '../../../core/cache/snapshot_cache.dart';
 import '../../../core/di/core_providers.dart';
 import '../../../core/l10n/app_strings.dart';
+import '../../../core/network/campus_connection.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/app_feedback.dart';
+import '../../../core/widgets/app_page_scaffold.dart';
+import '../../../core/widgets/manual_refresh_button.dart';
 import '../domain/notice_filter.dart';
 import '../domain/school_notice.dart';
 import 'dean_notices_webview_loader.dart';
-import '../../../core/widgets/manual_refresh_button.dart';
-import '../../../core/cache/snapshot_cache.dart';
 
 class NoticeFilterController extends Notifier<NoticeFilterRule> {
   @override
@@ -31,6 +32,7 @@ final noticeFilterProvider =
 
 /// Dio / mock fallback after embedded WebView fails.
 final noticesFallbackProvider = FutureProvider<NoticesSnapshot>((ref) {
+  ref.watch(campusConnectionRevisionProvider);
   final rule = ref.watch(noticeFilterProvider);
   return ref.watch(notificationsRepositoryProvider).load(rule: rule);
 });
@@ -125,17 +127,6 @@ class NotificationsPage extends ConsumerWidget {
       ),
       body: Stack(
         children: [
-          // Real WebView (not Headless): shares CookieManager, runs page JS.
-          const Positioned(
-            left: 0,
-            top: 0,
-            child: Opacity(
-              opacity: 0,
-              child: IgnorePointer(
-                child: DeanNoticesWebViewLoader(),
-              ),
-            ),
-          ),
           Column(
             children: [
               Padding(

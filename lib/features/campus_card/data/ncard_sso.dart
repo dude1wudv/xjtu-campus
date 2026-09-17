@@ -1,6 +1,7 @@
 import '../../../core/constants/campus_urls.dart';
 import '../../../core/logging/app_logger.dart';
 import '../../../core/network/campus_session.dart';
+import '../../../core/network/webvpn_url.dart';
 import 'ncard_mobile_stealth.dart';
 
 /// Shared ncard CAS ticket → H5 OAuth bearer (Dio POST only).
@@ -25,7 +26,7 @@ class NcardSso {
   static String? ticketFromUri(Uri uri) {
     final rawUrl = uri.toString();
     if (!rawUrl.contains('ticket=')) return null;
-    if (uri.host.isNotEmpty && !uri.host.contains('ncard')) return null;
+    if (uri.host.isNotEmpty && !WebVpnUrl.matchesHost(uri, 'ncard.xjtu.edu.cn')) return null;
 
     final fromParams = uri.queryParameters['ticket'];
     if (fromParams != null && fromParams.isNotEmpty) {
@@ -70,7 +71,7 @@ class NcardSso {
     try {
       await _session.get(
         CampusUrls.ncardPlat,
-        rewrite: false,
+        rewrite: true,
         headers: {
           'Accept':
               'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -133,7 +134,7 @@ class NcardSso {
 
       final response = await _session.get(
         current.toString(),
-        rewrite: false,
+        rewrite: true,
         followRedirects: false,
         maxRedirects: 0,
         validateStatus: (status) => status != null && status < 500,
@@ -152,7 +153,7 @@ class NcardSso {
       if (location == null || location.isEmpty) {
         break;
       }
-      final next = current.resolve(location);
+      final next = response.realUri.resolve(location);
       final fromLoc = ticketFromUri(next);
       if (fromLoc != null) return fromLoc;
 
@@ -175,7 +176,7 @@ class NcardSso {
   Future<String?> captureTicketFollowed() async {
     final response = await _session.get(
       CampusUrls.ncardCasRedirect,
-      rewrite: false,
+      rewrite: true,
       followRedirects: true,
       maxRedirects: 12,
       headers: {
@@ -199,7 +200,7 @@ class NcardSso {
   Future<String?> oauthWithTicket(String ticket) async {
     final tokenResp = await _session.post(
       CampusUrls.ncardOAuthToken,
-      rewrite: false,
+      rewrite: true,
       data: {
         'username': ticket,
         'password': ticket,
@@ -241,7 +242,7 @@ class NcardSso {
       final value = 'bearer $bearer';
       final resp = await _session.get(
         CampusUrls.ncardQueryCard,
-        rewrite: false,
+        rewrite: true,
         headers: {
           ...mobileHeaders,
           'Synjones-Auth': value,

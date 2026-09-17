@@ -3,6 +3,7 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/constants/campus_urls.dart';
@@ -135,6 +136,11 @@ class CasAuthRepository implements AuthRepository {
   Future<void> logout() async {
     _pending = null;
     await _session.clear();
+    try {
+      await CookieManager.instance().deleteAllCookies();
+    } catch (_) {
+      AppLogger.warn('浏览器会话清理未完成');
+    }
     await _store.deleteAll();
     AppLogger.info('已退出统一认证会话');
   }
@@ -443,12 +449,13 @@ class CasAuthRepository implements AuthRepository {
     }
     await _store.write(key: AppConstants.sessionModeKey, value: AppConstants.modeCas);
     await _store.write(key: AppConstants.sessionStudentIdKey, value: id);
-    await _establishDownstreamSessions();
-    await _saveProfile(id);
-    final name = await _store.read(AppConstants.sessionDisplayNameKey);
+    // The official browser already authenticated. Service providers warm their
+    // own endpoints in the background instead of blocking login for minutes.
+    final name = '同学 $id';
+    await _store.write(key: AppConstants.sessionDisplayNameKey, value: name);
     return AuthUser(
       studentId: id,
-      displayName: name ?? '同学 $id',
+      displayName: name,
       sessionToken: 'cas-session',
       college: '统一身份认证',
     );
@@ -458,7 +465,7 @@ class CasAuthRepository implements AuthRepository {
     await _session.ensureWebVpnSession();
     // 只走 CAS 已注册服务。jwxt home 作 service 会报 missing service。
     try {
-      final ywtb = await _session.get(CampusUrls.ywtbCasLogin, rewrite: false);
+      final ywtb = await _session.get(CampusUrls.ywtbCasLogin, rewrite: true);
       final ticket = ywtb.realUri.queryParameters['ticket'];
       if (ticket != null && ticket.contains('.')) {
         final payload = _jwtPayload(ticket);
@@ -471,20 +478,20 @@ class CasAuthRepository implements AuthRepository {
       AppLogger.warn('一网通办单点登录未完成');
     }
     try {
-      await _session.get(CampusUrls.ehallLogin, rewrite: false);
-      await _session.get(CampusUrls.ehallHome, rewrite: false);
+      await _session.get(CampusUrls.ehallLogin, rewrite: true);
+      await _session.get(CampusUrls.ehallHome, rewrite: true);
     } on Object {
       AppLogger.warn('ehall 单点登录未完成');
     }
     // jwxt 可能未注册到 CAS；能开则开，失败不影响 ehall 课表。
     try {
-      await _session.get(CampusUrls.jwxtHome, rewrite: false);
+      await _session.get(CampusUrls.jwxtHome, rewrite: true);
     } on Object {
       AppLogger.warn('jwxt 直连未完成，将优先使用 ehall 课表接口');
     }
     // YWTB「课表查询」workflow：访问一次页面以建立 SSO Cookie。
     try {
-      await _session.get(CampusUrls.workflowKebiaoPage, rewrite: false);
+      await _session.get(CampusUrls.workflowKebiaoPage, rewrite: true);
       AppLogger.info('已访问 workflow 课表页以建立下游会话');
     } on Object {
       AppLogger.warn('workflow 课表页会话未建立');

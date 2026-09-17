@@ -4,44 +4,51 @@ import '../../../core/cache/cached_snapshot_loader.dart';
 import '../../../core/cache/snapshot_cache.dart';
 import '../../../core/di/core_providers.dart';
 import '../../../core/l10n/app_strings.dart';
+import '../../../core/network/campus_connection.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../domain/exam_arrangement.dart';
 
 class ExamsSnapshotNotifier extends AsyncNotifier<ExamsSnapshot> {
+  Future<ExamsSnapshot>? pending;
   @override
   Future<ExamsSnapshot> build() async {
+    var active = true;
+    ref.onDispose(() => active = false);
+    ref.watch(campusConnectionRevisionProvider);
     ref.watch(
       authControllerProvider.select(
-        (state) => '${state.user.sessionToken}|${state.user.isDemo}',
+        (state) => '${state.user.studentId}|${state.user.sessionToken}|${state.user.isDemo}',
       ),
     );
-    final result = await loadWithCache<ExamsSnapshot>(
+    final result = await (pending = loadWithCache<ExamsSnapshot>(
+      isCurrent: () => active,
       cache: ref.watch(snapshotCacheProvider),
-      key: SnapshotCache.exams,
+      key: SnapshotCache.scoped(SnapshotCache.exams, ref.read(authControllerProvider).user.studentId),
       fromJson: ExamsSnapshot.fromJson,
       toJson: (s) => s.toJson(),
-      fetch: () => ref.read(examsRepositoryProvider).load(),
+      fetch: () => ref.read(campusSessionProvider).readQueue.run(() {
+        if (!active) throw StateError('Sync superseded');
+        return ref.read(examsRepositoryProvider).load();
+      }),
       isLive: (s) => s.live,
       markCached: (s, t) => s.asCached(t, banner: AppStrings.cacheBanner(t)),
       markRefreshFailed: (s, t) => s.asCached(
         t,
         banner: AppStrings.cacheRefreshFailed,
       ),
-      emit: (s) => state = AsyncData(s),
-    );
+      emit: (s) { if (active) state = AsyncData(s); },
+    ));
     if (result.live && !result.fromCache) {
       return result.asFresh();
     }
     return result;
   }
 
-  /// Clear SnapshotCache for this key then rebuild (true network path).
+  /// Revalidate from the network while retaining the last successful cache.
   Future<void> refresh({bool force = true}) async {
-    if (force) {
-      await ref.read(snapshotCacheProvider).remove(SnapshotCache.exams);
-    }
     ref.invalidateSelf();
     await future;
+    await pending;
   }
 }
 

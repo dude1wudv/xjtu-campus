@@ -7,6 +7,8 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import '../../../core/constants/campus_urls.dart';
 import '../../../core/logging/app_logger.dart';
 import '../../../core/network/campus_session.dart';
+import '../../../core/network/webview_cookie_bridge.dart';
+import '../../../core/network/webvpn_url.dart';
 import 'ncard_mobile_stealth.dart';
 import 'ncard_sso.dart';
 
@@ -22,6 +24,8 @@ class CampusCardWebViewFetcher {
 
   final CampusSession? session;
   final Duration timeout;
+
+  String _url(String url) => session?.resolveUrl(url) ?? url;
 
   static const _tokenPollInterval = Duration(milliseconds: 500);
   static const _tokenPollWindow = Duration(seconds: 20);
@@ -54,7 +58,7 @@ class CampusCardWebViewFetcher {
 
       var fetchStarted = false;
       headless = HeadlessInAppWebView(
-        initialUrlRequest: URLRequest(url: WebUri(CampusUrls.ncardCasRedirect)),
+        initialUrlRequest: URLRequest(url: WebUri(_url(CampusUrls.ncardCasRedirect))),
         initialUserScripts: UnmodifiableListView<UserScript>([
           UserScript(
             source: NcardMobileStealth.script,
@@ -84,13 +88,13 @@ class CampusCardWebViewFetcher {
           }
 
           final uri = url == null ? null : Uri.tryParse(url.toString());
-          if (uri != null && uri.host.contains('login')) {
+          if (uri != null && WebVpnUrl.isLoginPage(uri)) {
             AppLogger.info(
               'WebView ncard CAS 跳转中: ${uri.host}${uri.path}',
             );
             return;
           }
-          if (uri != null && !uri.host.contains('ncard')) {
+          if (uri != null && !WebVpnUrl.matchesHost(uri, 'ncard.xjtu.edu.cn')) {
             AppLogger.info(
               'WebView ncard 同步中，忽略非 ncard 页面: ${uri.host}${uri.path}',
             );
@@ -111,7 +115,14 @@ class CampusCardWebViewFetcher {
         },
       );
       AppLogger.info('WebView 开始拉取校园卡');
-      await headless.run();
+      final activeSession = session;
+      if (activeSession != null) {
+        await WebViewCookieBridge.seedOrigins(
+          session: activeSession,
+          origins: [CampusUrls.casLogin, _url(CampusUrls.ncardCasRedirect)],
+        );
+      }
+      if (!finished) await headless.run();
     } on Object catch (error) {
       AppLogger.warn('CampusCard HeadlessInAppWebView 启动失败: $error');
       await complete(null);
@@ -198,7 +209,7 @@ class CampusCardWebViewFetcher {
     InAppWebViewController controller,
     String ticket,
   ) async {
-    final tokenUrl = CampusUrls.ncardOAuthToken;
+    final tokenUrl = _url(CampusUrls.ncardOAuthToken);
     final basic = CampusUrls.ncardH5TokenBasicAuth;
     final ticketJson = jsonEncode(ticket);
     final basicJson = jsonEncode(basic);
@@ -300,8 +311,8 @@ class CampusCardWebViewFetcher {
   Future<CampusCardRawPayload?> _runFetch(
     InAppWebViewController controller,
   ) async {
-    final cardUrl = CampusUrls.ncardQueryCard;
-    final turnUrl = CampusUrls.ncardTurnover;
+    final cardUrl = _url(CampusUrls.ncardQueryCard);
+    final turnUrl = _url(CampusUrls.ncardTurnover);
     final asyncResult = await controller.callAsyncJavaScript(
       functionBody: '''
         const headers = {

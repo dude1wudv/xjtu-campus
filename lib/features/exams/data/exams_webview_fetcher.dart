@@ -5,11 +5,17 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import '../../../core/constants/campus_urls.dart';
 import '../../../core/logging/app_logger.dart';
+import '../../../core/network/campus_session.dart';
+import '../../../core/network/webview_cookie_bridge.dart';
+import '../../../core/network/webvpn_url.dart';
 
 class ExamsWebViewFetcher {
-  ExamsWebViewFetcher({this.timeout = const Duration(seconds: 45)});
+  ExamsWebViewFetcher({this.session, this.timeout = const Duration(seconds: 45)});
 
   final Duration timeout;
+  final CampusSession? session;
+
+  String _url(String url) => session?.resolveUrl(url) ?? url;
 
   Future<Map<String, dynamic>?> fetchExamsJson({required String termCode}) async {
     final completer = Completer<Map<String, dynamic>?>();
@@ -37,7 +43,7 @@ class ExamsWebViewFetcher {
     try {
       var fetchStarted = false;
       headless = HeadlessInAppWebView(
-        initialUrlRequest: URLRequest(url: WebUri(CampusUrls.jwxtWdksapIndex)),
+        initialUrlRequest: URLRequest(url: WebUri(_url(CampusUrls.jwxtWdksapIndex))),
         initialSettings: InAppWebViewSettings(
           javaScriptEnabled: true,
           domStorageEnabled: true,
@@ -48,7 +54,7 @@ class ExamsWebViewFetcher {
         onLoadStop: (controller, url) async {
           if (fetchStarted || finished) return;
           final uri = url == null ? null : Uri.tryParse(url.toString());
-          if (uri != null && uri.host.contains('login')) {
+          if (uri != null && WebVpnUrl.isLoginPage(uri)) {
             AppLogger.warn('WebView wdksap 落到登录: ${uri.host}${uri.path}');
             await complete(null);
             return;
@@ -67,7 +73,14 @@ class ExamsWebViewFetcher {
         },
       );
       AppLogger.info('WebView 开始拉取考试安排');
-      await headless.run();
+      final activeSession = session;
+      if (activeSession != null) {
+        await WebViewCookieBridge.seedOrigins(
+          session: activeSession,
+          origins: [CampusUrls.casLogin, _url(CampusUrls.jwxtWdksapIndex)],
+        );
+      }
+      if (!finished) await headless.run();
     } on Object catch (error) {
       AppLogger.warn('Exams HeadlessInAppWebView 启动失败: $error');
       await complete(null);
@@ -80,7 +93,7 @@ class ExamsWebViewFetcher {
     InAppWebViewController controller,
     String termCode,
   ) async {
-    final endpoint = CampusUrls.jwxtExams;
+    final endpoint = _url(CampusUrls.jwxtExams);
     final body =
         'XNXQDM=${Uri.encodeQueryComponent(termCode)}&*order=-KSRQ,-KSSJMS';
     final asyncResult = await controller.callAsyncJavaScript(

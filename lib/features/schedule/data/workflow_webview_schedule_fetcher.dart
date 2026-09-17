@@ -4,13 +4,19 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import '../../../core/constants/campus_urls.dart';
 import '../../../core/logging/app_logger.dart';
+import '../../../core/network/campus_session.dart';
+import '../../../core/network/webview_cookie_bridge.dart';
+import '../../../core/network/webvpn_url.dart';
 
 /// Fetches undergraduate kebiao JSON inside a [HeadlessInAppWebView] so the
 /// request shares the same cookie jar as CAS web login (unlike Dio on phone).
 class WorkflowWebViewScheduleFetcher {
-  WorkflowWebViewScheduleFetcher({this.timeout = const Duration(seconds: 20)});
+  WorkflowWebViewScheduleFetcher({this.session, this.timeout = const Duration(seconds: 20)});
 
   final Duration timeout;
+  final CampusSession? session;
+
+  String _url(String url) => session?.resolveUrl(url) ?? url;
 
   /// Returns the raw response body (JSON text), or `null` on timeout / error.
   Future<String?> fetchUndergraduateKebiao({
@@ -45,7 +51,7 @@ class WorkflowWebViewScheduleFetcher {
       var fetchStarted = false;
       headless = HeadlessInAppWebView(
         initialUrlRequest: URLRequest(
-          url: WebUri(CampusUrls.workflowKebiaoPage),
+          url: WebUri(_url(CampusUrls.workflowKebiaoPage)),
         ),
         initialSettings: InAppWebViewSettings(
           javaScriptEnabled: true,
@@ -57,7 +63,7 @@ class WorkflowWebViewScheduleFetcher {
         onLoadStop: (controller, url) async {
           if (fetchStarted || finished) return;
           final uri = url == null ? null : Uri.tryParse(url.toString());
-          if (uri != null && uri.host.contains('login')) {
+          if (uri != null && WebVpnUrl.isLoginPage(uri)) {
             AppLogger.warn('WebView workflow 课表页落到登录: ${uri.host}${uri.path}');
             await complete(null);
             return;
@@ -86,7 +92,14 @@ class WorkflowWebViewScheduleFetcher {
       );
 
       AppLogger.info('WebView 开始拉取 workflow 课表 $startDate~$endDate');
-      await headless.run();
+      final activeSession = session;
+      if (activeSession != null) {
+        await WebViewCookieBridge.seedOrigins(
+          session: activeSession,
+          origins: [CampusUrls.casLogin, _url(CampusUrls.workflowKebiaoPage)],
+        );
+      }
+      if (!finished) await headless.run();
     } on Object catch (error) {
       AppLogger.warn('HeadlessInAppWebView 启动失败: $error');
       await complete(null);
@@ -106,7 +119,7 @@ class WorkflowWebViewScheduleFetcher {
         functionBody: '''
           try {
             await fetch(
-              'https://workflow.xjtu.edu.cn/selectpage/site/kebiao/selkxueqi?date=' +
+              '${_url(CampusUrls.workflowSelKxueqi)}?date=' +
                 encodeURIComponent(startDate),
               {
                 credentials: 'include',
@@ -115,7 +128,7 @@ class WorkflowWebViewScheduleFetcher {
             );
           } catch (e) {}
           const url =
-            'https://workflow.xjtu.edu.cn/selectpage/site/newkebiao/getUndergraduateKebiao?startDate=' +
+            '${_url(CampusUrls.workflowUndergraduateKebiao)}?startDate=' +
             encodeURIComponent(startDate) +
             '&endDate=' +
             encodeURIComponent(endDate);
@@ -155,7 +168,7 @@ class WorkflowWebViewScheduleFetcher {
 (function(){
   var startDate = $qStart;
   var endDate = $qEnd;
-  var absBase = 'https://workflow.xjtu.edu.cn';
+  var absBase = '${_url(CampusUrls.workflow).replaceFirst(RegExp(r'/$'), '')}';
   return fetch(absBase + '/selectpage/site/kebiao/selkxueqi?date=' + encodeURIComponent(startDate), {
     credentials: 'include',
     headers: { 'Accept': 'application/json, text/plain, */*' }
