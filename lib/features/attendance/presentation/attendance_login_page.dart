@@ -189,7 +189,7 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
           const Text('请先在系统浏览器完成登录，再在同一浏览器打开工作台。浏览器登录状态不会自动同步到应用。'),
         ])),
       SwitchListTile(title: const Text('接口诊断模式'),
-        subtitle: const Text('开启不会刷新登录页。完成登录后打开考勤记录，再查看脱敏诊断。'),
+        subtitle: const Text('开启后在下方官方页面打开考勤记录或明细，再复制接口诊断。'),
         value: _diagnosticMode, onChanged: (value) {
           setState(() { _diagnosticMode = value; _saving = false; _error = null; });
           AttendanceDiagnostics.add(value ? 'diagnostic-start' : 'diagnostic-stop');
@@ -217,7 +217,8 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
           controller.addJavaScriptHandler(handlerName: 'attendanceTrace', callback: (args) async {
             final uri = Uri.tryParse('${await controller.getUrl()}');
             if (!_diagnosticMode || uri == null ||
-                !WebVpnUrl.matchesHost(uri, _system.host) || args.isEmpty || args.first is! Map) return null;
+                ![_system.host, if (!_system.usesLegacyApi) 'kq.xjtu.edu.cn']
+                    .any((host) => WebVpnUrl.matchesHost(uri, host)) || args.isEmpty || args.first is! Map) return null;
             AttendanceDiagnostics.browser(args.first as Map);
             return null;
           });
@@ -239,6 +240,11 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
           _capture(url);
         },
         onUpdateVisitedHistory: (_, url, _) {
+          if (url != null && WebVpnUrl.matchesHost(Uri.parse(url.toString()), _system.host) &&
+              Uri.parse(url.toString()).path.endsWith('/studentpc/workbench')) {
+            _timer?.cancel();
+            if (mounted) setState(() => _error = null);
+          }
           if (_diagnosticMode) AttendanceDiagnostics.add('history', url: url?.toString());
           _capture(url);
         },

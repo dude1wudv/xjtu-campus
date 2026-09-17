@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import '../../../core/network/webvpn_url.dart';
 
 /// In-memory protocol metadata only. Never retain response values, headers,
 /// query strings, cookies, tokens, student IDs, or raw JavaScript errors.
@@ -7,6 +8,7 @@ abstract final class AttendanceDiagnostics {
   static final revision = ValueNotifier<int>(0);
   static final _events = <Map<String, Object?>>[];
   static const _keys = {
+    'courseName','courseId','courseDate','className','classId','teacherName','classroom','location','attendanceStatus','attendanceDate','attendStatus','attendanceTime','checkTime','checkInTime','checkOutTime','startSection','endSection','startPeriod','endPeriod','lessonName','lessonId','semester','semesterId','termId','termName','content','page','pages','size','count','recordList','record','details','detail','schedule','schedules','attendance','attendances','attendanceList','courseList','studentAttendanceList','signInTime','signOutTime','absence','late','leave','normal',
     'success','code','data','datas','result','list','rows','records','items','total',
     'totalCount','current','pageSize','bh','name','startdate','enddate','weeks',
     'classWaterBean','accountBean','subjectBean','buildBean','roomBean',
@@ -24,11 +26,30 @@ abstract final class AttendanceDiagnostics {
     if (value is List) return {'length': value.length, 'first': value.isEmpty ? 'empty' : shape(value.first, depth + 1)};
     return value is bool ? 'boolean' : value is num ? 'number' : 'string';
   }
+  static const _newHosts = ['bk-kq.xjtu.edu.cn', 'kq.xjtu.edu.cn'];
   static String safeUrl(String raw) {
     final uri = Uri.tryParse(raw);
     if (uri == null || !(uri.host == 'xjtu.edu.cn' || uri.host.endsWith('.xjtu.edu.cn'))) return '[other origin]';
     // Only API/auth route segments; all unrecognized page paths are omitted.
-    final path = uri.path;
+    var path = uri.path;
+    String? newHost;
+    for (final host in _newHosts) {
+      if (uri.host == host) newHost = host;
+      for (final scheme in ['https', 'http']) {
+        final prefix = Uri.parse(WebVpnUrl.convert('$scheme://$host/')).path;
+        if (uri.host == 'webvpn.xjtu.edu.cn' && path.startsWith(prefix)) {
+          path = '/${path.substring(prefix.length)}';
+          newHost = host;
+          break;
+        }
+      }
+    }
+    if (newHost != null) {
+      final parts = path.split('/').where((s) => s.isNotEmpty).take(10).map((part) =>
+        RegExp(r'^[A-Za-z][A-Za-z_-]{0,39}$').hasMatch(part) &&
+        !RegExp(r'^[a-fA-F]{16,}$').hasMatch(part) ? part : '[id]');
+      return '$newHost/${parts.join('/')}';
+    }
     if (path.endsWith('/studentpc/student/entry')) return '${uri.host}/studentpc/student/entry';
     if (path.endsWith('/studentpc/workbench')) return '${uri.host}/studentpc/workbench';
     if (uri.host == 'login.xjtu.edu.cn') {
@@ -85,11 +106,20 @@ abstract final class AttendanceDiagnostics {
     'format': 'attendance-diagnostics-v1', 'events': _events});
   static void clear() { _events.clear(); revision.value++; }
 
-  static const script = r'''
+  static String get script => 'const __attendanceOrigins = ${jsonEncode([
+    for (final host in [..._newHosts, 'yjskq.xjtu.edu.cn']) ...[
+      'https://$host/', 'http://$host/',
+      WebVpnUrl.convert('https://$host/'), WebVpnUrl.convert('http://$host/'),
+    ],
+  ])};' + r'''
 (() => {
-  if (window.__campusAttendanceTrace) return;
+  function allowed(url) {
+    try { return __attendanceOrigins.some(origin => new URL(url, location.href).href.startsWith(origin)); }
+    catch (_) { return false; }
+  }
+  if (!allowed(location.href) || window.__campusAttendanceTrace) return;
   window.__campusAttendanceTrace = true;
-  const keys = new Set(['success','code','data','datas','result','list','rows','records','items','total','totalCount','current','pageSize','bh','name','startdate','enddate','weeks','classWaterBean','accountBean','subjectBean','buildBean','roomBean','calendarBean','stuClassBean','status','checkdate','startJc','endJc','week','sName','subjectname','subjectSName','teachNameList','roomnum','termNo','message','msg','date','startTime','endTime','sBh','termString','teacher']);
+  const keys = new Set(['courseName','courseId','courseDate','className','classId','teacherName','classroom','location','attendanceStatus','attendanceDate','attendStatus','attendanceTime','checkTime','checkInTime','checkOutTime','startSection','endSection','startPeriod','endPeriod','lessonName','lessonId','semester','semesterId','termId','termName','content','page','pages','size','count','recordList','record','details','detail','schedule','schedules','attendance','attendances','attendanceList','courseList','studentAttendanceList','signInTime','signOutTime','absence','late','leave','normal','success','code','data','datas','result','list','rows','records','items','total','totalCount','current','pageSize','bh','name','startdate','enddate','weeks','classWaterBean','accountBean','subjectBean','buildBean','roomBean','calendarBean','stuClassBean','status','checkdate','startJc','endJc','week','sName','subjectname','subjectSName','teachNameList','roomnum','termNo','message','msg','date','startTime','endTime','sBh','termString','teacher']);
   function shape(v, d=0) {
     if(v === null || v === undefined) return 'null';
     if(d >= 5) return Array.isArray(v) ? 'array' : typeof v;
@@ -99,18 +129,27 @@ abstract final class AttendanceDiagnostics {
     }
     return typeof v;
   }
+  const pending = [];
+  function flush() {
+    if (!window.flutter_inappwebview?.callHandler) return;
+    while (pending.length) window.flutter_inappwebview.callHandler('attendanceTrace', pending.shift()).catch(()=>{});
+  }
+  window.addEventListener('flutterInAppWebViewPlatformReady', flush);
   function emit(url, method, status, data) {
     try {
       const u = new URL(url, location.href);
-      if(!u.hostname.endsWith('.xjtu.edu.cn') || !['/attendance-student/','/berserker-auth/','/api/'].some(p => u.pathname.includes(p))) return;
-      window.flutter_inappwebview?.callHandler('attendanceTrace', {
+      if(!allowed(u.href)) return;
+      pending.push({
         url: u.origin+u.pathname, method: String(method).toUpperCase(), status, schema: shape(data)
       });
+      if (pending.length > 40) pending.shift();
+      flush();
     } catch (_) {}
   }
   const fetchOriginal = window.fetch;
   window.fetch = function(input, init) {
     return fetchOriginal.apply(this, arguments).then(response => {
+      if (!allowed(response.url)) return response;
       const type = response.headers.get('content-type') || '';
       if(!type.includes('json')) emit(response.url, init?.method || input?.method || 'GET', response.status, 'non-json');
       if(type.includes('json')) response.clone().text().then(text => {
@@ -128,7 +167,7 @@ abstract final class AttendanceDiagnostics {
     this.addEventListener('load', () => {
       try {
         const r = this.__attendanceRequest;
-        if(!r) return;
+        if(!r || !allowed(this.responseURL || r.url)) return;
         const data = this.responseType === 'json' ? this.response :
           (this.responseText.length <= 2000000 ? (() => { try { return JSON.parse(this.responseText); } catch (_) { return 'non-json'; } })() : null);
         emit(this.responseURL || r.url, r.method, this.status, data);

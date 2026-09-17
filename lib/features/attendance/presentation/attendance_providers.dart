@@ -27,6 +27,7 @@ class AttendanceSnapshotNotifier extends AsyncNotifier<AttendanceSnapshot> {
     final system = ref.watch(attendanceSystemProvider);
     ref.watch(campusConnectionRevisionProvider);
     final connecting = ref.watch(campusConnectionBusyProvider);
+    if (!system.usesLegacyApi) throw const AttendanceWebOnly();
     if (connecting) throw StateError('正在完成网页认证');
     if (!auth.$1 || auth.$2.isGuest || auth.$2.isDemo) {
       throw StateError('请先登录学校账号后查询考勤');
