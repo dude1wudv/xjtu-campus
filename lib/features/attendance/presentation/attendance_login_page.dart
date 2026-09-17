@@ -26,7 +26,6 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
   InAppWebViewController? _controller;
   late final AttendanceSystem _system;
   Timer? _timer;
-  final _recovery = AttendanceLoginRecovery();
   bool _ready = false, _saving = false;
   String? _error;
   double _progress = 0;
@@ -68,28 +67,31 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
       final uri = Uri.tryParse('$url');
       if (uri == null || !['login.xjtu.edu.cn', 'org.xjtu.edu.cn', _system.host]
           .any((host) => WebVpnUrl.matchesHost(uri, host))) return;
-      // Return fixed categories only, never DOM text or form values.
-      final kind = await controller.evaluateJavascript(source: r"""
+      // Read the document URL, classification and form routes in one JS turn.
+      // WebView.getUrl may already point at the next navigation while the DOM
+      // still belongs to the previous document. Discard such mixed snapshots.
+      final page = await controller.evaluateJavascript(source: r"""
         (() => {
-          if (document.querySelector('input[type="password"]')) return 'login-form';
+          if (document.readyState !== 'complete') return null;
           const text = document.body?.innerText || '';
-          if (text.includes('正在完成登录')) return 'login-redirect-wait';
-          if (text.includes('404 Not Found')) return 'page-not-found';
-          return 'page-loaded';
+          const kind = text.includes('404 Not Found') ? 'page-not-found'
+            : document.querySelector('input[type="password"]') ? 'login-form'
+            : text.includes('正在完成登录') ? 'login-redirect-wait' : 'page-loaded';
+          return {url: location.href, kind,
+            forms: kind === 'login-form' ? Array.from(document.forms).slice(0, 4)
+              .map(f => ({action: f.action, method: f.method})) : []};
         })()
       """);
+      if (page is! Map || page['url'] != url?.toString() ||
+          (await controller.getUrl())?.toString() != page['url'] ||
+          !mounted || !_diagnosticMode) return;
       const allowed = ['login-form', 'login-redirect-wait', 'page-not-found', 'page-loaded'];
-      if (mounted && _diagnosticMode && allowed.contains(kind)) {
-        AttendanceDiagnostics.add('$kind', url: url?.toString());
-        if (kind == 'login-form') {
-          final forms = await controller.evaluateJavascript(source:
-            'Array.from(document.forms).slice(0, 4).map(f => ({action: f.action, method: f.method}))');
-          if (forms is List && mounted && _diagnosticMode) {
-            for (final form in forms.whereType<Map>()) {
-              AttendanceDiagnostics.add('login-form-target', url: '${form['action'] ?? ''}',
-                method: '${form['method'] ?? 'GET'}'.toUpperCase());
-            }
-          }
+      if (!allowed.contains(page['kind'])) return;
+      AttendanceDiagnostics.add('${page['kind']}', url: url?.toString());
+      if (page['forms'] case final List forms) {
+        for (final form in forms.whereType<Map>()) {
+          AttendanceDiagnostics.add('login-form-target', url: '${form['action'] ?? ''}',
+            method: '${form['method'] ?? 'GET'}'.toUpperCase());
         }
       }
     } catch (_) { /* Diagnostics must not interrupt authentication. */ }
@@ -134,7 +136,6 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
     setState(() { _progress = 1; _error = '认证页面返回 HTTP $status，登录尚未完成。可重试当前入口，或手动切换入口。'; });
   }
   Future<void> _retry() async {
-    _recovery.reset();
     setState(() { _error = null; _progress = 0; });
     if (!_ready) { await _prepare(); return; }
     _arm();
@@ -203,7 +204,6 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
           return NavigationActionPolicy.ALLOW;
         },
         onLoadStart: (_, url) {
-          _recovery.observe(url?.toString());
           AttendanceDiagnostics.add('navigation', url: url?.toString());
           _capture(url);
         },
@@ -233,19 +233,6 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
           final currentUrl = mainFrame == null ? await controller.getUrl() : null;
           if (mainFrame == true || (mainFrame == null && currentUrl?.toString() == request.url.toString())) {
             if (!mounted || _saving) return;
-            if (_recovery.claimRoot404(request.url.toString(), response.statusCode!, request.method)) {
-              AttendanceDiagnostics.add('cas-root-recovery', url: _system.loginUrl);
-              setState(() { _error = null; _progress = 0; });
-              _arm();
-              try {
-                // Keep the current WebView and cookies; do not resubmit the
-                // password or switch to a different WebVPN login flow.
-                await controller.loadUrl(urlRequest: URLRequest(url: WebUri(_system.loginUrl)));
-              } catch (_) {
-                if (mounted) setState(() => _error = '无法继续考勤授权，请点击重新发起授权');
-              }
-              return;
-            }
             await _httpFailure(response.statusCode!);
           }
         },

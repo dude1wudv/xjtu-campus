@@ -46,35 +46,6 @@ enum AttendanceSystem {
   }).toString();
 }
 
-/// Recover only the observed CAS root 404 after visiting the login form.
-/// Re-enter OAuth in the same WebView so any established SSO cookies survive.
-/// This does not imply authentication succeeded; a valid attendance token is
-/// still required. Each authentication attempt gets at most one recovery.
-class AttendanceLoginRecovery {
-  bool _visitedLogin = false;
-  bool _used = false;
-
-  void observe(String? url) {
-    final uri = Uri.tryParse(url ?? '');
-    if (uri != null && uri.host == 'login.xjtu.edu.cn' &&
-        (uri.path == '/cas/login' || uri.path.startsWith('/cas/login;'))) {
-      _visitedLogin = true;
-    }
-  }
-
-  bool claimRoot404(String url, int status, String? method) {
-    final uri = Uri.tryParse(url);
-    if (_used || !_visitedLogin || status != 404 ||
-        (method ?? 'GET').toUpperCase() != 'GET' ||
-        uri == null || uri.host != 'login.xjtu.edu.cn' ||
-        !(uri.path.isEmpty || uri.path == '/')) return false;
-    _used = true;
-    return true;
-  }
-
-  void reset() { _visitedLogin = false; _used = false; }
-}
-
 /// Read-only integration with the school's attendance-student API.
 /// Protocol reference: XJTUToolBox attendance/attendance.py (endpoints and fields).
 /// Attendance status is read from classWaterBean, never inferred from swipes.
@@ -184,7 +155,6 @@ class AttendanceRepository {
     final entry = system.entryUrl(useWebVpn: session.useWebVpn);
     Object? failure;
     var loginPageSeen = false;
-    final recovery = AttendanceLoginRecovery();
     void fail(Object error) {
       if (result.isCompleted) return;
       failure = error;
@@ -225,7 +195,6 @@ class AttendanceRepository {
           return NavigationActionPolicy.ALLOW;
         },
         onLoadStart: (_, url) {
-          recovery.observe(url?.toString());
           capture(url);
         },
         onLoadStop: (controller, url) async {
@@ -253,13 +222,6 @@ class AttendanceRepository {
           if (request.isForMainFrame == null &&
               (await controller.getUrl())?.toString() != request.url.toString()) return;
           if (result.isCompleted) return;
-          if (recovery.claimRoot404(request.url.toString(), response.statusCode!, request.method)) {
-            AttendanceDiagnostics.add('cas-root-recovery', url: system.loginUrl);
-            try {
-              await controller.loadUrl(urlRequest: URLRequest(url: WebUri(system.loginUrl)));
-            } catch (_) { fail(const AttendanceConnectionFailed()); }
-            return;
-          }
           fail(const AttendanceConnectionFailed());
         },
       );
