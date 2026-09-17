@@ -1,3 +1,4 @@
+import 'attendance_diagnostics_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -52,6 +53,7 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
     }).toList();
     return AppPageScaffold(
       appBar: AppBar(title: const Text('考勤查询'), actions: [
+        IconButton(tooltip: '接口诊断', onPressed: () => showAttendanceDiagnostics(context), icon: const Icon(Icons.bug_report_outlined)),
         IconButton(tooltip: '官方考勤系统', onPressed: _openOfficial, icon: const Icon(Icons.open_in_browser)),
         ManualRefreshButton(onRefresh: () => ref.read(attendanceSnapshotProvider.notifier).refresh()),
       ]),
@@ -115,7 +117,9 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
                         : '请打开官方考勤系统完成认证；校外访问可先连接 WebVPN。')
                     : value.error is AttendanceConnectionFailed
                         ? '考勤系统连接失败，请稍后重试，无需重复登录 WebVPN。'
-                        : '考勤同步未完成，学校接口可能响应较慢。请稍后重试。'),
+                        : value.error is FormatException
+                            ? '学校返回的数据结构无法解析。请打开接口诊断，复制脱敏信息反馈。'
+                            : '考勤同步未完成，请查看接口诊断或稍后重试。'),
                 const SizedBox(height: 12),
                 if (value.error is AttendanceAuthRequired)
                   FilledButton(onPressed: _openOfficial, child: const Text('打开官方考勤系统'))

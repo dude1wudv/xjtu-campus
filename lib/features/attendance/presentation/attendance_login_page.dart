@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +11,8 @@ import '../../../core/network/webview_cookie_bridge.dart';
 import '../../../core/network/webvpn_url.dart';
 import '../../../core/widgets/app_page_scaffold.dart';
 import '../data/attendance_repository.dart';
+import '../data/attendance_diagnostics.dart';
+import 'attendance_diagnostics_sheet.dart';
 import 'attendance_providers.dart';
 
 /// Complete the OAuth redirect inside one shared-cookie WebView. Do not start
@@ -28,6 +31,7 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
   double _progress = 0;
   bool _portal = false;
   bool _fallbackUsed = false;
+  bool _diagnosticMode = false;
   @override
   void initState() {
     super.initState();
@@ -69,7 +73,12 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
       });
       await session.saveAttendanceToken(_system.host, token);
       if (!mounted) return;
-      context.pop(true);
+      AttendanceDiagnostics.add('token-saved', url: uri.toString());
+      if (_diagnosticMode) {
+        setState(() { _saving = false; _error = null; });
+      } else {
+        context.pop(true);
+      }
     } catch (_) {
       _saving = false;
       if (mounted) setState(() => _error = '登录凭据保存失败，请重试');
@@ -94,7 +103,6 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
     setState(() { _error = null; _progress = 0; });
     if (!_ready) { await _prepare(); return; }
     _arm();
-    final session = ref.read(campusSessionProvider);
     try {
       await _controller?.loadUrl(urlRequest: URLRequest(url: WebUri(_entry())));
     } catch (_) { if (mounted) setState(() => _error = '无法打开认证页面，请检查网络后重试'); }
@@ -110,8 +118,16 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
   Widget build(BuildContext context) {
     final session = ref.read(campusSessionProvider);
     return AppPageScaffold(appBar: AppBar(title: Text('${_system.label}考勤认证'), actions: [
+      IconButton(tooltip: '接口诊断', onPressed: () => showAttendanceDiagnostics(context), icon: const Icon(Icons.bug_report_outlined)),
       IconButton(tooltip: '重新授权', onPressed: _retry, icon: const Icon(Icons.refresh)),
     ]), body: Column(children: [
+      SwitchListTile(title: const Text('接口诊断模式'),
+        subtitle: const Text('开启后重新授权，并在官方页面打开考勤记录；返回查看脱敏诊断。'),
+        value: _diagnosticMode, onChanged: (value) {
+          setState(() { _diagnosticMode = value; _saving = false; _error = null; });
+          AttendanceDiagnostics.add(value ? 'diagnostic-start' : 'diagnostic-stop');
+          _arm();
+        }),
       if (_progress < 1) LinearProgressIndicator(value: _progress == 0 ? null : _progress),
       if (_error != null) Padding(padding: const EdgeInsets.all(12), child: Column(children: [
         Text(_error!),
@@ -120,11 +136,25 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
           child: Text(_portal ? '切换学校统一授权入口' : '切换考勤系统入口')),
       ])),
       Expanded(child: !_ready ? const Center(child: CircularProgressIndicator()) : InAppWebView(
+        key: ValueKey(_diagnosticMode),
+        initialUserScripts: UnmodifiableListView<UserScript>([
+          if (_diagnosticMode) UserScript(source: AttendanceDiagnostics.script,
+            injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START, forMainFrameOnly: true),
+        ]),
         initialUrlRequest: URLRequest(url: WebUri(_entry())),
         initialSettings: InAppWebViewSettings(javaScriptEnabled: true, domStorageEnabled: true,
           thirdPartyCookiesEnabled: true, useShouldOverrideUrlLoading: true,
           userAgent: CampusUrls.userAgent),
-        onWebViewCreated: (controller) => _controller = controller,
+        onWebViewCreated: (controller) {
+          _controller = controller;
+          controller.addJavaScriptHandler(handlerName: 'attendanceTrace', callback: (args) async {
+            final uri = Uri.tryParse('${await controller.getUrl()}');
+            if (!_diagnosticMode || uri == null ||
+                !WebVpnUrl.matchesHost(uri, _system.host) || args.isEmpty || args.first is! Map) return null;
+            AttendanceDiagnostics.browser(args.first as Map);
+            return null;
+          });
+        },
         shouldOverrideUrlLoading: (controller, action) async {
           if (action.isForMainFrame != false && action.request.url != null &&
               (action.request.method ?? 'GET').toUpperCase() == 'GET') {
@@ -137,7 +167,10 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
           }
           return NavigationActionPolicy.ALLOW;
         },
-        onLoadStart: (_, url) => _capture(url),
+        onLoadStart: (_, url) {
+          AttendanceDiagnostics.add('navigation', url: url?.toString());
+          _capture(url);
+        },
         onUpdateVisitedHistory: (_, url, _) => _capture(url),
         onProgressChanged: (_, progress) { if (mounted) setState(() => _progress = progress / 100); },
         onLoadStop: (controller, url) async {
@@ -152,10 +185,12 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
         },
         onReceivedHttpError: (_, request, response) async {
           if (request.isForMainFrame != false && (response.statusCode ?? 0) >= 400) {
+            AttendanceDiagnostics.add('page-http-error', url: request.url.toString(), status: response.statusCode);
             await _httpFailure(response.statusCode!);
           }
         },
         onReceivedError: (_, request, _) {
+          if (request.isForMainFrame != false) AttendanceDiagnostics.add('page-network-error', url: request.url.toString());
           if (request.isForMainFrame != false && mounted) setState(() => _error = '认证页面连接失败，请重试');
         },
       )),

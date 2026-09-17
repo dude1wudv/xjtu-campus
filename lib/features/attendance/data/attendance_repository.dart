@@ -1,3 +1,4 @@
+import 'attendance_diagnostics.dart';
 import 'dart:async';
 
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -116,12 +117,16 @@ class AttendanceRepository {
 
   Future<Object?> _post(AttendanceSystem system, String token,
       String path, Map<String, dynamic> body) async {
-    final response = await session.post('${system.origin}/attendance-student$path',
+    final url = '${system.origin}/attendance-student$path';
+    AttendanceDiagnostics.add(session.useWebVpn ? 'api-request-vpn' : 'api-request-direct', url: url, method: 'POST');
+    final response = await session.post(url,
       data: body, jsonBody: true, cancelToken: _cancelToken,
       headers: {'Synjones-Auth': 'bearer $token', 'Referer': '${system.origin}/',
         'Accept': 'application/json'},
     );
     final json = session.tryJson(response);
+    AttendanceDiagnostics.add('api-response', url: response.realUri.toString(),
+      method: 'POST', status: response.statusCode, response: json ?? response.data);
     if (AttendanceConnectionFailed.isGatewayError('${response.data}')) {
       throw const AttendanceConnectionFailed();
     }
