@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:collection';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -30,11 +31,13 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
   String? _error;
   double _progress = 0;
   bool _portal = false;
+  bool _useWebVpn = false;
   bool _diagnosticMode = false;
   @override
   void initState() {
     super.initState();
     _system = ref.read(attendanceSystemProvider);
+    _useWebVpn = _system.usesLegacyApi && ref.read(campusSessionProvider).useWebVpn;
     Future.microtask(_prepare);
   }
   Future<void> _prepare() async {
@@ -45,19 +48,19 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
       await session.restore();
       await WebViewCookieBridge.seedOrigins(session: session, origins: {
         CampusUrls.casLogin, _system.loginUrl, session.resolveUrl(_system.loginUrl),
-        session.resolveUrl(_system.origin), CampusUrls.webVpn,
+        _system.origin, _system.workbenchUrl,
+        WebVpnUrl.maybeConvert(_system.origin, enabled: _useWebVpn), CampusUrls.webVpn,
       });
       if (mounted) { setState(() => _ready = true); _arm(); }
     } catch (_) { if (mounted) setState(() => _error = '登录页面准备失败，请重试'); }
   }
   void _arm() {
     _timer?.cancel();
-    if (!_system.usesLegacyApi) return;
     _timer = Timer(const Duration(seconds: 50), () {
       if (mounted && !_saving) {
         AttendanceDiagnostics.add('authentication-timeout');
         if (_controller != null) _recordPage(_controller!);
-        setState(() => _error = '认证尚未完成。请完成页面中的登录；若一直停在跳转页，可重新发起授权。');
+        setState(() => _error = '页面等待时间较长。若一直停在认证跳转页，可用系统浏览器从登录入口继续。');
       }
     });
   }
@@ -66,7 +69,7 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
     try {
       final url = await controller.getUrl();
       final uri = Uri.tryParse('$url');
-      if (uri == null || !['login.xjtu.edu.cn', 'org.xjtu.edu.cn', _system.host]
+      if (uri == null || !['login.xjtu.edu.cn', 'org.xjtu.edu.cn', 'kq.xjtu.edu.cn', _system.host]
           .any((host) => WebVpnUrl.matchesHost(uri, host))) return;
       // Read the document URL, classification and form routes in one JS turn.
       // WebView.getUrl may already point at the next navigation while the DOM
@@ -126,10 +129,20 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
     }
   }
   String _entry() {
-    final session = ref.read(campusSessionProvider);
-    return _portal ? session.resolveUrl(_system.workbenchUrl)
-        : _system.entryUrl(useWebVpn: session.useWebVpn);
+    return _portal ? WebVpnUrl.maybeConvert(_system.workbenchUrl, enabled: _useWebVpn)
+        : _system.entryUrl(useWebVpn: _useWebVpn);
   }
+  Future<void> _openExternal({bool workbench = false}) async {
+    final raw = workbench ? _system.workbenchUrl : _system.loginUrl;
+    final url = WebVpnUrl.maybeConvert(raw, enabled: _useWebVpn);
+    try {
+      final opened = await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      if (!opened && mounted) setState(() => _error = '无法打开系统浏览器，请检查是否安装浏览器');
+    } catch (_) {
+      if (mounted) setState(() => _error = '系统浏览器启动失败，请稍后重试');
+    }
+  }
+
   Future<void> _httpFailure(int status) async {
     if (!mounted || _saving) return;
     _timer?.cancel();
@@ -154,11 +167,27 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
   }
   @override
   Widget build(BuildContext context) {
-    final session = ref.read(campusSessionProvider);
     return AppPageScaffold(appBar: AppBar(title: Text('${_system.label}${_system.usesLegacyApi ? '考勤认证' : '考勤工作台'}'), actions: [
+      IconButton(tooltip: '系统浏览器登录', onPressed: () => _openExternal(), icon: const Icon(Icons.open_in_browser)),
       IconButton(tooltip: '接口诊断', onPressed: () => showAttendanceDiagnostics(context), icon: const Icon(Icons.bug_report_outlined)),
       IconButton(tooltip: '重新授权', onPressed: _retry, icon: const Icon(Icons.refresh)),
     ]), body: Column(children: [
+      if (!_system.usesLegacyApi) Padding(padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          SwitchListTile.adaptive(contentPadding: EdgeInsets.zero,
+            title: const Text('考勤使用 WebVPN'),
+            subtitle: const Text('默认直连；只有直连无法访问时再开启'),
+            value: _useWebVpn, onChanged: (value) {
+              setState(() { _useWebVpn = value; _portal = false; });
+              _retry();
+            }),
+          Wrap(spacing: 8, children: [
+            TextButton.icon(onPressed: () => _openExternal(), icon: const Icon(Icons.login),
+              label: const Text('浏览器登录入口')),
+            TextButton(onPressed: () => _openExternal(workbench: true), child: const Text('浏览器打开工作台')),
+          ]),
+          const Text('请先在系统浏览器完成登录，再在同一浏览器打开工作台。浏览器登录状态不会自动同步到应用。'),
+        ])),
       SwitchListTile(title: const Text('接口诊断模式'),
         subtitle: const Text('开启不会刷新登录页。完成登录后打开考勤记录，再查看脱敏诊断。'),
         value: _diagnosticMode, onChanged: (value) {
@@ -182,7 +211,7 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
         initialUrlRequest: URLRequest(url: WebUri(_entry())),
         initialSettings: InAppWebViewSettings(javaScriptEnabled: true, domStorageEnabled: true,
           thirdPartyCookiesEnabled: true, useShouldOverrideUrlLoading: true,
-          userAgent: CampusUrls.userAgent),
+          userAgent: _system.usesLegacyApi ? CampusUrls.userAgent : null),
         onWebViewCreated: (controller) {
           _controller = controller;
           controller.addJavaScriptHandler(handlerName: 'attendanceTrace', callback: (args) async {
@@ -197,7 +226,7 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
           if (action.isForMainFrame != false && action.request.url != null &&
               (action.request.method ?? 'GET').toUpperCase() == 'GET') {
             final raw = action.request.url.toString();
-            final target = _system.navigationUrl(raw, useWebVpn: session.useWebVpn);
+            final target = _system.navigationUrl(raw, useWebVpn: _useWebVpn);
             if (target != raw) {
               await controller.loadUrl(urlRequest: URLRequest(url: WebUri(target)));
               return NavigationActionPolicy.CANCEL;
@@ -215,6 +244,9 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
         },
         onProgressChanged: (_, progress) { if (mounted) setState(() => _progress = progress / 100); },
         onLoadStop: (controller, url) async {
+          if (url != null && url.toString().split('?').first == _system.workbenchUrl) {
+            _timer?.cancel();
+          }
           await _recordPage(controller);
           await _capture(url);
           if (!mounted || _saving) return;

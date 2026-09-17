@@ -413,6 +413,7 @@ class CampusSession {
       'lib.xjtu.edu.cn',
       'bkkq.xjtu.edu.cn',
       'bk-kq.xjtu.edu.cn',
+      'kq.xjtu.edu.cn',
       'yjskq.xjtu.edu.cn',
       'lms.xjtu.edu.cn',
     };

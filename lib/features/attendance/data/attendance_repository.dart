@@ -24,12 +24,18 @@ enum AttendanceSystem {
   // The public OAuth gateway must retain its own origin and redirect chain.
   // Proxy only the private attendance host, not the authorization gateway.
   String entryUrl({required bool useWebVpn}) => usesLegacyApi
-      ? loginUrl : WebVpnUrl.maybeConvert(workbenchUrl, enabled: useWebVpn);
+      ? loginUrl : WebVpnUrl.maybeConvert(loginUrl, enabled: useWebVpn);
 
   String navigationUrl(String raw, {required bool useWebVpn}) {
     var url = raw;
     final uri = Uri.tryParse(raw);
     if (uri == null) return raw;
+    if (!usesLegacyApi) {
+      // The new entry and workbench form one authentication flow. Preserve
+      // server redirects, and only proxy these two hosts when explicitly chosen.
+      return {host, 'kq.xjtu.edu.cn'}.contains(uri.host)
+          ? WebVpnUrl.maybeConvert(raw, enabled: useWebVpn) : raw;
+    }
     if (uri.host == host && uri.scheme == 'http') {
       url = uri.replace(scheme: 'https', port: 443).toString();
     } else if (WebVpnUrl.isWebVpn(raw)) {
@@ -42,7 +48,7 @@ enum AttendanceSystem {
         ? WebVpnUrl.maybeConvert(url, enabled: useWebVpn) : url;
   }
 
-  String get loginUrl => !usesLegacyApi ? workbenchUrl : Uri.https('org.xjtu.edu.cn', '/openplatform/oauth/authorize', {
+  String get loginUrl => !usesLegacyApi ? 'https://kq.xjtu.edu.cn/studentpc/student/entry' : Uri.https('org.xjtu.edu.cn', '/openplatform/oauth/authorize', {
     'appId': appId,
     'redirectUri': '$origin/berserker-auth/auth/attendance-pc/casReturn',
     'responseType': 'code', 'scope': 'user_info', 'state': '1234',
