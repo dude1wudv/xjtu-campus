@@ -6,7 +6,7 @@
 
 ## 当前正式版
 
-**v1.5.0**（GitHub Latest）。相对 v1.4.0 新增校园卡余额/流水、图书馆座位（校园网）、手动强制刷新，并修复图书馆登录 Cookie 在 `http://rg.lib.xjtu.edu.cn:8086` 下的落盘与协议匹配。
+**v1.5.4**（GitHub Latest）。相对 v1.5.0：移动端 UI 统一、WebVPN 贯通校园服务、考勤、思源学堂作业中心；并含图书馆 Cookie / 校园卡能力。
 
 ## 下载与更新
 
@@ -146,6 +146,8 @@ lib/
     home/         底部导航壳与首页
     campus_card/  校园卡余额与流水（ncard，只读）
     library_seats/图书馆座位查询与预约辅助（校园网）
+    attendance/  考勤记录
+    homework/    思源学堂作业中心
     about/        关于页、检查更新与应用内安装 APK
 ```
 
@@ -155,7 +157,7 @@ lib/
 
 - 显示名：交大校园助手
 - 包名：`xjtu_campus`（Android/iOS：`cn.edu.xjtu.xjtu_campus`）
-- 正式版版本：见 `pubspec.yaml`（当前 **1.5.0+17**）
+- 正式版版本：见 `pubspec.yaml`（当前 **1.5.4+21**）
 
 ## 相关文档
 
