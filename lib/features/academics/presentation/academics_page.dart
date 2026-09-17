@@ -1,27 +1,23 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/l10n/app_strings.dart';
-import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_tokens.dart';
-import '../../../core/widgets/app_surface_card.dart';
-import '../../../core/widgets/manual_refresh_button.dart';
-import '../../calendar/presentation/calendar_providers.dart';
-import '../../campus_card/presentation/campus_card_providers.dart';
-import '../../exams/presentation/exams_providers.dart';
-import '../../grades/presentation/grades_providers.dart';
+import '../../../core/widgets/app_page_scaffold.dart';
+import '../../../core/widgets/app_section_header.dart';
+import '../../home/presentation/campus_services.dart';
 
-/// Hub for grades + exams (keeps bottom tabs at 5).
-class AcademicsPage extends ConsumerWidget {
+/// A navigation-only hub: repositories load when the destination opens.
+class AcademicsPage extends StatelessWidget {
   const AcademicsPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return Scaffold(
+  Widget build(BuildContext context) {
+    return AppPageScaffold(
       appBar: AppBar(
         title: const Text(AppStrings.academicsTitle),
         leading: IconButton(
+          tooltip: '返回',
           icon: const Icon(Icons.arrow_back_rounded),
           onPressed: () {
             if (context.canPop()) {
@@ -31,126 +27,15 @@ class AcademicsPage extends ConsumerWidget {
             }
           },
         ),
-        actions: [
-          ManualRefreshButton(
-            onRefresh: () async {
-              await ref
-                  .read(gradesSnapshotProvider.notifier)
-                  .refresh(force: true);
-              await ref
-                  .read(examsSnapshotProvider.notifier)
-                  .refresh(force: true);
-              await ref
-                  .read(calendarSnapshotProvider.notifier)
-                  .refresh(force: true);
-              await ref
-                  .read(campusCardSnapshotProvider.notifier)
-                  .refresh(force: true);
-            },
-          ),
-        ],
       ),
       body: ListView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         padding: AppTokens.pagePadding,
-        children: [
-          Text(
-            AppStrings.academicsSubtitle,
-            style: const TextStyle(color: AppColors.inkSoft, height: 1.4),
-          ),
-          const SizedBox(height: AppTokens.spaceLg),
-          _HubTile(
-            icon: Icons.grade_outlined,
-            title: AppStrings.gradesTitle,
-            subtitle: AppStrings.gradesHubSubtitle,
-            onTap: () => context.push('/grades'),
-          ),
-          const SizedBox(height: AppTokens.spaceMd),
-          _HubTile(
-            icon: Icons.edit_calendar_outlined,
-            title: AppStrings.examsTitle,
-            subtitle: AppStrings.examsHubSubtitle,
-            onTap: () => context.push('/exams'),
-          ),
-          const SizedBox(height: AppTokens.spaceMd),
-          _HubTile(
-            icon: Icons.calendar_month_outlined,
-            title: AppStrings.calendarTitle,
-            subtitle: AppStrings.calendarHubSubtitle,
-            onTap: () => context.push('/calendar'),
-          ),
-          const SizedBox(height: AppTokens.spaceMd),
-          _HubTile(
-            icon: Icons.credit_card_outlined,
-            title: AppStrings.campusCardTitle,
-            subtitle: AppStrings.campusCardHubSubtitle,
-            onTap: () => context.push('/campus-card'),
-          ),
-          const SizedBox(height: AppTokens.spaceMd),
-          _HubTile(
-            icon: Icons.event_seat_outlined,
-            title: AppStrings.librarySeatsTitle,
-            subtitle: AppStrings.librarySeatsHubSubtitle,
-            onTap: () => context.push('/library-seats'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _HubTile extends StatelessWidget {
-  const _HubTile({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return AppSurfaceCard(
-      onTap: onTap,
-      softShadow: true,
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: const BoxDecoration(
-              color: AppColors.chip,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: AppColors.navy),
-          ),
-          const SizedBox(width: AppTokens.spaceMd),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 15,
-                  ),
-                ),
-                const SizedBox(height: AppTokens.spaceXs),
-                Text(
-                  subtitle,
-                  style: const TextStyle(
-                    fontSize: 12.5,
-                    color: AppColors.inkSoft,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Icon(Icons.chevron_right_rounded, color: AppColors.inkSoft),
+        children: const [
+          AppSectionHeader(title: '学习教务', subtitle: '把每一天的学习安排得井井有条'),
+          CampusServiceGrid(services: CampusService.learning),
+          AppSectionHeader(title: '校园生活', subtitle: '常用校园服务'),
+          CampusServiceGrid(services: CampusService.living),
         ],
       ),
     );

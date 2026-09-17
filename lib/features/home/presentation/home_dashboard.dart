@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
-import '../../../core/di/core_providers.dart';
+import '../../../core/widgets/app_page_scaffold.dart';
 import '../../../core/l10n/app_strings.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_tokens.dart';
@@ -11,18 +11,12 @@ import '../../../core/widgets/app_feedback.dart';
 import '../../../core/widgets/app_surface_card.dart';
 import '../../about/presentation/about_sheet.dart';
 import '../../auth/presentation/auth_controller.dart';
-import '../../campus_card/presentation/campus_card_providers.dart';
-import '../../notifications/domain/school_notice.dart';
 import '../../schedule/domain/course.dart';
 import '../../schedule/presentation/schedule_providers.dart';
 import '../domain/greeting.dart';
+import '../../../core/widgets/app_section_header.dart';
+import 'campus_services.dart';
 import '../../../core/widgets/manual_refresh_button.dart';
-
-/// Lightweight peek — mock/local only, no WebView / Dio on home open.
-final homeNoticesPeekProvider = FutureProvider<List<SchoolNotice>>((ref) async {
-  final snap = await ref.watch(mockNotificationsRepositoryProvider).load();
-  return snap.notices.take(3).toList();
-});
 
 class HomeDashboard extends ConsumerStatefulWidget {
   const HomeDashboard({super.key});
@@ -45,23 +39,16 @@ class _HomeDashboardState extends ConsumerState<HomeDashboard> {
   Widget build(BuildContext context) {
     final auth = ref.watch(authControllerProvider);
     final snapshot = ref.watch(scheduleSnapshotProvider);
-    final noticesPeek = ref.watch(homeNoticesPeekProvider);
     final now = DateTime.now();
 
-    return Scaffold(
+    return AppPageScaffold(
       appBar: AppBar(
         title: const Text(AppStrings.appName),
         actions: [
           ManualRefreshButton(
-            onRefresh: () async {
-              await ref
-                  .read(scheduleSnapshotProvider.notifier)
-                  .refresh(force: true);
-              await ref
-                  .read(campusCardSnapshotProvider.notifier)
-                  .refresh(force: true);
-              ref.invalidate(homeNoticesPeekProvider);
-            },
+            onRefresh: () => ref
+                .read(scheduleSnapshotProvider.notifier)
+                .refresh(force: true),
           ),
           IconButton(
             tooltip: '关于 / 检查更新',
@@ -75,9 +62,15 @@ class _HomeDashboardState extends ConsumerState<HomeDashboard> {
           ),
         ],
       ),
-      body: ListView(
+      body: RefreshIndicator(
+        onRefresh: () => ref.read(scheduleSnapshotProvider.notifier).refresh(force: true),
+        child: ListView(
+        key: const PageStorageKey('home-dashboard'),
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: AppTokens.pagePadding,
         children: [
+          _GreetingCard(auth: auth, now: now, week: snapshot.value?.week),
+          const SizedBox(height: AppTokens.spaceMd),
           snapshot.when(
             data: (data) =>
                 DataSourceBanner(
@@ -87,12 +80,10 @@ class _HomeDashboardState extends ConsumerState<HomeDashboard> {
               cachedAt: data.cachedAt,
               fetchedAt: data.fetchedAt,
             ),
-            loading: () => const MockDataBanner(),
-            error: (_, _) => const MockDataBanner(),
+            loading: () => const SizedBox.shrink(),
+            error: (_, _) => const SizedBox.shrink(),
           ),
-          const SizedBox(height: AppTokens.spaceLg),
-          _GreetingCard(auth: auth, now: now, week: snapshot.value?.week),
-          const SizedBox(height: AppTokens.spaceLg),
+          const AppSectionHeader(title: '今日安排'),
           AsyncBody(
             value: snapshot,
             onRetry: () => ref.read(scheduleSnapshotProvider.notifier).refresh(force: true),
@@ -130,26 +121,33 @@ class _HomeDashboardState extends ConsumerState<HomeDashboard> {
               );
             },
           ),
-          const SizedBox(height: AppTokens.spaceLg),
-          _NoticesPeek(value: noticesPeek),
-          const SizedBox(height: AppTokens.spaceMd),
-          const _ClassroomShortcutCard(),
-          const SizedBox(height: AppTokens.spaceMd),
-          const _AcademicsShortcutCard(),
-          const SizedBox(height: AppTokens.spaceMd),
-          const _CalendarShortcutCard(),
-          const SizedBox(height: AppTokens.spaceMd),
-          const _CampusCardShortcutCard(),
-          const SizedBox(height: AppTokens.spaceMd),
-          const _LibrarySeatsShortcutCard(),
-          const SizedBox(height: AppTokens.spaceXl),
-          Text(
-            AppStrings.quickActions,
-            style: Theme.of(context).textTheme.titleMedium,
+          const AppSectionHeader(title: '学习教务', subtitle: '课程、成绩与考试，集中查看'),
+          const CampusServiceGrid(services: CampusService.learning),
+          const AppSectionHeader(title: '校园生活', subtitle: '自习、消费与提醒，随手可达'),
+          const CampusServiceGrid(services: CampusService.living),
+          const AppSectionHeader(title: '校园资讯'),
+          AppSurfaceCard(
+            onTap: () => context.go('/notices'),
+            child: const Row(
+              children: [
+                Icon(Icons.campaign_outlined, color: AppColors.navy),
+                SizedBox(width: AppTokens.spaceMd),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('学校通知', style: TextStyle(fontWeight: FontWeight.w700)),
+                      SizedBox(height: AppTokens.spaceXs),
+                      Text('查看教务公告与校园动态'),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right_rounded, color: AppColors.inkSoft),
+              ],
+            ),
           ),
-          const SizedBox(height: AppTokens.spaceSm),
-          const _QuickActions(),
         ],
+      ),
       ),
     );
   }
@@ -271,22 +269,19 @@ class _GreetingCard extends StatelessWidget {
                 height: 1.35,
               ),
             ),
-            const SizedBox(height: AppTokens.spaceLg),
-            if (!auth.isLoggedIn)
-              FilledButton(
+            if (!auth.isLoggedIn) ...[
+              const SizedBox(height: AppTokens.spaceMd),
+              FilledButton.icon(
                 style: FilledButton.styleFrom(
                   backgroundColor: Colors.white,
                   foregroundColor: AppColors.navy,
                   minimumSize: const Size(0, 44),
                 ),
                 onPressed: () => context.push('/login'),
-                child: const Text(AppStrings.openLogin),
-              )
-            else
-              Text(
-                '${AppStrings.loggedInAs} ${auth.user.studentId}',
-                style: TextStyle(color: Colors.white.withValues(alpha: 0.9)),
+                icon: const Icon(Icons.person_outline, size: 18),
+                label: const Text(AppStrings.openLogin),
               ),
+            ],
           ],
         ),
       ),
@@ -598,508 +593,3 @@ class _StatChip extends StatelessWidget {
   }
 }
 
-class _NoticesPeek extends StatelessWidget {
-  const _NoticesPeek({required this.value});
-
-  final AsyncValue<List<SchoolNotice>> value;
-
-  @override
-  Widget build(BuildContext context) {
-    return value.when(
-      loading: () => AppSurfaceCard(
-        onTap: () => context.go('/notices'),
-        child: const _NoticesPeekHeader(subtitle: AppStrings.noticesPeekSubtitle),
-      ),
-      error: (_, _) => AppSurfaceCard(
-        onTap: () => context.go('/notices'),
-        child: const _NoticesPeekHeader(subtitle: AppStrings.noticesPeekSubtitle),
-      ),
-      data: (notices) {
-        if (notices.isEmpty) {
-          return AppSurfaceCard(
-            onTap: () => context.go('/notices'),
-            child: const _NoticesPeekHeader(
-              subtitle: AppStrings.noticesPeekSubtitle,
-            ),
-          );
-        }
-        return AppSurfaceCard(
-          padding: EdgeInsets.zero,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              InkWell(
-                onTap: () => context.go('/notices'),
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(AppTokens.radiusLg),
-                ),
-                child: const Padding(
-                  padding: AppTokens.cardPadding,
-                  child: _NoticesPeekHeader(
-                    subtitle: AppStrings.noticesPeekMore,
-                  ),
-                ),
-              ),
-              const Divider(height: 1, color: AppColors.line),
-              for (var i = 0; i < notices.length; i++) ...[
-                if (i > 0) const Divider(height: 1, color: AppColors.line),
-                InkWell(
-                  onTap: () => context.go('/notices'),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppTokens.spaceLg,
-                      vertical: AppTokens.spaceMd,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          notices[i].title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
-                            color: AppColors.ink,
-                          ),
-                        ),
-                        const SizedBox(height: AppTokens.spaceXs),
-                        Text(
-                          DateFormat('M月d日', 'zh_CN')
-                              .format(notices[i].publishedAt),
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: AppColors.inkSoft,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _NoticesPeekHeader extends StatelessWidget {
-  const _NoticesPeekHeader({required this.subtitle});
-
-  final String subtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 36,
-          height: 36,
-          decoration: const BoxDecoration(
-            color: AppColors.chip,
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(
-            Icons.campaign_outlined,
-            size: 18,
-            color: AppColors.navy,
-          ),
-        ),
-        const SizedBox(width: AppTokens.spaceMd),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                AppStrings.noticesPeekTitle,
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 15,
-                  color: AppColors.ink,
-                ),
-              ),
-              Text(
-                subtitle,
-                style: const TextStyle(fontSize: 12, color: AppColors.inkSoft),
-              ),
-            ],
-          ),
-        ),
-        const Icon(Icons.chevron_right_rounded, color: AppColors.inkSoft),
-      ],
-    );
-  }
-}
-
-class _ClassroomShortcutCard extends StatelessWidget {
-  const _ClassroomShortcutCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return AppSurfaceCard(
-      onTap: () => context.go('/classroom'),
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: const BoxDecoration(
-              color: AppColors.chip,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.meeting_room_outlined,
-              color: AppColors.navy,
-            ),
-          ),
-          const SizedBox(width: AppTokens.spaceMd),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  AppStrings.findClassroomTitle,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 15,
-                    color: AppColors.ink,
-                  ),
-                ),
-                SizedBox(height: AppTokens.spaceXs),
-                Text(
-                  AppStrings.findClassroomSubtitle,
-                  style: TextStyle(fontSize: 12, color: AppColors.inkSoft),
-                ),
-              ],
-            ),
-          ),
-          const Icon(Icons.chevron_right_rounded, color: AppColors.inkSoft),
-        ],
-      ),
-    );
-  }
-}
-
-
-class _AcademicsShortcutCard extends StatelessWidget {
-  const _AcademicsShortcutCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return AppSurfaceCard(
-      onTap: () => context.push('/academics'),
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: const BoxDecoration(
-              color: AppColors.chip,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.school_outlined,
-              color: AppColors.navy,
-            ),
-          ),
-          const SizedBox(width: AppTokens.spaceMd),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  AppStrings.academicsTitle,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 15,
-                    color: AppColors.ink,
-                  ),
-                ),
-                SizedBox(height: AppTokens.spaceXs),
-                Text(
-                  AppStrings.academicsSubtitle,
-                  style: TextStyle(fontSize: 12, color: AppColors.inkSoft),
-                ),
-              ],
-            ),
-          ),
-          const Icon(Icons.chevron_right_rounded, color: AppColors.inkSoft),
-        ],
-      ),
-    );
-  }
-}
-
-class _CalendarShortcutCard extends StatelessWidget {
-  const _CalendarShortcutCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return AppSurfaceCard(
-      onTap: () => context.push('/calendar'),
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: const BoxDecoration(
-              color: AppColors.chip,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.calendar_month_outlined,
-              color: AppColors.navy,
-            ),
-          ),
-          const SizedBox(width: AppTokens.spaceMd),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  AppStrings.calendarTitle,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 15,
-                    color: AppColors.ink,
-                  ),
-                ),
-                SizedBox(height: AppTokens.spaceXs),
-                Text(
-                  AppStrings.calendarHubSubtitle,
-                  style: TextStyle(fontSize: 12, color: AppColors.inkSoft),
-                ),
-              ],
-            ),
-          ),
-          const Icon(Icons.chevron_right_rounded, color: AppColors.inkSoft),
-        ],
-      ),
-    );
-  }
-}
-
-class _CampusCardShortcutCard extends ConsumerWidget {
-  const _CampusCardShortcutCard();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final snap = ref.watch(campusCardSnapshotProvider);
-    final data = snap.asData?.value;
-    final card = data?.card;
-
-    String subtitle = AppStrings.campusCardSubtitle;
-    String? caption;
-    if (card != null && data != null) {
-      subtitle =
-          '${card.balanceLabel} ${AppStrings.campusCardYuan}';
-      if (data.fromCache && data.cachedAt != null) {
-        caption = '缓存 · ${AppStrings.updatedAtLabel(data.cachedAt!)}';
-      } else if (data.live) {
-        caption = AppStrings.freshUpdatedLabel(data.fetchedAt);
-      } else if (data.fetchedAt != null) {
-        caption = AppStrings.updatedAtLabel(data.fetchedAt!);
-      }
-    }
-
-    return AppSurfaceCard(
-      onTap: () => context.push('/campus-card'),
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: const BoxDecoration(
-              color: AppColors.chip,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.credit_card_outlined,
-              color: AppColors.navy,
-            ),
-          ),
-          const SizedBox(width: AppTokens.spaceMd),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  AppStrings.campusCardTitle,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 15,
-                    color: AppColors.ink,
-                  ),
-                ),
-                const SizedBox(height: AppTokens.spaceXs),
-                Text(
-                  subtitle,
-                  style: const TextStyle(fontSize: 12, color: AppColors.inkSoft),
-                ),
-                if (caption != null) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    caption,
-                    style: const TextStyle(
-                      fontSize: 11.5,
-                      color: AppColors.inkSoft,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          const Icon(Icons.chevron_right_rounded, color: AppColors.inkSoft),
-        ],
-      ),
-    );
-  }
-}
-
-
-class _LibrarySeatsShortcutCard extends StatelessWidget {
-  const _LibrarySeatsShortcutCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return AppSurfaceCard(
-      onTap: () => context.push('/library-seats'),
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: const BoxDecoration(
-              color: AppColors.chip,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.event_seat_outlined,
-              color: AppColors.navy,
-            ),
-          ),
-          const SizedBox(width: AppTokens.spaceMd),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  AppStrings.librarySeatsTitle,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 15,
-                    color: AppColors.ink,
-                  ),
-                ),
-                SizedBox(height: AppTokens.spaceXs),
-                Text(
-                  AppStrings.librarySeatsSubtitle,
-                  style: TextStyle(fontSize: 12, color: AppColors.inkSoft),
-                ),
-              ],
-            ),
-          ),
-          const Icon(Icons.chevron_right_rounded, color: AppColors.inkSoft),
-        ],
-      ),
-    );
-  }
-}
-
-class _QuickActions extends StatelessWidget {
-  const _QuickActions();
-
-  @override
-  Widget build(BuildContext context) {
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: AppTokens.spaceMd,
-      crossAxisSpacing: AppTokens.spaceMd,
-      childAspectRatio: 1.7,
-      children: [
-        _ActionTile(
-          icon: Icons.calendar_view_week,
-          label: AppStrings.navSchedule,
-          onTap: () => context.go('/schedule'),
-        ),
-        _ActionTile(
-          icon: Icons.meeting_room_outlined,
-          label: AppStrings.classroomTitle,
-          onTap: () => context.go('/classroom'),
-        ),
-        _ActionTile(
-          icon: Icons.campaign_outlined,
-          label: AppStrings.noticesTitle,
-          onTap: () => context.go('/notices'),
-        ),
-        _ActionTile(
-          icon: Icons.alarm,
-          label: AppStrings.createAlarms,
-          onTap: () => context.go('/alarms'),
-        ),
-        _ActionTile(
-          icon: Icons.school_outlined,
-          label: AppStrings.academicsTitle,
-          onTap: () => context.push('/academics'),
-        ),
-        _ActionTile(
-          icon: Icons.calendar_month_outlined,
-          label: AppStrings.calendarTitle,
-          onTap: () => context.push('/calendar'),
-        ),
-        _ActionTile(
-          icon: Icons.credit_card_outlined,
-          label: AppStrings.campusCardTitle,
-          onTap: () => context.push('/campus-card'),
-        ),
-        _ActionTile(
-          icon: Icons.event_seat_outlined,
-          label: AppStrings.librarySeatsTitle,
-          onTap: () => context.push('/library-seats'),
-        ),
-      ],
-    );
-  }
-}
-
-class _ActionTile extends StatelessWidget {
-  const _ActionTile({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return AppSurfaceCard(
-      onTap: onTap,
-      padding: const EdgeInsets.all(AppTokens.spaceMd + 2),
-      radius: AppTokens.radiusLg,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: const BoxDecoration(
-              color: AppColors.chip,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, size: 18, color: AppColors.navy),
-          ),
-          const SizedBox(height: AppTokens.spaceSm),
-          Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
-        ],
-      ),
-    );
-  }
-}

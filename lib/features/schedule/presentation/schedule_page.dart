@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/widgets/app_page_scaffold.dart';
 import '../../../core/l10n/app_strings.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/app_tokens.dart';
+import '../../../core/widgets/app_surface_card.dart';
 import '../../../core/widgets/app_feedback.dart';
 import '../domain/course.dart';
 import 'schedule_providers.dart';
@@ -29,7 +32,7 @@ class _SchedulePageState extends ConsumerState<SchedulePage> {
   Widget build(BuildContext context) {
     final snapshot = ref.watch(scheduleSnapshotProvider);
 
-    return Scaffold(
+    return AppPageScaffold(
       appBar: AppBar(
         title: const Text(AppStrings.navSchedule),
         actions: [
@@ -155,9 +158,9 @@ class _DayList extends StatelessWidget {
     final sorted = [...courses]
       ..sort((a, b) => a.startPeriod.compareTo(b.startPeriod));
     return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      padding: AppTokens.pagePadding,
       itemCount: sorted.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 8),
+      separatorBuilder: (context, index) => const SizedBox(height: AppTokens.spaceMd),
       itemBuilder: (context, index) => _CourseCard(course: sorted[index]),
     );
   }
@@ -170,40 +173,47 @@ class _CourseCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              course.name,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: AppColors.navy,
-              ),
+    return AppSurfaceCard(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 52,
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              color: AppColors.chip,
+              borderRadius: AppTokens.borderSm,
             ),
-            const SizedBox(height: 6),
-            Text(course.periodLabel),
-            Text('${AppStrings.location}：${course.location}'),
-            Text('${AppStrings.teacher}：${course.teacher}  ·  ${course.weeksLabel}'),
-          ],
-        ),
+            child: Column(
+              children: [
+                Text('${course.startPeriod}',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(color: AppColors.navy)),
+                Text('至 ${course.endPeriod} 节',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodySmall),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppTokens.spaceMd),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(course.name, style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: AppTokens.spaceSm),
+                Text(course.periodLabel, style: Theme.of(context).textTheme.bodySmall),
+                const SizedBox(height: AppTokens.spaceSm),
+                Text(course.location),
+                const SizedBox(height: AppTokens.spaceXs),
+                Text('${course.teacher} · ${course.weeksLabel}',
+                    style: Theme.of(context).textTheme.bodySmall),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
-}
-
-Course? _courseAt(List<Course> courses, int weekday, int period) {
-  for (final course in courses) {
-    if (course.weekday == weekday &&
-        period >= course.startPeriod &&
-        period <= course.endPeriod) {
-      return course;
-    }
-  }
-  return null;
 }
 
 class _WeekGrid extends StatelessWidget {
@@ -213,6 +223,13 @@ class _WeekGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Index once instead of scanning all courses for every timetable cell.
+    final cells = <(int, int), Course>{};
+    for (final course in courses) {
+      for (var period = course.startPeriod; period <= course.endPeriod; period++) {
+        cells.putIfAbsent((course.weekday, period), () => course);
+      }
+    }
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
@@ -232,7 +249,7 @@ class _WeekGrid extends StatelessWidget {
                 children: [
                   _HeadCell('${period.index}\n${period.formatClock()}'),
                   for (var day = 1; day <= 7; day++)
-                    _Cell(course: _courseAt(courses, day, period.index)),
+                    _Cell(course: cells[(day, period.index)]),
                 ],
               ),
           ],

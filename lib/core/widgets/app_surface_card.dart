@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../theme/app_tokens.dart';
 
-/// White surface + token radius + hairline border for consistent home cards.
+/// Shared surface with an ink layer for both whole-card and nested actions.
 class AppSurfaceCard extends StatelessWidget {
   const AppSurfaceCard({
     super.key,
@@ -39,17 +39,18 @@ class AppSurfaceCard extends StatelessWidget {
         border: Border.all(color: AppColors.line),
         boxShadow: softShadow ? AppTokens.softCardShadow : null,
       ),
-      clipBehavior: Clip.antiAlias,
-      child: onTap == null
-          ? content
-          : Material(
-              color: Colors.transparent,
-              child: InkWell(
+      child: Material(
+        color: AppColors.card,
+        borderRadius: borderRadius,
+        clipBehavior: Clip.antiAlias,
+        child: onTap == null
+            ? content
+            : InkWell(
                 onTap: onTap,
                 borderRadius: borderRadius,
                 child: content,
               ),
-            ),
+      ),
     );
   }
 }

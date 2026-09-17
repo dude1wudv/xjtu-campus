@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/widgets/app_page_scaffold.dart';
 import '../../../core/cache/cached_snapshot_loader.dart';
 import '../../../core/cache/snapshot_cache.dart';
 import '../../../core/di/core_providers.dart';
 import '../../../core/l10n/app_strings.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/app_feedback.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../data/classroom_codes.dart';
@@ -121,7 +123,7 @@ class ClassroomPage extends ConsumerWidget {
     final buildingValue =
         buildingItems.contains(filter.building) ? filter.building : null;
 
-    return Scaffold(
+    return AppPageScaffold(
       appBar: AppBar(
         title: const Text(AppStrings.classroomTitle),
         actions: [
@@ -239,7 +241,7 @@ class ClassroomPage extends ConsumerWidget {
                 }
                 return ListView.separated(
                   physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                  padding: AppTokens.pagePadding,
                   itemCount: items.length,
                   separatorBuilder: (context, index) => const SizedBox(height: 8),
                   itemBuilder: (context, index) {

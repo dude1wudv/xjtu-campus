@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/widgets/app_page_scaffold.dart';
 import '../../../core/l10n/app_strings.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_tokens.dart';
@@ -29,7 +30,7 @@ class _GradesPageState extends ConsumerState<GradesPage> {
     final snap = ref.watch(gradesSnapshotProvider);
     final auth = ref.watch(authControllerProvider);
 
-    return Scaffold(
+    return AppPageScaffold(
       appBar: AppBar(
         title: const Text(AppStrings.gradesTitle),
         leading: IconButton(
@@ -49,123 +50,117 @@ class _GradesPageState extends ConsumerState<GradesPage> {
           ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: () =>
-            ref.read(gradesSnapshotProvider.notifier).refresh(force: true),
-        child: ListView(
-          padding: AppTokens.pagePadding,
-          children: [
-            snap.when(
-              data: (data) =>
-                  DataSourceBanner(
-                    live: data.live,
-                    message: data.banner,
-                    fromCache: data.fromCache,
-                    cachedAt: data.cachedAt,
-                    fetchedAt: data.fetchedAt,
-                  ),
-              loading: () => const MockDataBanner(),
-              error: (_, _) => const MockDataBanner(),
-            ),
-            const SizedBox(height: AppTokens.spaceMd),
-            if (!auth.isLoggedIn)
-              AppSurfaceCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(AppStrings.gradesLoginHint),
-                    const SizedBox(height: AppTokens.spaceMd),
-                    FilledButton(
-                      onPressed: () => context.push('/login'),
-                      child: const Text(AppStrings.openLogin),
-                    ),
-                  ],
-                ),
-              ),
-            const SizedBox(height: AppTokens.spaceMd),
-            AsyncBody(
-              value: snap,
-              onRetry: () => ref.read(gradesSnapshotProvider.notifier).refresh(force: true),
-              builder: (data) {
-                if (data.records.isEmpty) {
-                  return const AppSurfaceCard(
-                    child: Text(AppStrings.emptyGrades),
-                  );
-                }
-                final terms = data.groupedByTerm.keys.toList();
-                // Keep selection valid when data refreshes.
-                final selected = _selectedTerm != null &&
-                        data.groupedByTerm.containsKey(_selectedTerm)
-                    ? _selectedTerm
-                    : null;
-                final visible = selected == null
-                    ? data.records
-                    : (data.groupedByTerm[selected] ?? const <GradeRecord>[]);
-                final overallGpa = GradeStats.weightedGpa(data.records);
-                final filterGpa = GradeStats.weightedGpa(visible);
-                final filterCredits = GradeStats.countedCredits(visible);
-
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _GpaSummaryCard(
-                      filterLabel: selected ?? AppStrings.gradesFilterAll,
-                      filterGpa: filterGpa,
-                      filterCredits: filterCredits,
-                      overallGpa: selected == null ? null : overallGpa,
-                    ),
-                    const SizedBox(height: AppTokens.spaceMd),
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          FilterChip(
-                            label: const Text(AppStrings.gradesFilterAll),
-                            selected: selected == null,
-                            onSelected: (_) =>
-                                setState(() => _selectedTerm = null),
-                          ),
-                          const SizedBox(width: AppTokens.spaceSm),
-                          for (final term in terms) ...[
-                            FilterChip(
-                              label: Text(term),
-                              selected: selected == term,
-                              onSelected: (_) =>
-                                  setState(() => _selectedTerm = term),
-                            ),
-                            const SizedBox(width: AppTokens.spaceSm),
-                          ],
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: AppTokens.spaceMd),
-                    if (selected == null)
-                      for (final entry in data.groupedByTerm.entries) ...[
-                        _TermHeader(
-                          term: entry.key,
-                          count: entry.value.length,
+      body: AsyncBody(
+        value: snap,
+        onRetry: () => ref.read(gradesSnapshotProvider.notifier).refresh(force: true),
+        builder: (data) {
+          final grouped = data.effectiveGrouped;
+          final selected = grouped.containsKey(_selectedTerm) ? _selectedTerm : null;
+          final visible = selected == null
+              ? data.records
+              : grouped[selected] ?? const <GradeRecord>[];
+          final groups = selected == null
+              ? grouped.entries
+              : [MapEntry(selected, visible)];
+          // Flatten data, not widgets: only visible transcript rows are built.
+          final rows = <({String? term, int count, GradeRecord? record})>[
+            for (final group in groups) ...[
+              (term: group.key, count: group.value.length, record: null),
+              for (final record in group.value)
+                (term: null, count: 0, record: record),
+            ],
+          ];
+          return RefreshIndicator(
+            onRefresh: () => ref.read(gradesSnapshotProvider.notifier).refresh(force: true),
+            child: CustomScrollView(
+              key: PageStorageKey('grades-${selected ?? 'all'}'),
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                SliverPadding(
+                  padding: AppTokens.pagePadding.copyWith(bottom: AppTokens.spaceMd),
+                  sliver: SliverToBoxAdapter(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        DataSourceBanner(
+                          live: data.live,
+                          message: data.banner,
+                          fromCache: data.fromCache,
+                          cachedAt: data.cachedAt,
+                          fetchedAt: data.fetchedAt,
                         ),
-                        const SizedBox(height: AppTokens.spaceSm),
-                        for (final g in entry.value) ...[
-                          _GradeTile(record: g),
-                          const SizedBox(height: AppTokens.spaceSm),
+                        if (!auth.isLoggedIn) ...[
+                          const SizedBox(height: AppTokens.spaceMd),
+                          AppSurfaceCard(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                const Text(AppStrings.gradesLoginHint),
+                                const SizedBox(height: AppTokens.spaceMd),
+                                FilledButton(
+                                  onPressed: () => context.push('/login'),
+                                  child: const Text(AppStrings.openLogin),
+                                ),
+                              ],
+                            ),
+                          ),
                         ],
                         const SizedBox(height: AppTokens.spaceMd),
-                      ]
-                    else ...[
-                      _TermHeader(term: selected, count: visible.length),
-                      const SizedBox(height: AppTokens.spaceSm),
-                      for (final g in visible) ...[
-                        _GradeTile(record: g),
-                        const SizedBox(height: AppTokens.spaceSm),
+                        _GpaSummaryCard(
+                          filterLabel: selected ?? AppStrings.gradesFilterAll,
+                          filterGpa: GradeStats.weightedGpa(visible),
+                          filterCredits: GradeStats.countedCredits(visible),
+                          overallGpa: selected == null
+                              ? null : GradeStats.weightedGpa(data.records),
+                        ),
+                        const SizedBox(height: AppTokens.spaceMd),
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: [
+                              FilterChip(
+                                label: const Text(AppStrings.gradesFilterAll),
+                                selected: selected == null,
+                                onSelected: (_) => setState(() => _selectedTerm = null),
+                              ),
+                              for (final term in grouped.keys) ...[
+                                const SizedBox(width: AppTokens.spaceSm),
+                                FilterChip(
+                                  label: Text(term),
+                                  selected: selected == term,
+                                  onSelected: (_) => setState(() => _selectedTerm = term),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        if (data.records.isEmpty)
+                          const EmptyHint(icon: Icons.grade_outlined, text: AppStrings.emptyGrades),
                       ],
-                    ],
-                  ],
-                );
-              },
+                    ),
+                  ),
+                ),
+                SliverPadding(
+                  padding: AppTokens.pagePadding.copyWith(top: 0),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        final row = rows[index];
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: AppTokens.spaceMd),
+                          child: row.record == null
+                              ? _TermHeader(term: row.term!, count: row.count)
+                              : _GradeTile(record: row.record!),
+                        );
+                      },
+                      childCount: rows.length,
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -270,11 +265,8 @@ class _TermHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Text(
-          term,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
+        Expanded(
+          child: Text(term, style: Theme.of(context).textTheme.titleMedium),
         ),
         const SizedBox(width: AppTokens.spaceSm),
         Text(

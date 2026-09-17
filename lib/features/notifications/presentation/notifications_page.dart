@@ -3,9 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/widgets/app_page_scaffold.dart';
 import '../../../core/di/core_providers.dart';
 import '../../../core/l10n/app_strings.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/app_feedback.dart';
 import '../domain/notice_filter.dart';
 import '../domain/school_notice.dart';
@@ -114,7 +116,7 @@ class NotificationsPage extends ConsumerWidget {
       snapshot = const AsyncValue.loading();
     }
 
-    return Scaffold(
+    return AppPageScaffold(
       appBar: AppBar(
         title: const Text(AppStrings.noticesTitle),
         actions: [
@@ -137,7 +139,7 @@ class NotificationsPage extends ConsumerWidget {
           Column(
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -226,6 +228,8 @@ class NotificationsPage extends ConsumerWidget {
                       return RefreshIndicator(
                         onRefresh: () => _refresh(ref, force: true),
                         child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                           physics: const AlwaysScrollableScrollPhysics(),
                           children: const [
                             SizedBox(height: 120),
@@ -241,7 +245,7 @@ class NotificationsPage extends ConsumerWidget {
                       onRefresh: () => _refresh(ref, force: true),
                       child: ListView.separated(
                         physics: const AlwaysScrollableScrollPhysics(),
-                        padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
+                        padding: AppTokens.pagePadding,
                         itemCount: items.length,
                         separatorBuilder: (context, index) =>
                             const SizedBox(height: 10),

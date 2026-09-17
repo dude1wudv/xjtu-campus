@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/widgets/app_page_scaffold.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/di/core_providers.dart';
 import '../../../core/l10n/app_strings.dart';
 import '../../../core/storage/credential_store.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/app_feedback.dart';
 import '../../schedule/domain/course.dart';
 import '../../schedule/presentation/schedule_providers.dart';
@@ -219,13 +221,15 @@ class _AlarmsPageState extends ConsumerState<AlarmsPage> {
       });
     });
 
-    return Scaffold(
+    return AppPageScaffold(
       appBar: AppBar(title: const Text(AppStrings.alarmsTitle)),
       body: Column(
         children: [
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+          physics: const AlwaysScrollableScrollPhysics(),
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              padding: AppTokens.pagePadding,
               children: [
                 snapshot.when(
                   data: (data) =>

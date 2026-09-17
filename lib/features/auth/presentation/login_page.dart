@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/widgets/app_page_scaffold.dart';
 import '../../../core/di/core_providers.dart';
 import '../../../core/l10n/app_strings.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/app_tokens.dart';
+import '../../../core/widgets/app_surface_card.dart';
 import 'auth_controller.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
@@ -91,12 +94,25 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   @override
   Widget build(BuildContext context) {
     final auth = ref.watch(authControllerProvider);
-    return Scaffold(
+    return AppPageScaffold(
       appBar: AppBar(title: const Text(AppStrings.loginTitle)),
       body: ListView(
-        padding: const EdgeInsets.all(20),
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        padding: AppTokens.pagePadding,
         children: [
-          const Text(AppStrings.loginHint),
+          const AppSurfaceCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.school_outlined, size: 32, color: AppColors.navy),
+                SizedBox(height: AppTokens.spaceMd),
+                Text('连接你的校园生活',
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
+                SizedBox(height: AppTokens.spaceSm),
+                Text(AppStrings.loginHint),
+              ],
+            ),
+          ),
           const SizedBox(height: 12),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
@@ -118,6 +134,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 TextFormField(
                   controller: _idController,
                   keyboardType: TextInputType.visiblePassword,
+                  textInputAction: TextInputAction.next,
+                  autocorrect: false,
                   autofillHints: const [AutofillHints.username],
                   enabled: !auth.awaitingCaptcha &&
                       !auth.awaitingMfa &&

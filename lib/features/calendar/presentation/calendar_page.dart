@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/widgets/app_page_scaffold.dart';
 import '../../../core/constants/campus_urls.dart';
 import '../../../core/l10n/app_strings.dart';
 import '../../../core/theme/app_theme.dart';
@@ -24,7 +25,7 @@ class CalendarPage extends ConsumerWidget {
     final snap = ref.watch(calendarSnapshotProvider);
     final schedule = ref.watch(scheduleSnapshotProvider);
 
-    return Scaffold(
+    return AppPageScaffold(
       appBar: AppBar(
         title: const Text(AppStrings.calendarTitle),
         leading: IconButton(
@@ -69,6 +70,8 @@ class CalendarPage extends ConsumerWidget {
           await ref.read(calendarSnapshotProvider.notifier).refresh(force: true);
         },
         child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           padding: AppTokens.pagePadding,
           children: [
             snap.when(
