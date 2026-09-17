@@ -228,9 +228,9 @@ class NotificationsPage extends ConsumerWidget {
                       return RefreshIndicator(
                         onRefresh: () => _refresh(ref, force: true),
                         child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                           physics: const AlwaysScrollableScrollPhysics(),
+                          keyboardDismissBehavior:
+                              ScrollViewKeyboardDismissBehavior.onDrag,
                           children: const [
                             SizedBox(height: 120),
                             EmptyHint(
