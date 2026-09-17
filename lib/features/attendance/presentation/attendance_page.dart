@@ -29,7 +29,7 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
     final system = ref.read(attendanceSystemProvider);
     final session = ref.read(campusSessionProvider);
     await context.push('/browser', extra: {
-      'url': session.useWebVpn ? 'http://${system.host}/' : system.loginUrl,
+      'url': system.entryUrl(useWebVpn: session.useWebVpn),
       'title': '官方考勤系统',
     });
     if (mounted) ref.invalidate(attendanceSnapshotProvider);
@@ -118,7 +118,9 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
                     ? (useWebVpn
                         ? 'WebVPN 已启用，考勤系统仍需单独认证。请打开官方考勤系统完成登录，返回后自动同步。'
                         : '请打开官方考勤系统完成认证；校外访问可先连接 WebVPN。')
-                    : '考勤同步未完成，学校接口可能响应较慢。请稍后重试。'),
+                    : value.error is AttendanceConnectionFailed
+                        ? '考勤系统连接失败，请稍后重试，无需重复登录 WebVPN。'
+                        : '考勤同步未完成，学校接口可能响应较慢。请稍后重试。'),
                 const SizedBox(height: 12),
                 if (value.error is AttendanceAuthRequired)
                   FilledButton(onPressed: _openOfficial, child: const Text('打开官方考勤系统'))

@@ -15,6 +15,12 @@ enum AttendanceSystem {
   const AttendanceSystem(this.label, this.host, this.appId);
   final String label, host, appId;
   String get origin => 'https://$host';
+
+  // The attendance HTTP port refuses connections. Keep interactive and
+  // background authentication on the same HTTPS origin as the API.
+  String entryUrl({required bool useWebVpn}) => useWebVpn
+      ? WebVpnUrl.convert('$origin/') : loginUrl;
+
   String get loginUrl => Uri.https('org.xjtu.edu.cn', '/openplatform/oauth/authorize', {
     'appId': appId,
     'redirectUri': '$origin/berserker-auth/auth/attendance-pc/casReturn',
@@ -99,9 +105,19 @@ class AttendanceRepository {
         'Accept': 'application/json'},
     );
     final json = session.tryJson(response);
-    if (response.statusCode == 401 || response.statusCode == 403 || json == null ||
-        '${json['code']}' == '401' || '${json['code']}' == '403') {
+    if (AttendanceConnectionFailed.isGatewayError('${response.data}')) {
+      throw const AttendanceConnectionFailed();
+    }
+    if (response.statusCode == 401 || response.statusCode == 403 ||
+        (json != null && ('${json['code']}' == '401' || '${json['code']}' == '403'))) {
       throw const _AttendanceAuthExpired();
+    }
+    if (json == null) {
+      if (WebVpnUrl.isLoginPage(response.realUri) ||
+          WebVpnUrl.matchesHost(response.realUri, 'login.xjtu.edu.cn')) {
+        throw const _AttendanceAuthExpired();
+      }
+      throw const AttendanceConnectionFailed();
     }
     if (json['success'] != true) throw StateError('学校考勤接口暂未返回有效数据，请稍后重试');
     return json['data'];
@@ -114,8 +130,14 @@ class AttendanceRepository {
       if (!result.isCompleted) result.complete(null);
     });
     HeadlessInAppWebView? browser;
-    final entry = session.useWebVpn
-        ? WebVpnUrl.convert('http://${system.host}/') : system.loginUrl;
+    final entry = system.entryUrl(useWebVpn: session.useWebVpn);
+    Object? failure;
+    var loginPageSeen = false;
+    void fail(Object error) {
+      if (result.isCompleted) return;
+      failure = error;
+      result.complete(null);
+    }
     try {
       await WebViewCookieBridge.seedOrigins(session: session,
         origins: {
@@ -138,16 +160,34 @@ class AttendanceRepository {
           domStorageEnabled: true, thirdPartyCookiesEnabled: true,
           userAgent: CampusUrls.userAgent),
         onLoadStart: (_, url) => capture(url),
-        onLoadStop: (_, url) => capture(url),
+        onLoadStop: (controller, url) async {
+          if (result.isCompleted) return;
+          final uri = url == null ? null : Uri.tryParse(url.toString());
+          loginPageSeen = uri != null && (WebVpnUrl.isLoginPage(uri) ||
+              WebVpnUrl.matchesHost(uri, 'login.xjtu.edu.cn'));
+          try {
+            final body = await controller.evaluateJavascript(
+                source: "document.body ? document.body.innerText : ''");
+            if (AttendanceConnectionFailed.isGatewayError('$body')) {
+              fail(const AttendanceConnectionFailed());
+              return;
+            }
+          } catch (_) { /* URL callbacks can still supply the login token. */ }
+          capture(url);
+        },
         onUpdateVisitedHistory: (_, url, _) => capture(url),
         onReceivedError: (_, request, _) {
-          if (request.isForMainFrame == true && !result.isCompleted) result.complete(null);
+          if (request.isForMainFrame != false) fail(const AttendanceConnectionFailed());
         },
       );
       if (_cancelToken.isCancelled) throw _cancelToken.cancelError!;
       await browser.run();
-      final token = await result.future.timeout(const Duration(seconds: 40), onTimeout: () => null);
+      final token = await result.future.timeout(const Duration(seconds: 40), onTimeout: () {
+        if (!loginPageSeen) failure = TimeoutException('考勤系统连接超时');
+        return null;
+      });
       if (_cancelToken.isCancelled) throw _cancelToken.cancelError!;
+      if (failure != null) throw failure!;
       if (token != null) {
         // The login redirects also establish service cookies. The HTTP client
         // must receive these before it starts calling the attendance API.
@@ -186,4 +226,19 @@ class AttendanceAuthRequired implements Exception {
 
   @override
   String toString() => '请打开官方考勤系统完成认证';
+}
+
+class AttendanceConnectionFailed implements Exception {
+  const AttendanceConnectionFailed();
+
+  static bool isGatewayError(String text) {
+    final lower = text.toLowerCase();
+    return lower.contains('connection_failed') ||
+        lower.contains('connection refused') ||
+        lower.contains('err_connection_') ||
+        lower.contains('该网站无法访问');
+  }
+
+  @override
+  String toString() => '考勤系统暂时无法连接，请稍后重试';
 }
