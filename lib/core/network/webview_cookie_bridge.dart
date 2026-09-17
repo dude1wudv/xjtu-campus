@@ -65,7 +65,9 @@ class WebViewCookieBridge {
       try {
         cookies = await manager.getCookies(url: WebUri(origin));
       } on Object catch (error) {
-        AppLogger.warn('WebViewCookieBridge getCookies($origin) 失败: $error');
+        // Callback URLs may contain tickets/tokens. Platform exception text
+        // can echo them too; log only the host and exception category.
+        AppLogger.warn('WebViewCookieBridge getCookies(${uri.host}) 失败: ${error.runtimeType}');
         continue;
       }
       for (final c in cookies) {

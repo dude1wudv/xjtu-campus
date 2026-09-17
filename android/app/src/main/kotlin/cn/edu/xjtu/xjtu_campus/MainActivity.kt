@@ -20,9 +20,11 @@ import java.io.File
 class MainActivity : FlutterActivity() {
     companion object {
         private const val CHANNEL = "cn.edu.xjtu.xjtu_campus/apk_installer"
+        private const val BUILD_PROVENANCE_CHANNEL = "campus/build_provenance"
     }
 
     private var platform: MethodChannel? = null
+    private var buildProvenance: MethodChannel? = null
     private var pendingPermission: MethodChannel.Result? = null
     override fun provideFlutterEngine(context: Context): FlutterEngine? = FlutterEngineCache.getInstance().get("campus")
     override fun shouldDestroyEngineWithHost() = false
@@ -82,6 +84,23 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             } catch (_: Exception) { result.error("platform_error", "系统暂不允许此操作", null) }
+        }
+        buildProvenance = MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            BUILD_PROVENANCE_CHANNEL,
+        ).also { channel ->
+            channel.setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "get" -> result.success(
+                        mapOf(
+                            "commitSha" to BuildConfig.BUILD_COMMIT_SHA,
+                            "branch" to BuildConfig.BUILD_BRANCH,
+                            "dirty" to BuildConfig.BUILD_DIRTY,
+                        ),
+                    )
+                    else -> result.notImplemented()
+                }
+            }
         }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
             .setMethodCallHandler { call, result ->
@@ -146,6 +165,8 @@ class MainActivity : FlutterActivity() {
             } catch (_: Exception) { result.error("platform_error", "操作未完成", null) }
         }
         flutterEngine?.let { MethodChannel(it.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler(null) }
+        buildProvenance?.setMethodCallHandler(null)
+        buildProvenance = null
         super.onDestroy()
     }
 

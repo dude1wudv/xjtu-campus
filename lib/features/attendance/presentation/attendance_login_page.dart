@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:collection';
+import 'package:dio/dio.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -13,6 +14,7 @@ import '../../../core/network/webvpn_url.dart';
 import '../../../core/widgets/app_page_scaffold.dart';
 import '../data/attendance_repository.dart';
 import '../data/attendance_diagnostics.dart';
+import '../data/undergraduate_attendance_adapter.dart';
 import 'attendance_diagnostics_sheet.dart';
 import 'attendance_providers.dart';
 
@@ -33,6 +35,8 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
   bool _portal = false;
   bool _useWebVpn = false;
   bool _diagnosticMode = false;
+  bool _businessSessionSaved = false;
+  CancelToken? _verificationToken;
   @override
   void initState() {
     super.initState();
@@ -46,9 +50,16 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
     try {
       final session = ref.read(campusSessionProvider);
       await session.restore();
+      _useWebVpn = _system.usesLegacyApi ? session.useWebVpn
+          : await session.undergraduateAttendanceUsesWebVpn();
       await WebViewCookieBridge.seedOrigins(session: session, origins: {
         CampusUrls.casLogin, _system.loginUrl, session.resolveUrl(_system.loginUrl),
         _system.origin, _system.workbenchUrl,
+        if (!_system.usesLegacyApi) ...{
+          '${_system.origin}/sa/',
+          WebVpnUrl.maybeConvert('${_system.origin}/sa/', enabled: _useWebVpn),
+          WebVpnUrl.maybeConvert(_system.loginUrl, enabled: _useWebVpn),
+        },
         WebVpnUrl.maybeConvert(_system.origin, enabled: _useWebVpn), CampusUrls.webVpn,
       });
       if (mounted) { setState(() => _ready = true); _arm(); }
@@ -102,7 +113,11 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
   }
 
   Future<void> _capture(WebUri? value) async {
-    if (!mounted || value == null || _saving || !_system.usesLegacyApi) return;
+    if (!mounted || value == null || _saving) return;
+    if (!_system.usesLegacyApi) {
+      await _captureBusinessSession(value);
+      return;
+    }
     final uri = Uri.tryParse(value.toString());
     if (uri == null || !WebVpnUrl.matchesHost(uri, _system.host)) return;
     final token = AttendanceRepository.tokenFromUri(uri);
@@ -128,6 +143,64 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
       if (mounted) setState(() => _error = '登录凭据保存失败，请重试');
     }
   }
+  Future<void> _captureBusinessSession(WebUri value) async {
+    final uri = Uri.tryParse(value.toString());
+    if (_businessSessionSaved || uri == null ||
+        uri.scheme != 'https' || !uri.path.endsWith('/studentpc/workbench') ||
+        !WebVpnUrl.matchesHost(uri, _system.host) || _controller == null) return;
+    _saving = true;
+    final cancelToken = CancelToken();
+    _verificationToken = cancelToken;
+    var timedOut = false;
+    final deadline = Timer(const Duration(seconds: 30), () {
+      timedOut = true;
+      cancelToken.cancel();
+    });
+    try {
+      // Exact storage key from the public student frontend (module 4b1a).
+      // This is an app session handoff, never part of diagnostics/export.
+      final token = await _controller!.evaluateJavascript(source: r"""
+        (() => {
+          return localStorage.getItem('ATT_STUDENT_PC_BUSINESS_TOKEN') ||
+            sessionStorage.getItem('ATT_STUDENT_PC_BUSINESS_TOKEN') || null;
+        })()
+      """);
+      if (token is! String || token.isEmpty || token.length > 16384 ||
+          token.contains(RegExp(r'[\r\n]'))) return;
+      // Navigation may have moved while the script ran. Never accept a result
+      // from a different document or from the general CAS login origin.
+      if ((await _controller!.getUrl())?.toString() != value.toString() || !mounted) return;
+      final session = ref.read(campusSessionProvider);
+      await WebViewCookieBridge.importOrigins(session: session, origins: {
+        '${_system.origin}/sa/',
+        WebVpnUrl.maybeConvert('${_system.origin}/sa/', enabled: _useWebVpn),
+      });
+      await session.saveUndergraduateAttendanceToken(token);
+      await session.setUndergraduateAttendanceWebVpn(_useWebVpn);
+      await UndergraduateAttendanceAdapter(session, cancelToken).verifySession();
+      if (cancelToken.isCancelled || !mounted) return;
+      _businessSessionSaved = true;
+      _timer?.cancel();
+      AttendanceDiagnostics.add('business-session-saved', url: _system.origin);
+      AttendanceDiagnostics.add('session-verified', url: _system.origin);
+      if (!mounted) return;
+      if (_diagnosticMode) {
+        setState(() => _error = null);
+      } else {
+        context.pop(true);
+      }
+    } catch (error) {
+      final failure = timedOut ? TimeoutException('考勤会话验证超时') : error;
+      AttendanceDiagnostics.add(attendanceDiagnosticPhase(failure));
+      if (mounted) setState(() => _error = attendanceErrorMessage(failure,
+          useWebVpn: _useWebVpn));
+    } finally {
+      deadline.cancel();
+      if (identical(_verificationToken, cancelToken)) _verificationToken = null;
+      _saving = false;
+    }
+  }
+
   String _entry() {
     return _portal ? WebVpnUrl.maybeConvert(_system.workbenchUrl, enabled: _useWebVpn)
         : _system.entryUrl(useWebVpn: _useWebVpn);
@@ -151,7 +224,8 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
     setState(() { _progress = 1; _error = '认证页面返回 HTTP $status，登录尚未完成。可重试当前入口，或手动切换入口。'; });
   }
   Future<void> _retry() async {
-    setState(() { _error = null; _progress = 0; });
+    _verificationToken?.cancel();
+    setState(() { _error = null; _progress = 0; _businessSessionSaved = false; });
     if (!_ready) { await _prepare(); return; }
     _arm();
     try {
@@ -161,6 +235,7 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
   @override
   void dispose() {
     _timer?.cancel();
+    _verificationToken?.cancel();
     final busy = ref.read(campusConnectionBusyProvider.notifier);
     Future.microtask(() => busy.setBusy(false));
     super.dispose();
@@ -177,26 +252,38 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
           SwitchListTile.adaptive(contentPadding: EdgeInsets.zero,
             title: const Text('考勤使用 WebVPN'),
             subtitle: const Text('默认直连；只有直连无法访问时再开启'),
-            value: _useWebVpn, onChanged: (value) {
+            value: _useWebVpn, onChanged: (value) async {
               setState(() { _useWebVpn = value; _portal = false; });
-              _retry();
+              await ref.read(campusSessionProvider).setUndergraduateAttendanceWebVpn(value);
+              if (mounted) await _retry();
             }),
           Wrap(spacing: 8, children: [
             TextButton.icon(onPressed: () => _openExternal(), icon: const Icon(Icons.login),
               label: const Text('浏览器登录入口')),
             TextButton(onPressed: () => _openExternal(workbench: true), child: const Text('浏览器打开工作台')),
           ]),
-          const Text('请先在系统浏览器完成登录，再在同一浏览器打开工作台。浏览器登录状态不会自动同步到应用。'),
+          const Text('应用内同步请在下方完成登录。系统浏览器仅供独立查询，其登录状态不会自动同步到应用。'),
         ])),
       SwitchListTile(title: const Text('接口诊断模式'),
         subtitle: const Text('开启后在下方官方页面打开考勤记录或明细，再复制接口诊断。'),
-        value: _diagnosticMode, onChanged: (value) {
+        value: _diagnosticMode, onChanged: (value) async {
           setState(() { _diagnosticMode = value; _saving = false; _error = null; });
           AttendanceDiagnostics.add(value ? 'diagnostic-start' : 'diagnostic-stop');
-          if (value && _controller != null) _recordPage(_controller!);
-          _arm();
+          if (value && _controller != null) {
+            try {
+              await _controller!.evaluateJavascript(source: AttendanceDiagnostics.script);
+              if (mounted && _controller != null) await _recordPage(_controller!);
+            } catch (_) {
+              AttendanceDiagnostics.add('script-injection-failed');
+            }
+          }
+          if (mounted) _arm();
         }),
       if (_progress < 1) LinearProgressIndicator(value: _progress == 0 ? null : _progress),
+      if (_businessSessionSaved) const Padding(
+        padding: EdgeInsets.all(8),
+        child: Text('考勤会话已确认，返回后同步明细；页面登录与明细同步分别检查。'),
+      ),
       if (_error != null) Padding(padding: const EdgeInsets.all(12), child: Column(children: [
         Text(_error!),
         TextButton(onPressed: _retry, child: const Text('重新发起授权')),
@@ -206,7 +293,7 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
       Expanded(child: !_ready ? const Center(child: CircularProgressIndicator()) : InAppWebView(
         initialUserScripts: UnmodifiableListView<UserScript>([
           UserScript(source: AttendanceDiagnostics.script,
-            injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START, forMainFrameOnly: true),
+            injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START, forMainFrameOnly: false),
         ]),
         initialUrlRequest: URLRequest(url: WebUri(_entry())),
         initialSettings: InAppWebViewSettings(javaScriptEnabled: true, domStorageEnabled: true,
@@ -220,8 +307,9 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
                 ![_system.host, if (!_system.usesLegacyApi) 'kq.xjtu.edu.cn']
                     .any((host) => WebVpnUrl.matchesHost(uri, host)) || args.isEmpty || args.first is! Map) return null;
             AttendanceDiagnostics.browser(args.first as Map);
-            return null;
+            return true;
           });
+          AttendanceDiagnostics.add('bridge-handler-registered');
         },
         shouldOverrideUrlLoading: (controller, action) async {
           if (action.isForMainFrame != false && action.request.url != null &&
@@ -237,7 +325,7 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
         },
         onLoadStart: (_, url) {
           AttendanceDiagnostics.add('navigation', url: url?.toString());
-          _capture(url);
+          if (_system.usesLegacyApi) _capture(url);
         },
         onUpdateVisitedHistory: (_, url, _) {
           if (url != null && WebVpnUrl.matchesHost(Uri.parse(url.toString()), _system.host) &&
@@ -252,6 +340,13 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
         onLoadStop: (controller, url) async {
           if (url != null && url.toString().split('?').first == _system.workbenchUrl) {
             _timer?.cancel();
+          }
+          // Idempotent fallback when document-start or the bridge was not ready.
+          try {
+            await controller.evaluateJavascript(source: AttendanceDiagnostics.script);
+            if (_diagnosticMode) AttendanceDiagnostics.add('script-evaluated', url: url?.toString());
+          } catch (_) {
+            if (_diagnosticMode) AttendanceDiagnostics.add('script-injection-failed');
           }
           await _recordPage(controller);
           await _capture(url);

@@ -12,7 +12,7 @@ Color attendanceColor(AttendanceStatus status) => switch (status) {
   AttendanceStatus.absent => AppColors.alert,
   AttendanceStatus.late || AttendanceStatus.earlyLeave => AppColors.gold,
   AttendanceStatus.leave => AppColors.navy,
-  AttendanceStatus.unknown => AppColors.inkSoft,
+  AttendanceStatus.unknown || AttendanceStatus.pending || AttendanceStatus.notRequired => AppColors.inkSoft,
 };
 
 class CourseAttendanceBadge extends ConsumerWidget {

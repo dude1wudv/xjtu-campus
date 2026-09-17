@@ -1,14 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import '../../../core/platform/build_provenance.dart';
 import '../data/attendance_diagnostics.dart';
 
-Future<void> showAttendanceDiagnostics(BuildContext context) => showModalBottomSheet<void>(
+Future<void> showAttendanceDiagnostics(BuildContext context) async {
+  final provenance = await BuildProvenance.load();
+  String version = 'unknown', buildNumber = 'unknown';
+  try {
+    final info = await PackageInfo.fromPlatform();
+    version = info.version;
+    buildNumber = info.buildNumber;
+  } catch (_) { /* Missing package metadata is not evidence of an old APK. */ }
+  AttendanceDiagnostics.build = {
+    'version': version, 'buildNumber': buildNumber,
+    'commitSha': provenance.commitSha, 'branch': provenance.branch,
+    'dirty': provenance.dirty,
+  };
+  if (!context.mounted) return;
+  await showModalBottomSheet<void>(
   context: context, isScrollControlled: true, builder: (context) => SafeArea(
     child: SizedBox(height: MediaQuery.sizeOf(context).height * .75,
       child: Padding(padding: const EdgeInsets.all(20), child: Column(children: [
         const Text('考勤接口诊断', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
         const SizedBox(height: 8),
-        const Text('仅包含请求路径、状态码和字段类型，不包含账号、密码、令牌或考勤内容。复制后可用于反馈。'),
+        const Text('包含安装包来源、脚本/桥接状态、脱敏路径及请求/响应字段类型；不包含密码、令牌或个人考勤内容。'),
         const SizedBox(height: 12),
         Expanded(child: ValueListenableBuilder<int>(valueListenable: AttendanceDiagnostics.revision,
           builder: (_, value, child) => SingleChildScrollView(child: SelectableText(AttendanceDiagnostics.export(),
@@ -22,3 +38,4 @@ Future<void> showAttendanceDiagnostics(BuildContext context) => showModalBottomS
     ),
   ),
 );
+}

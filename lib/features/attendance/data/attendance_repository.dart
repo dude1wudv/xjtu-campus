@@ -1,4 +1,5 @@
 import 'attendance_diagnostics.dart';
+import 'undergraduate_attendance_adapter.dart';
 import 'dart:async';
 
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -66,18 +67,26 @@ class AttendanceRepository {
   void cancel() => _cancelToken.cancel('Attendance sync stopped');
 
   Future<AttendanceSnapshot> load(AttendanceSystem system) async {
-    final timer = Timer(const Duration(seconds: 90), cancel);
+    if (_cancelToken.isCancelled) throw _cancelToken.cancelError!;
+    var timedOut = false;
+    final timer = Timer(const Duration(seconds: 90), () {
+      timedOut = true;
+      cancel();
+    });
     try {
       return await _load(system);
+    } catch (_) {
+      if (timedOut) throw TimeoutException('考勤同步超时，请稍后重试');
+      rethrow;
     } finally {
       timer.cancel();
     }
   }
 
   Future<AttendanceSnapshot> _load(AttendanceSystem system) async {
-    // The new undergraduate site has a different frontend and unverified API.
-    // Never send the old bearer protocol to guessed endpoints on the new host.
-    if (!system.usesLegacyApi) throw const AttendanceWebOnly();
+    if (!system.usesLegacyApi) {
+      return UndergraduateAttendanceAdapter(session, _cancelToken).load();
+    }
     await session.restore();
     var token = await session.readAttendanceToken(system.host);
     for (var attempt = 0; attempt < 2; attempt++) {
@@ -300,8 +309,14 @@ class AttendanceConnectionFailed implements Exception {
   String toString() => '考勤系统暂时无法连接，请稍后重试';
 }
 
-class AttendanceWebOnly implements Exception {
-  const AttendanceWebOnly();
+class AttendanceProtocolChanged implements Exception {
+  const AttendanceProtocolChanged();
   @override
-  String toString() => '本科生考勤已迁移，请在新版工作台查询；应用内同步待适配。';
+  String toString() => '学校考勤接口结构发生变化，请复制脱敏诊断反馈';
+}
+
+class AttendanceRequestFailed implements Exception {
+  const AttendanceRequestFailed();
+  @override
+  String toString() => '学校考勤接口未接受查询，请稍后重试';
 }

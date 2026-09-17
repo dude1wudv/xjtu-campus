@@ -25,10 +25,29 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
   String _keyword = '';
   AttendanceStatus? _status;
   DateTimeRange? _range;
+  Object? _refreshFailure;
 
   Future<void> _openOfficial() async {
+    if (mounted) setState(() => _refreshFailure = null);
     await context.push('/attendance/login');
     if (mounted) ref.invalidate(attendanceSnapshotProvider);
+  }
+
+  Future<void> _openSchoolLogin() async {
+    if (mounted) setState(() => _refreshFailure = null);
+    await context.push('/login');
+    if (mounted) ref.invalidate(attendanceSnapshotProvider);
+  }
+
+  /// Keep refresh errors in this page so ManualRefreshButton cannot replace
+  /// the attendance-specific reason with the app-wide generic SnackBar.
+  Future<void> _refreshAttendance() async {
+    if (mounted) setState(() => _refreshFailure = null);
+    try {
+      await ref.read(attendanceSnapshotProvider.notifier).refresh();
+    } catch (error) {
+      if (mounted) setState(() => _refreshFailure = error);
+    }
   }
 
   Future<void> _pickRange() async {
@@ -40,11 +59,21 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<AsyncValue<AttendanceSnapshot>>(attendanceSnapshotProvider,
+        (_, next) {
+      final snapshot = next.asData?.value;
+      if (snapshot != null && !snapshot.fromCache && mounted &&
+          _refreshFailure != null) {
+        setState(() => _refreshFailure = null);
+      }
+    });
     final system = ref.watch(attendanceSystemProvider);
     final value = ref.watch(attendanceSnapshotProvider);
     ref.watch(campusConnectionRevisionProvider);
-    final useWebVpn = ref.read(campusSessionProvider).useWebVpn;
+    final useWebVpn = system.usesLegacyApi &&
+        ref.read(campusSessionProvider).useWebVpn;
     final data = value.asData?.value;
+    final error = _refreshFailure ?? (value.hasError ? value.error : null);
     final records = (data?.records ?? const <AttendanceRecord>[]).where((record) {
       final matchDate = _range == null ||
           (!record.date.isBefore(_range!.start) && !record.date.isAfter(_range!.end));
@@ -55,10 +84,10 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
       appBar: AppBar(title: const Text('考勤查询'), actions: [
         IconButton(tooltip: '接口诊断', onPressed: () => showAttendanceDiagnostics(context), icon: const Icon(Icons.bug_report_outlined)),
         IconButton(tooltip: '官方考勤系统', onPressed: _openOfficial, icon: const Icon(Icons.open_in_browser)),
-        ManualRefreshButton(onRefresh: () => ref.read(attendanceSnapshotProvider.notifier).refresh()),
+        ManualRefreshButton(onRefresh: _refreshAttendance),
       ]),
       body: RefreshIndicator(
-        onRefresh: () => ref.read(attendanceSnapshotProvider.notifier).refresh(),
+        onRefresh: _refreshAttendance,
         child: ListView.builder(
           physics: const AlwaysScrollableScrollPhysics(),
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
@@ -71,7 +100,7 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
                   ButtonSegment(value: item, label: Text(item.label))],
                 selected: {system},
                 onSelectionChanged: (selection) {
-                  setState(() { _range = null; _status = null; });
+                  setState(() { _range = null; _status = null; _refreshFailure = null; });
                   ref.read(attendanceSystemProvider.notifier).select(selection.single);
                 },
               ),
@@ -110,27 +139,23 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
                   child: Text('正在同步考勤，请稍候…'),
                 ),
               ],
-              if (value.hasError && !value.isLoading) AppSurfaceCard(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                Text(value.error is AttendanceWebOnly
-                    ? '本科生考勤已迁移至新版工作台。请打开工作台查询，应用内考勤同步与课程关联待适配。'
-                    : value.error is AttendanceAuthRequired
-                    ? (useWebVpn
-                        ? 'WebVPN 已启用，考勤系统仍需单独认证。请打开官方考勤系统完成登录，返回后自动同步。'
-                        : '请打开官方考勤系统完成认证；校外访问可先连接 WebVPN。')
-                    : value.error is AttendanceConnectionFailed
-                        ? '考勤系统连接失败，请稍后重试，无需重复登录 WebVPN。'
-                        : value.error is FormatException
-                            ? '学校返回的数据结构无法解析。请打开接口诊断，复制脱敏信息反馈。'
-                            : '考勤同步未完成，请查看接口诊断或稍后重试。'),
+              if (error != null && !value.isLoading) AppSurfaceCard(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                Text(attendanceErrorMessage(error, useWebVpn: useWebVpn)),
                 const SizedBox(height: 12),
-                if (value.error is AttendanceAuthRequired || value.error is AttendanceWebOnly)
+                if (error is AttendanceAccountRequired)
+                  FilledButton(onPressed: _openSchoolLogin,
+                      child: const Text('登录学校账号'))
+                else if (error is AttendanceAuthRequired)
                   FilledButton(onPressed: _openOfficial, child: const Text('打开官方考勤系统'))
                 else
-                  FilledButton(onPressed: () => ref.invalidate(attendanceSnapshotProvider),
+                  FilledButton(onPressed: error is AttendanceAuthenticating
+                      ? null : _refreshAttendance,
                       child: const Text('重新同步考勤')),
-                if (!useWebVpn)
+                if (system.usesLegacyApi && !useWebVpn)
                   TextButton(onPressed: () => context.push('/webvpn'), child: const Text('连接 WebVPN')),
-                if (value.error is! AttendanceAuthRequired && value.error is! AttendanceWebOnly)
+                if (error is! AttendanceAccountRequired &&
+                    error is! AttendanceAuthRequired &&
+                    error is! AttendanceAuthenticating)
                   TextButton(onPressed: _openOfficial, child: const Text('打开官方考勤系统')),
               ])),
               if (data != null && records.isEmpty)
@@ -143,7 +168,9 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
                 Text(record.courseName.isEmpty ? '课程考勤' : record.courseName,
                     style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 8),
-                Text('${DateFormat('M月d日').format(record.date)} · 第${record.startPeriod}–${record.endPeriod}节'),
+                Text('${DateFormat('M月d日').format(record.date)} · '
+                    '${record.startPeriod > 0 && record.endPeriod >= record.startPeriod
+                        ? '第${record.startPeriod}–${record.endPeriod}节' : '节次未知'}'),
                 Text([record.location, record.teacher].where((v) => v.isNotEmpty).join(' · ')),
                 const SizedBox(height: 8),
                 Text(record.status.label, style: TextStyle(color: attendanceColor(record.status), fontWeight: FontWeight.w700)),
