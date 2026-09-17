@@ -179,6 +179,12 @@ class AttendanceRepository {
         onReceivedError: (_, request, _) {
           if (request.isForMainFrame != false) fail(const AttendanceConnectionFailed());
         },
+        onReceivedHttpError: (_, request, response) {
+          if (request.isForMainFrame != false &&
+              (response.statusCode ?? 0) >= 500) {
+            fail(const AttendanceConnectionFailed());
+          }
+        },
       );
       if (_cancelToken.isCancelled) throw _cancelToken.cancelError!;
       await browser.run();
