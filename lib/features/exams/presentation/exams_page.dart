@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/widgets/app_page_scaffold.dart';
 import '../../../core/l10n/app_strings.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_tokens.dart';
@@ -20,7 +21,7 @@ class ExamsPage extends ConsumerWidget {
     final snap = ref.watch(examsSnapshotProvider);
     final auth = ref.watch(authControllerProvider);
 
-    return Scaffold(
+    return AppPageScaffold(
       appBar: AppBar(
         title: const Text(AppStrings.examsTitle),
         leading: IconButton(
@@ -44,6 +45,8 @@ class ExamsPage extends ConsumerWidget {
         onRefresh: () =>
             ref.read(examsSnapshotProvider.notifier).refresh(force: true),
         child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           padding: AppTokens.pagePadding,
           children: [
             snap.when(

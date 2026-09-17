@@ -2,22 +2,25 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../features/alarms/presentation/alarms_page.dart';
 import '../../features/academics/presentation/academics_page.dart';
+import '../../features/alarms/presentation/alarms_page.dart';
+import '../../features/attendance/presentation/attendance_page.dart';
+import '../../features/auth/presentation/cas_web_login_page.dart';
+import '../../features/auth/presentation/login_page.dart';
 import '../../features/calendar/presentation/calendar_page.dart';
 import '../../features/campus_card/presentation/campus_card_page.dart';
 import '../../features/campus_card/presentation/ncard_sync_page.dart';
+import '../../features/classroom/presentation/classroom_page.dart';
 import '../../features/exams/presentation/exams_page.dart';
 import '../../features/grades/presentation/grades_page.dart';
-import '../widgets/in_app_browser_page.dart';
-import '../../features/auth/presentation/cas_web_login_page.dart';
-import '../../features/auth/presentation/login_page.dart';
-import '../../features/classroom/presentation/classroom_page.dart';
 import '../../features/home/presentation/home_dashboard.dart';
+import '../../features/homework/presentation/homework_page.dart';
 import '../../features/home/presentation/home_shell.dart';
+import '../../features/library_seats/presentation/library_seats_page.dart';
+import '../../features/network/presentation/webvpn_page.dart';
 import '../../features/notifications/presentation/notifications_page.dart';
 import '../../features/schedule/presentation/schedule_page.dart';
-import '../../features/library_seats/presentation/library_seats_page.dart';
+import '../widgets/in_app_browser_page.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 
@@ -26,6 +29,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     navigatorKey: _rootNavigatorKey,
     initialLocation: '/home',
     routes: [
+      GoRoute(path: '/homework', builder: (context, state) => const HomeworkPage()),
+      GoRoute(path: '/homework/:id', builder: (context, state) {
+        final id = int.tryParse(state.pathParameters['id'] ?? '');
+        return id == null ? const HomeworkPage() : HomeworkDetailPage(id: id);
+      }),
+      GoRoute(path: '/attendance', builder: (context, state) => const AttendancePage()),
+      GoRoute(path: '/webvpn', builder: (context, state) => const WebVpnPage()),
       GoRoute(
         path: '/login',
         parentNavigatorKey: _rootNavigatorKey,

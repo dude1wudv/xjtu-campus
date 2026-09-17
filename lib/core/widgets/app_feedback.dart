@@ -47,9 +47,7 @@ class DataSourceBanner extends StatelessWidget {
         ? AppColors.gold
         : (live ? AppColors.success : AppColors.gold);
     final timeCaption = _timeCaption;
-    return Opacity(
-      opacity: fromCache ? 0.92 : 1,
-      child: Container(
+    return Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
@@ -126,7 +124,6 @@ class DataSourceBanner extends StatelessWidget {
             ),
           ],
         ),
-      ),
     );
   }
 }

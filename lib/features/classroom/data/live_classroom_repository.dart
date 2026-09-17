@@ -18,7 +18,7 @@ class LiveClassroomRepository implements ClassroomRepository {
     required this._session,
     required this._mock,
     ClassroomWebViewFetcher? webViewFetcher,
-  }) : _webViewFetcher = webViewFetcher ?? ClassroomWebViewFetcher();
+  }) : _webViewFetcher = webViewFetcher ?? ClassroomWebViewFetcher(session: _session);
 
   final CampusSession _session;
   final MockClassroomRepository _mock;
@@ -139,7 +139,7 @@ class LiveClassroomRepository implements ClassroomRepository {
 
   List<bool> _rewriteModes() {
     if (_session.useWebVpn) {
-      return const [false, true];
+      return const [true];
     }
     return const [false];
   }

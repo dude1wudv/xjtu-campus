@@ -18,18 +18,7 @@ class LiveCalendarRepository implements CalendarRepository {
     required this._session,
     required this._mock,
     Dio? dio,
-  })  : _dio = dio ??
-            Dio(
-              BaseOptions(
-                connectTimeout: const Duration(seconds: 20),
-                receiveTimeout: const Duration(seconds: 25),
-                headers: {
-                  'User-Agent': CampusUrls.userAgent,
-                  'Accept': 'application/json, text/javascript, */*; q=0.01',
-                },
-                validateStatus: (s) => s != null && s < 500,
-              ),
-            );
+  }) : _dio = dio ?? _session.dio;
 
   final CampusSession _session;
   final MockCalendarRepository _mock;
@@ -163,7 +152,7 @@ class LiveCalendarRepository implements CalendarRepository {
     required String byIdUrl,
   }) async {
     try {
-      await _dio.get(page);
+      await _dio.get(_session.resolveUrl(page));
     } on Object {
       // ignore warm failure
     }
@@ -179,13 +168,13 @@ class LiveCalendarRepository implements CalendarRepository {
     List<SchoolTermInfo> terms = const [];
     for (final params in paramVariants) {
       final termsResp = await _dio.post(
-        termsUrl,
+        _session.resolveUrl(termsUrl),
         data: params,
         options: Options(
           contentType: Headers.formUrlEncodedContentType,
           headers: {
             'X-Requested-With': 'XMLHttpRequest',
-            'Referer': page,
+            'Referer': _session.resolveUrl(page),
           },
         ),
       );
@@ -216,13 +205,13 @@ class LiveCalendarRepository implements CalendarRepository {
     if (current.id.isNotEmpty) {
       try {
         final detailResp = await _dio.post(
-          byIdUrl,
+          _session.resolveUrl(byIdUrl),
           data: {'id': current.id},
           options: Options(
             contentType: Headers.formUrlEncodedContentType,
             headers: {
               'X-Requested-With': 'XMLHttpRequest',
-              'Referer': page,
+              'Referer': _session.resolveUrl(page),
             },
           ),
         );
@@ -261,7 +250,7 @@ class LiveCalendarRepository implements CalendarRepository {
     ]) {
       try {
         final resp = await _dio.get<String>(
-          url,
+          _session.resolveUrl(url),
           options: Options(
             responseType: ResponseType.plain,
             headers: {'Accept': 'text/html,application/xhtml+xml'},
@@ -328,7 +317,7 @@ class LiveCalendarRepository implements CalendarRepository {
         final startJson = _session.tryJson(
           await _session.post(
             startUrl,
-            rewrite: false,
+            rewrite: true,
             data: {'XN': '${parts[0]}-${parts[1]}', 'XQ': parts[2]},
             headers: {
               'Accept': 'application/json, text/javascript, */*; q=0.01',
@@ -382,7 +371,7 @@ class LiveCalendarRepository implements CalendarRepository {
       try {
         await _session.get(
           url,
-          rewrite: false,
+          rewrite: true,
           headers: {
             'Accept':
                 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -404,7 +393,7 @@ class LiveCalendarRepository implements CalendarRepository {
         final json = _session.tryJson(
           await _session.post(
             url,
-            rewrite: false,
+            rewrite: true,
             headers: {
               'Accept': 'application/json, text/javascript, */*; q=0.01',
               'X-Requested-With': 'XMLHttpRequest',

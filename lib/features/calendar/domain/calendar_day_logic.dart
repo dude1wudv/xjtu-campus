@@ -13,9 +13,14 @@ bool courseMeetsOnDay(
 }) {
   if (course.weekday != day.weekday) return false;
   if (course.weeks.isEmpty) return true;
+  final today = calendarDateOnly(DateTime.now());
+  final currentMonday = today.subtract(Duration(days: today.weekday - 1));
+  final selected = calendarDateOnly(day);
+  final selectedMonday = selected.subtract(Duration(days: selected.weekday - 1));
   final week = term != null
       ? term.teachingWeekOf(day)
-      : fallbackWeek;
+      : fallbackWeek == null ? null
+          : fallbackWeek + selectedMonday.difference(currentMonday).inDays ~/ 7;
   if (week == null) return true;
   return course.weeks.contains(week);
 }

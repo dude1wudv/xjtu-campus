@@ -17,7 +17,7 @@ class LiveScheduleRepository implements ScheduleRepository {
     required this._session,
     required this._mock,
     WorkflowWebViewScheduleFetcher? webViewFetcher,
-  }) : _webViewFetcher = webViewFetcher ?? WorkflowWebViewScheduleFetcher();
+  }) : _webViewFetcher = webViewFetcher ?? WorkflowWebViewScheduleFetcher(session: _session);
 
   final CampusSession _session;
   final MockScheduleRepository _mock;
@@ -155,40 +155,7 @@ class LiveScheduleRepository implements ScheduleRepository {
       AppLogger.warn('WebView workflow 课表失败，回退 Dio: $error');
     }
 
-    // Prefer direct workflow hosts first: SSO cookies imported for
-    // workflow/login are NOT sent after Dio rewrites to webvpn.xjtu.edu.cn.
-    // Only fall back to WebVPN rewrite when direct fails and the toggle is on.
-    final direct = await _tryWorkflowPath(now, rewrite: false);
-    if (direct != null && direct.courses.isNotEmpty) {
-      AppLogger.info('workflow 课表路径成功: direct (rewrite=false)');
-      return direct;
-    }
-    if (direct != null && !_session.useWebVpn) {
-      // Direct returned empty/login/non-JSON; no VPN fallback configured.
-      AppLogger.info('workflow 课表路径: direct 无有效课表且未开启 WebVPN');
-      return direct;
-    }
-
-    if (_session.useWebVpn) {
-      AppLogger.warn(
-        'workflow direct 失败或无课表，尝试 WebVPN: ensureWebVpnSession + rewrite',
-      );
-      await _session.ensureWebVpnSession();
-      final viaVpn = await _tryWorkflowPath(now, rewrite: true);
-      if (viaVpn != null && viaVpn.courses.isNotEmpty) {
-        AppLogger.info('workflow 课表路径成功: webvpn (rewrite=true)');
-        return viaVpn;
-      }
-      // Prefer any non-null VPN result over a failed direct empty shell,
-      // but if VPN also empty keep the more informative of the two.
-      if (viaVpn != null) {
-        AppLogger.info('workflow 课表路径: webvpn 无有效课表，返回 VPN 结果');
-        return viaVpn;
-      }
-    }
-
-    AppLogger.info('workflow 课表路径: 回退 direct 结果');
-    return direct;
+    return _tryWorkflowPath(now, rewrite: _session.useWebVpn);
   }
 
   Future<ScheduleSnapshot?> _tryWorkflowWebView(DateTime now) async {

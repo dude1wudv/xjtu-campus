@@ -18,6 +18,7 @@ Future<T> loadWithCache<T>({
   required T Function(T cached, DateTime savedAt) markRefreshFailed,
   void Function(T value)? emit,
   bool forceRefresh = false,
+  bool Function()? isCurrent,
 }) async {
   final CachedEnvelope<T>? cached;
   if (forceRefresh) {
@@ -25,7 +26,7 @@ Future<T> loadWithCache<T>({
     cached = null;
   } else {
     cached = await cache.readEnvelope(key, fromJson);
-    if (cached != null && emit != null) {
+    if (cached != null && emit != null && (isCurrent?.call() ?? true)) {
       emit(markCached(cached.payload, cached.savedAt));
     }
   }
@@ -33,7 +34,7 @@ Future<T> loadWithCache<T>({
   try {
     final fresh = await fetch();
     if (isLive(fresh)) {
-      await cache.write(key, toJson(fresh));
+      if (isCurrent?.call() ?? true) await cache.write(key, toJson(fresh));
       return fresh;
     }
     if (cached != null) {

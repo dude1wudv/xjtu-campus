@@ -6,14 +6,16 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../features/attendance/data/attendance_repository.dart';
+import '../../features/campus_card/data/ncard_mobile_stealth.dart';
 import '../../features/notifications/data/dean_public_challenge.dart';
 import '../../features/notifications/data/dean_webview_stealth.dart';
 import '../constants/campus_urls.dart';
-import '../../features/campus_card/data/ncard_mobile_stealth.dart';
 import '../di/core_providers.dart';
+import '../logging/app_logger.dart';
 import '../network/imported_campus_cookie.dart';
 import '../network/webview_cookie_bridge.dart';
-import '../logging/app_logger.dart';
+import '../network/webvpn_url.dart';
 import '../theme/app_theme.dart';
 
 /// 应用内浏览器：通知原文、教务页等在 App 内打开。
@@ -130,7 +132,7 @@ class _InAppBrowserPageState extends ConsumerState<InAppBrowserPage> {
     try {
       final manager = CookieManager.instance();
       final cookies =
-          await manager.getCookies(url: WebUri(widget.initialUrl));
+          await manager.getCookies(url: WebUri(ref.read(campusSessionProvider).resolveUrl(widget.initialUrl)));
       String? clientId;
       for (final c in cookies) {
         if (c.name != 'client_id') continue;
@@ -241,6 +243,14 @@ class _InAppBrowserPageState extends ConsumerState<InAppBrowserPage> {
   Future<void> _handleLoadStop(InAppWebViewController controller) async {
     await _injectStealth(controller);
     await _dismissNcardMobileDialog(controller);
+    final url = await controller.getUrl();
+    if (url != null && WebVpnUrl.matchesHost(Uri.parse(url.toString()), 'lms.xjtu.edu.cn')) {
+      final session = ref.read(campusSessionProvider);
+      await WebViewCookieBridge.importOrigins(session: session, origins: [
+        url.toString(), 'https://lms.xjtu.edu.cn/',
+        'https://lms.xjtu.edu.cn/api/my-courses',
+      ]);
+    }
 
     final html = await _pageHtml(controller);
     final pageTitle = await _pageTitle(controller);
@@ -335,6 +345,20 @@ class _InAppBrowserPageState extends ConsumerState<InAppBrowserPage> {
     });
   }
 
+  Future<void> _captureAttendanceToken(WebUri? url) async {
+    if (url == null) return;
+    final uri = Uri.parse(url.toString());
+    for (final system in AttendanceSystem.values) {
+      if (!WebVpnUrl.matchesHost(uri, system.host)) continue;
+      final token = AttendanceRepository.tokenFromUri(uri);
+      if (token == null) return;
+      final session = ref.read(campusSessionProvider);
+      await session.saveAttendanceToken(system.host, token);
+      await WebViewCookieBridge.importOrigins(session: session, origins: [uri.toString()]);
+      return;
+    }
+  }
+
   Future<void> _openInSystemBrowser() async {
     final uri = Uri.tryParse(widget.initialUrl);
     if (uri == null) return;
@@ -357,7 +381,7 @@ class _InAppBrowserPageState extends ConsumerState<InAppBrowserPage> {
     });
     try {
       await _controller?.loadUrl(
-        urlRequest: URLRequest(url: WebUri(widget.initialUrl)),
+        urlRequest: URLRequest(url: WebUri(ref.read(campusSessionProvider).resolveUrl(widget.initialUrl))),
       );
     } on Object catch (error) {
       if (mounted) {
@@ -404,7 +428,7 @@ class _InAppBrowserPageState extends ConsumerState<InAppBrowserPage> {
                 children: [
                   InAppWebView(
                     initialUrlRequest:
-                        URLRequest(url: WebUri(widget.initialUrl)),
+                        URLRequest(url: WebUri(ref.read(campusSessionProvider).resolveUrl(widget.initialUrl))),
                     initialUserScripts: _initialUserScripts,
                     initialSettings: InAppWebViewSettings(
                       javaScriptEnabled: true,
@@ -424,6 +448,7 @@ class _InAppBrowserPageState extends ConsumerState<InAppBrowserPage> {
                       await _injectStealth(c);
                     },
                     onLoadStart: (c, url) async {
+                      await _captureAttendanceToken(url);
                       await _injectStealth(c);
                       if (mounted) {
                         setState(() {
@@ -448,7 +473,11 @@ class _InAppBrowserPageState extends ConsumerState<InAppBrowserPage> {
                         }
                       }
                     },
-                    onLoadStop: (c, url) => _handleLoadStop(c),
+                    onUpdateVisitedHistory: (c, url, _) => _captureAttendanceToken(url),
+                    onLoadStop: (c, url) async {
+                      await _captureAttendanceToken(url);
+                      await _handleLoadStop(c);
+                    },
                     onReceivedError: (c, request, error) {
                       // Ignore subframe / non-main-frame noise when possible.
                       final isMain = request.isForMainFrame ?? true;

@@ -15,7 +15,7 @@ class LiveExamsRepository implements ExamsRepository {
     required this._session,
     required this._mock,
     ExamsWebViewFetcher? webViewFetcher,
-  }) : _webViewFetcher = webViewFetcher ?? ExamsWebViewFetcher();
+  }) : _webViewFetcher = webViewFetcher ?? ExamsWebViewFetcher(session: _session);
 
   final CampusSession _session;
   final MockExamsRepository _mock;
@@ -165,7 +165,7 @@ class LiveExamsRepository implements ExamsRepository {
   }
 
   List<bool> _rewriteModes() {
-    if (_session.useWebVpn) return const [false, true];
+    if (_session.useWebVpn) return const [true];
     return const [false];
   }
 

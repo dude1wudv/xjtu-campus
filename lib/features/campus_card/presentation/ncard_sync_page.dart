@@ -7,8 +7,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/campus_urls.dart';
 import '../../../core/di/core_providers.dart';
-import '../../../core/network/imported_campus_cookie.dart';
 import '../../../core/logging/app_logger.dart';
+import '../../../core/network/imported_campus_cookie.dart';
+import '../../../core/network/webvpn_url.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../data/ncard_mobile_stealth.dart';
@@ -38,6 +39,8 @@ class _NcardSyncPageState extends ConsumerState<NcardSyncPage> {
     CampusUrls.ncardPlat,
     CampusUrls.ncardCasRedirect,
   ];
+
+  String _url(String url) => ref.read(campusSessionProvider).resolveUrl(url);
 
   InAppWebViewController? _controller;
   var _status = '正在以手机模式同步校园卡…';
@@ -86,7 +89,7 @@ class _NcardSyncPageState extends ConsumerState<NcardSyncPage> {
       final cookieManager = CookieManager.instance();
       final mapped = <ImportedCampusCookie>[];
       final seen = <String>{};
-      for (final origin in _cookieOrigins) {
+      for (final origin in {..._cookieOrigins, ..._cookieOrigins.map(_url)}) {
         final uri = Uri.parse(origin);
         final batch = await cookieManager.getCookies(url: WebUri(origin));
         for (final c in batch) {
@@ -121,7 +124,7 @@ class _NcardSyncPageState extends ConsumerState<NcardSyncPage> {
     if (uri == null || _done) return;
     final host = uri.host;
     final leftLogin = host.isNotEmpty && !host.contains('login.xjtu.edu.cn');
-    final onNcard = host.contains('ncard');
+    final onNcard = WebVpnUrl.matchesHost(uri, 'ncard.xjtu.edu.cn');
     if (leftLogin || onNcard) {
       await _importWebViewCookies(force: onNcard && !_cookiesImported);
     }
@@ -166,7 +169,7 @@ class _NcardSyncPageState extends ConsumerState<NcardSyncPage> {
     if (c != null) {
       try {
         await c.loadUrl(
-          urlRequest: URLRequest(url: WebUri(CampusUrls.ncardPlat)),
+          urlRequest: URLRequest(url: WebUri(_url(CampusUrls.ncardPlat))),
         );
       } on Object catch (error) {
         AppLogger.warn('ncard sync loadUrl plat 失败: $error');
@@ -177,7 +180,7 @@ class _NcardSyncPageState extends ConsumerState<NcardSyncPage> {
 
   Future<void> _onUrl(Uri? uri) async {
     if (_done || uri == null) return;
-    if (!uri.host.contains('ncard')) return;
+    if (!WebVpnUrl.matchesHost(uri, 'ncard.xjtu.edu.cn')) return;
 
     final ticket = NcardSso.ticketFromUri(uri);
     if (ticket != null) {
@@ -325,7 +328,7 @@ class _NcardSyncPageState extends ConsumerState<NcardSyncPage> {
           Expanded(
             child: InAppWebView(
               initialUrlRequest:
-                  URLRequest(url: WebUri(CampusUrls.ncardCasRedirect)),
+                  URLRequest(url: WebUri(_url(CampusUrls.ncardCasRedirect))),
               initialUserScripts: _userScripts,
               initialSettings: InAppWebViewSettings(
                 javaScriptEnabled: true,
@@ -377,7 +380,7 @@ class _NcardSyncPageState extends ConsumerState<NcardSyncPage> {
 
                 // ncard + ticket=: capture once, CANCEL so SPA soft-warm
                 // cannot GET /plat/auth/synjones/oauth?ticket= and burn it.
-                if (uri.host.contains('ncard') &&
+                if (WebVpnUrl.matchesHost(uri, 'ncard.xjtu.edu.cn') &&
                     uri.toString().contains('ticket=')) {
                   final ticket = NcardSso.ticketFromUri(uri);
                   if (ticket != null) {

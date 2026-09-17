@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'app_theme.dart';
 
 /// Named design tokens — radii, spacing, elevation, motion.
-/// Keep navy/cream visual language; avoid magic numbers in feature UIs.
+/// Shared by root tabs, detail pages, and modal surfaces.
 abstract final class AppTokens {
+  static const double contentWidth = 840;
+
   // —— Radii ——
   static const double radiusSm = 12;
   static const double radiusMd = 16;
@@ -28,9 +30,9 @@ abstract final class AppTokens {
   static const double spaceSection = 32;
 
   static const EdgeInsets pagePadding = EdgeInsets.fromLTRB(
-    spaceXl,
+    spaceLg,
     spaceMd,
-    spaceXl,
+    spaceLg,
     spaceSection,
   );
 

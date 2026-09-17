@@ -146,7 +146,7 @@ class LiveCampusCardRepository implements CampusCardRepository {
     final headers = _authHeaders(stored);
     final cardResp = await _session.get(
       CampusUrls.ncardQueryCard,
-      rewrite: false,
+      rewrite: true,
       headers: headers,
     );
     final cardJson = _session.tryJson(cardResp);
@@ -164,7 +164,7 @@ class LiveCampusCardRepository implements CampusCardRepository {
       final range = _defaultTurnoverRange();
       final turnResp = await _session.get(
         CampusUrls.ncardTurnover,
-        rewrite: false,
+        rewrite: true,
         query: {
           'size': 30,
           'current': 1,
@@ -186,7 +186,7 @@ class LiveCampusCardRepository implements CampusCardRepository {
   ) async {
     final cardResp = await _session.get(
       CampusUrls.ncardQueryCard,
-      rewrite: false,
+      rewrite: true,
       headers: headers,
     );
     final cardJson = _session.tryJson(cardResp);
@@ -201,7 +201,7 @@ class LiveCampusCardRepository implements CampusCardRepository {
       final range = _defaultTurnoverRange();
       final turnResp = await _session.get(
         CampusUrls.ncardTurnover,
-        rewrite: false,
+        rewrite: true,
         query: {
           'size': 30,
           'current': 1,

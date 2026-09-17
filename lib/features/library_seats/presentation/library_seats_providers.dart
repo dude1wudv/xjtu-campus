@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/di/core_providers.dart';
+import '../../../core/network/campus_connection.dart';
 import '../../alarms/data/local_notification_scheduler.dart';
+import '../../auth/presentation/auth_controller.dart';
 import '../data/library_seat_api.dart';
 import '../data/library_seat_areas.dart';
 import '../data/library_seat_schedule_store.dart';
@@ -15,7 +17,7 @@ final librarySeatsRepositoryProvider = Provider<LibrarySeatsRepository>(
   (ref) {
     final session = ref.watch(campusSessionProvider);
     return LiveLibrarySeatsRepository(
-      api: LibrarySeatApi(cookieJar: session.jar),
+      api: LibrarySeatApi(session: session),
     );
   },
 );
@@ -39,8 +41,18 @@ final librarySeatAreaProvider =
 class LibrarySeatsNotifier extends AsyncNotifier<LibrarySeatsSnapshot> {
   @override
   Future<LibrarySeatsSnapshot> build() async {
+    var active = true;
+    ref.onDispose(() => active = false);
+    ref.watch(campusConnectionRevisionProvider);
+    ref.watch(authControllerProvider.select((s) => s.user));
+    await ref.read(campusSessionProvider).restore();
     final area = ref.watch(librarySeatAreaProvider);
-    return ref.read(librarySeatsRepositoryProvider).listSeats(area);
+    return ref.read(campusSessionProvider).readQueue.run(
+      () {
+        if (!active) throw StateError('Sync superseded');
+        return ref.read(librarySeatsRepositoryProvider).listSeats(area);
+      },
+    );
   }
 
   Future<void> refresh({bool force = true}) async {

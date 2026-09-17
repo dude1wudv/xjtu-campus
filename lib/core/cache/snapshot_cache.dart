@@ -31,6 +31,9 @@ class SnapshotCache {
     campusCard,
   ];
 
+  static String scoped(String key, String studentId, [String variant = '']) =>
+      '$key.${Uri.encodeComponent(studentId)}.${Uri.encodeComponent(variant)}';
+
   Future<SharedPreferences> _ensurePrefs() async {
     final override = _prefsOverride;
     if (override != null) return override;
@@ -106,8 +109,10 @@ class SnapshotCache {
 
   Future<void> clearAll() async {
     final prefs = await _ensurePrefs();
-    for (final key in allKeys) {
-      await prefs.remove(key);
+    for (final key in prefs.getKeys()) {
+      if (allKeys.any((prefix) => key == prefix || key.startsWith('$prefix.'))) {
+        await prefs.remove(key);
+      }
     }
   }
 }

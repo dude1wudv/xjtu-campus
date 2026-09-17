@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../l10n/app_strings.dart';
 
-/// AppBar action: force network refresh (bypass SnapshotCache).
-class ManualRefreshButton extends StatelessWidget {
+/// Refresh is single-flight per button to avoid duplicate network/WebView work.
+class ManualRefreshButton extends StatefulWidget {
   const ManualRefreshButton({
     super.key,
     required this.onRefresh,
@@ -14,31 +14,47 @@ class ManualRefreshButton extends StatelessWidget {
   final String tooltip;
 
   @override
+  State<ManualRefreshButton> createState() => _ManualRefreshButtonState();
+}
+
+class _ManualRefreshButtonState extends State<ManualRefreshButton> {
+  bool _busy = false;
+
+  Future<void> _refresh() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await runManualRefresh(context, widget.onRefresh);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return IconButton(
-      tooltip: tooltip,
-      icon: const Icon(Icons.refresh_rounded),
-      onPressed: () => runManualRefresh(context, onRefresh),
+      tooltip: _busy ? AppStrings.refreshingSnack : widget.tooltip,
+      onPressed: _busy ? null : _refresh,
+      icon: _busy
+          ? const SizedBox.square(
+              dimension: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.refresh_rounded),
     );
   }
 }
 
-/// Shows a brief「正在刷新…」SnackBar, runs [onRefresh], then clears it.
 Future<void> runManualRefresh(
   BuildContext context,
   Future<void> Function() onRefresh,
 ) async {
-  final messenger = ScaffoldMessenger.maybeOf(context);
-  messenger?.hideCurrentSnackBar();
-  messenger?.showSnackBar(
-    const SnackBar(
-      content: Text(AppStrings.refreshingSnack),
-      duration: Duration(seconds: 90),
-    ),
-  );
   try {
     await onRefresh();
-  } finally {
-    messenger?.hideCurrentSnackBar();
+  } catch (_) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      const SnackBar(content: Text(AppStrings.errorGeneric)),
+    );
   }
 }

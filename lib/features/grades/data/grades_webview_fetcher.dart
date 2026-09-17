@@ -5,12 +5,18 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import '../../../core/constants/campus_urls.dart';
 import '../../../core/logging/app_logger.dart';
+import '../../../core/network/campus_session.dart';
+import '../../../core/network/webview_cookie_bridge.dart';
+import '../../../core/network/webvpn_url.dart';
 
 /// Fetches cjcx JSON inside HeadlessInAppWebView (shared CAS cookie jar).
 class GradesWebViewFetcher {
-  GradesWebViewFetcher({this.timeout = const Duration(seconds: 45)});
+  GradesWebViewFetcher({this.session, this.timeout = const Duration(seconds: 45)});
 
   final Duration timeout;
+  final CampusSession? session;
+
+  String _url(String url) => session?.resolveUrl(url) ?? url;
 
   Future<Map<String, dynamic>?> fetchGradesJson() async {
     final completer = Completer<Map<String, dynamic>?>();
@@ -38,7 +44,7 @@ class GradesWebViewFetcher {
     try {
       var fetchStarted = false;
       headless = HeadlessInAppWebView(
-        initialUrlRequest: URLRequest(url: WebUri(CampusUrls.jwxtCjcxIndex)),
+        initialUrlRequest: URLRequest(url: WebUri(_url(CampusUrls.jwxtCjcxIndex))),
         initialSettings: InAppWebViewSettings(
           javaScriptEnabled: true,
           domStorageEnabled: true,
@@ -49,7 +55,7 @@ class GradesWebViewFetcher {
         onLoadStop: (controller, url) async {
           if (fetchStarted || finished) return;
           final uri = url == null ? null : Uri.tryParse(url.toString());
-          if (uri != null && uri.host.contains('login')) {
+          if (uri != null && WebVpnUrl.isLoginPage(uri)) {
             AppLogger.warn('WebView cjcx 落到登录: ${uri.host}${uri.path}');
             await complete(null);
             return;
@@ -68,7 +74,14 @@ class GradesWebViewFetcher {
         },
       );
       AppLogger.info('WebView 开始拉取成绩');
-      await headless.run();
+      final activeSession = session;
+      if (activeSession != null) {
+        await WebViewCookieBridge.seedOrigins(
+          session: activeSession,
+          origins: [CampusUrls.casLogin, _url(CampusUrls.jwxtCjcxIndex)],
+        );
+      }
+      if (!finished) await headless.run();
     } on Object catch (error) {
       AppLogger.warn('Grades HeadlessInAppWebView 启动失败: $error');
       await complete(null);
@@ -80,7 +93,7 @@ class GradesWebViewFetcher {
   Future<Map<String, dynamic>?> _runFetch(
     InAppWebViewController controller,
   ) async {
-    final endpoint = CampusUrls.jwxtGrades;
+    final endpoint = _url(CampusUrls.jwxtGrades);
     final asyncResult = await controller.callAsyncJavaScript(
       functionBody: '''
         const postHeaders = {

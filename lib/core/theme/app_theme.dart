@@ -3,25 +3,29 @@ import 'package:flutter/services.dart';
 
 import 'app_tokens.dart';
 
-/// 视觉参考：干净、留白、软表面、克制强调色（Grok 系产品气质）。
+/// Campus blue, cool neutral surfaces, and shared semantic status colors.
 abstract final class AppColors {
-  static const Color ink = Color(0xFF12141A);
-  static const Color inkSoft = Color(0xFF3C4450);
-  static const Color navy = Color(0xFF1A3A5C);
-  static const Color navyDeep = Color(0xFF10263D);
-  static const Color accent = Color(0xFF4F8CFF);
-  static const Color gold = Color(0xFFD4A017);
-  static const Color cream = Color(0xFFF4F1EA);
-  static const Color surface = Color(0xFFFBFAF7);
+  static const Color ink = Color(0xFF18243A);
+  static const Color inkSoft = Color(0xFF5D6B80);
+  static const Color navy = Color(0xFF2457A7);
+  static const Color navyDeep = Color(0xFF18376B);
+  static const Color accent = Color(0xFF4479D5);
+  static const Color gold = Color(0xFF966510);
+  static const Color cream = Color(0xFFF3F6FB);
+  static const Color surface = Color(0xFFF8FAFD);
   static const Color card = Color(0xFFFFFFFF);
-  static const Color line = Color(0x1412141A);
+  static const Color line = Color(0xFFE2E8F1);
   static const Color success = Color(0xFF1F7A4C);
   static const Color alert = Color(0xFFC62828);
-  static const Color chip = Color(0xFFEEF3FA);
+  static const Color chip = Color(0xFFEAF0FA);
 }
 
 abstract final class AppTheme {
-  static ThemeData light() {
+  static final ThemeData _light = _buildLight();
+
+  static ThemeData light() => _light;
+
+  static ThemeData _buildLight() {
     const textTheme = TextTheme(
       headlineMedium: TextStyle(
         fontSize: 28,
@@ -72,12 +76,46 @@ abstract final class AppTheme {
       colorScheme: colorScheme,
       scaffoldBackgroundColor: AppColors.cream,
       textTheme: textTheme,
+      visualDensity: VisualDensity.standard,
+      materialTapTargetSize: MaterialTapTargetSize.padded,
+      dividerTheme: const DividerThemeData(color: AppColors.line, space: 1),
+      progressIndicatorTheme: const ProgressIndicatorThemeData(
+        color: AppColors.navy,
+        linearTrackColor: AppColors.chip,
+      ),
+      listTileTheme: const ListTileThemeData(
+        iconColor: AppColors.navy,
+        contentPadding: AppTokens.cardPadding,
+        minVerticalPadding: 12,
+      ),
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: AppColors.card,
+        surfaceTintColor: Colors.transparent,
+        showDragHandle: true,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        clipBehavior: Clip.antiAlias,
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: AppColors.card,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: AppTokens.borderXl),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          minimumSize: const Size(48, 48),
+          foregroundColor: AppColors.navy,
+        ),
+      ),
       appBarTheme: const AppBarTheme(
         backgroundColor: AppColors.cream,
         foregroundColor: AppColors.ink,
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
+        titleSpacing: 16,
+        toolbarHeight: 60,
         systemOverlayStyle: SystemUiOverlayStyle.dark,
         titleTextStyle: TextStyle(
           fontSize: 18,
@@ -87,7 +125,7 @@ abstract final class AppTheme {
         ),
       ),
       navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: AppColors.card.withValues(alpha: 0.96),
+        backgroundColor: AppColors.card,
         elevation: 0,
         height: 68,
         indicatorColor: AppColors.navy.withValues(alpha: 0.10),
@@ -121,10 +159,10 @@ abstract final class AppTheme {
       ),
       chipTheme: ChipThemeData(
         backgroundColor: AppColors.chip,
-        selectedColor: AppColors.navy,
+        selectedColor: AppColors.chip,
         disabledColor: AppColors.chip,
-        checkmarkColor: Colors.white,
-        secondarySelectedColor: AppColors.navy,
+        checkmarkColor: AppColors.navy,
+        secondarySelectedColor: AppColors.chip,
         side: const BorderSide(color: AppColors.line),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppTokens.radiusPill),
@@ -137,7 +175,7 @@ abstract final class AppTheme {
         secondaryLabelStyle: const TextStyle(
           fontSize: 13,
           fontWeight: FontWeight.w600,
-          color: Colors.white,
+          color: AppColors.navy,
         ),
         padding: const EdgeInsets.symmetric(horizontal: AppTokens.spaceXs),
         brightness: Brightness.light,

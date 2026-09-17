@@ -18,11 +18,42 @@ class WebViewCookieBridge {
     'http://rg.lib.xjtu.edu.cn:8010/seat/',
   ];
 
+  /// Restore encrypted HTTP cookies into the shared mobile WebView cookie jar.
+  static Future<void> seedOrigins({
+    required CampusSession session,
+    required Iterable<String> origins,
+  }) async {
+    await session.restore();
+    final manager = CookieManager.instance();
+    for (final origin in origins) {
+      final uri = Uri.parse(origin);
+      final cookies = await session.jar.loadForRequest(uri);
+      for (final cookie in cookies) {
+        await manager.setCookie(
+          url: WebUri(origin),
+          name: cookie.name,
+          value: cookie.value,
+          domain: cookie.domain,
+          path: cookie.path ?? '/',
+          isSecure: cookie.secure,
+          isHttpOnly: cookie.httpOnly,
+        );
+      }
+    }
+  }
+
   /// Pull cookies for [origins] (or [url] alone) and import into [session].
   static Future<int> importOrigins({
     required CampusSession session,
     required Iterable<String> origins,
   }) async {
+    final mapped = await collectOrigins({...origins, ...origins.map(session.resolveUrl)});
+    if (mapped.isEmpty) return 0;
+    await session.importCookies(mapped);
+    return mapped.length;
+  }
+
+  static Future<List<ImportedCampusCookie>> collectOrigins(Iterable<String> origins) async {
     final manager = CookieManager.instance();
     final mapped = <ImportedCampusCookie>[];
     final seen = <String>{};
@@ -55,10 +86,7 @@ class WebViewCookieBridge {
       }
     }
 
-    if (mapped.isEmpty) return 0;
-    await session.importCookies(mapped);
-    AppLogger.info('WebViewCookieBridge 已导入 ${mapped.length} 条 Cookie');
-    return mapped.length;
+    return mapped;
   }
 
   /// Convenience for library seat / portal pages.

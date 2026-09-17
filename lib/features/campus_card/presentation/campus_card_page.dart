@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/widgets/app_page_scaffold.dart';
 import '../../../core/l10n/app_strings.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_tokens.dart';
@@ -73,7 +74,7 @@ class _CampusCardPageState extends ConsumerState<CampusCardPage> {
     final auth = ref.watch(authControllerProvider);
     final demo = _softDemo;
 
-    return Scaffold(
+    return AppPageScaffold(
       appBar: AppBar(
         title: const Text(AppStrings.campusCardTitle),
         leading: IconButton(
@@ -93,6 +94,8 @@ class _CampusCardPageState extends ConsumerState<CampusCardPage> {
       body: RefreshIndicator(
         onRefresh: _reload,
         child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           padding: AppTokens.pagePadding,
           children: [
             if (demo != null)

@@ -5,12 +5,15 @@ import '../../../core/cache/cached_snapshot_loader.dart';
 import '../../../core/cache/snapshot_cache.dart';
 import '../../../core/di/core_providers.dart';
 import '../../../core/l10n/app_strings.dart';
+import '../../../core/network/campus_connection.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/app_feedback.dart';
+import '../../../core/widgets/app_page_scaffold.dart';
+import '../../../core/widgets/manual_refresh_button.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../data/classroom_codes.dart';
 import '../domain/classroom_slot.dart';
-import '../../../core/widgets/manual_refresh_button.dart';
 
 class ClassroomFilter extends Notifier<ClassroomQuery> {
   @override
@@ -34,27 +37,34 @@ final classroomFilterProvider =
     NotifierProvider<ClassroomFilter, ClassroomQuery>(ClassroomFilter.new);
 
 class FreeClassroomsNotifier extends AsyncNotifier<ClassroomPageData> {
+  Future<ClassroomPageData>? pending;
   @override
   Future<ClassroomPageData> build() async {
-    ref.watch(authControllerProvider.select((state) => state.user.sessionToken));
+    var active = true;
+    ref.onDispose(() => active = false);
+    ref.watch(campusConnectionRevisionProvider);
+    ref.watch(authControllerProvider.select((state) => '${state.user.studentId}|${state.user.sessionToken}'));
     final campus =
         ref.watch(classroomFilterProvider.select((query) => query.campus));
     final building =
         ref.watch(classroomFilterProvider.select((query) => query.building));
-    final result = await loadWithCache<ClassroomPageData>(
+    final result = await (pending = loadWithCache<ClassroomPageData>(
+      isCurrent: () => active,
       cache: ref.watch(snapshotCacheProvider),
-      key: SnapshotCache.classroom,
+      key: SnapshotCache.scoped(SnapshotCache.classroom,
+          ref.read(authControllerProvider).user.studentId, '${campus ?? ''}|${building ?? ''}'),
       fromJson: ClassroomPageData.fromJson,
       toJson: (s) => s.copyWith(
         queryCampus: campus,
         queryBuilding: building,
       ).toJson(),
-      fetch: () async {
+      fetch: () => ref.read(campusSessionProvider).readQueue.run(() async {
+        if (!active) throw StateError('Sync superseded');
         final data = await ref.read(classroomRepositoryProvider).findFree(
               ClassroomQuery(campus: campus, building: building),
             );
         return data.copyWith(queryCampus: campus, queryBuilding: building);
-      },
+      }),
       isLive: (s) => s.live,
       markCached: (s, t) => s.asCached(
         t,
@@ -64,21 +74,19 @@ class FreeClassroomsNotifier extends AsyncNotifier<ClassroomPageData> {
         t,
         banner: AppStrings.cacheRefreshFailed,
       ),
-      emit: (s) => state = AsyncData(s),
-    );
+      emit: (s) { if (active) state = AsyncData(s); },
+    ));
     if (result.live && !result.fromCache) {
       return result.asFresh();
     }
     return result;
   }
 
-  /// Clear SnapshotCache for this key then rebuild (true network path).
+  /// Revalidate from the network while retaining the last successful cache.
   Future<void> refresh({bool force = true}) async {
-    if (force) {
-      await ref.read(snapshotCacheProvider).remove(SnapshotCache.classroom);
-    }
     ref.invalidateSelf();
     await future;
+    await pending;
   }
 }
 
@@ -121,7 +129,7 @@ class ClassroomPage extends ConsumerWidget {
     final buildingValue =
         buildingItems.contains(filter.building) ? filter.building : null;
 
-    return Scaffold(
+    return AppPageScaffold(
       appBar: AppBar(
         title: const Text(AppStrings.classroomTitle),
         actions: [
@@ -239,7 +247,7 @@ class ClassroomPage extends ConsumerWidget {
                 }
                 return ListView.separated(
                   physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                  padding: AppTokens.pagePadding,
                   itemCount: items.length,
                   separatorBuilder: (context, index) => const SizedBox(height: 8),
                   itemBuilder: (context, index) {

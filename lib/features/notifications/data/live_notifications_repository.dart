@@ -107,7 +107,7 @@ class LiveNotificationsRepository implements NotificationsRepository {
         'Accept': 'text/html,application/xhtml+xml',
         'User-Agent': CampusUrls.userAgent,
       },
-      rewrite: false,
+      rewrite: true,
     );
     return _session.responseText(response);
   }
@@ -155,7 +155,7 @@ class LiveNotificationsRepository implements NotificationsRepository {
         'Referer': pageUrl,
         'User-Agent': ua,
       },
-      rewrite: false,
+      rewrite: true,
     );
     final raw = _session.responseText(response);
     final clientId = DeanPublicChallenge.clientIdFromResponse(raw);

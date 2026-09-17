@@ -15,10 +15,33 @@ abstract final class WebVpnUrl {
     return host == 'webvpn.xjtu.edu.cn';
   }
 
+  static bool isCampusUrl(String url) {
+    final uri = Uri.tryParse(url);
+    return uri != null &&
+        (uri.scheme == 'http' || uri.scheme == 'https') &&
+        (uri.host == 'xjtu.edu.cn' || uri.host.endsWith('.xjtu.edu.cn'));
+  }
+
+  /// Match a proxied origin without decrypting or guessing its hostname.
+  static bool matchesHost(Uri uri, String host) {
+    if (uri.host == host) return true;
+    if (!isWebVpn(uri.toString())) return false;
+    for (final scheme in const ['https', 'http']) {
+      final prefix = Uri.parse(convert('$scheme://$host/')).path;
+      if (uri.path.startsWith(prefix)) return true;
+    }
+    return false;
+  }
+
+  static bool isLoginPage(Uri uri) =>
+      uri.host == 'login.xjtu.edu.cn' ||
+      (isWebVpn(uri.toString()) &&
+          (uri.path == '/login' || uri.path.startsWith('/login/')));
+
   static String maybeConvert(String url, {required bool enabled}) {
     if (!enabled || isWebVpn(url)) return url;
     final uri = Uri.tryParse(url);
-    if (uri == null || uri.host.isEmpty) return url;
+    if (uri == null || !isCampusUrl(url)) return url;
     if (uri.host == 'login.xjtu.edu.cn' || uri.host == 'webvpn.xjtu.edu.cn') {
       return url;
     }
