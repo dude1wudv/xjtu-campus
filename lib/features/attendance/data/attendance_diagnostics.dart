@@ -30,9 +30,17 @@ abstract final class AttendanceDiagnostics {
     // Only API/auth route segments; all unrecognized page paths are omitted.
     final path = uri.path;
     if (uri.host == 'login.xjtu.edu.cn') {
-      final stage = path.endsWith('/cas/login') ? 'cas-login'
-          : path.endsWith('/cas/logout') ? 'cas-logout' : 'authentication-page';
-      return '${uri.host}/[$stage]';
+      // Keep fixed CAS route names and structural errors while stripping
+      // session IDs and arbitrary path segments. Never export query values.
+      const routes = {'cas', 'login', 'logout', 'authserver', 'sso', 'index',
+        'index.html', 'login.html', 'loginSubmit', 'serviceValidate', 'error'};
+      final segments = path.split('/').take(8).map((part) {
+        if (part.isEmpty) return '';
+        final base = part.split(';').first;
+        final safe = routes.contains(base) ? base : '[segment]';
+        return part.contains(';') ? '$safe;[session]' : safe;
+      }).join('/');
+      return '${uri.host}$segments';
     }
     final markers = ['/attendance-student/', '/berserker-auth/', '/api/'];
     final marker = markers.map(path.indexOf).where((index) => index >= 0).fold<int>(-1, (a, b) => a < 0 || b < a ? b : a);

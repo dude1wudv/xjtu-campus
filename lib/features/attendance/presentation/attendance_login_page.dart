@@ -30,7 +30,6 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
   String? _error;
   double _progress = 0;
   bool _portal = false;
-  bool _fallbackUsed = false;
   bool _diagnosticMode = false;
   @override
   void initState() {
@@ -81,6 +80,16 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
       const allowed = ['login-form', 'login-redirect-wait', 'page-not-found', 'page-loaded'];
       if (mounted && _diagnosticMode && allowed.contains(kind)) {
         AttendanceDiagnostics.add('$kind', url: url?.toString());
+        if (kind == 'login-form') {
+          final forms = await controller.evaluateJavascript(source:
+            'Array.from(document.forms).slice(0, 4).map(f => ({action: f.action, method: f.method}))');
+          if (forms is List && mounted && _diagnosticMode) {
+            for (final form in forms.whereType<Map>()) {
+              AttendanceDiagnostics.add('login-form-target', url: '${form['action'] ?? ''}',
+                method: '${form['method'] ?? 'GET'}'.toUpperCase());
+            }
+          }
+        }
       }
     } catch (_) { /* Diagnostics must not interrupt authentication. */ }
   }
@@ -119,13 +128,9 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
   Future<void> _httpFailure(int status) async {
     if (!mounted || _saving) return;
     _timer?.cancel();
-    if (status == 404 && !_fallbackUsed) {
-      _fallbackUsed = true;
-      _portal = !_portal;
-      await _retry();
-      return;
-    }
-    setState(() { _progress = 1; _error = '学校认证页面返回 HTTP $status。可切换入口重新授权。'; });
+    // Preserve the failed document. Automatically opening another origin here
+    // hides the original failure and can start a second authentication flow.
+    setState(() { _progress = 1; _error = '认证页面返回 HTTP $status，登录尚未完成。可重试当前入口，或手动切换入口。'; });
   }
   Future<void> _retry() async {
     setState(() { _error = null; _progress = 0; });
@@ -161,7 +166,7 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
       if (_error != null) Padding(padding: const EdgeInsets.all(12), child: Column(children: [
         Text(_error!),
         TextButton(onPressed: _retry, child: const Text('重新发起授权')),
-        TextButton(onPressed: () { _portal = !_portal; _fallbackUsed = true; _retry(); },
+        TextButton(onPressed: () { _portal = !_portal; _retry(); },
           child: Text(_portal ? '切换学校统一授权入口' : '切换考勤系统入口')),
       ])),
       Expanded(child: !_ready ? const Center(child: CircularProgressIndicator()) : InAppWebView(
@@ -215,9 +220,15 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
             }
           } catch (_) {}
         },
-        onReceivedHttpError: (_, request, response) async {
-          if (request.isForMainFrame != false && (response.statusCode ?? 0) >= 400) {
-            AttendanceDiagnostics.add('page-http-error', url: request.url.toString(), status: response.statusCode);
+        onReceivedHttpError: (controller, request, response) async {
+          if ((response.statusCode ?? 0) < 400) return;
+          final mainFrame = request.isForMainFrame;
+          AttendanceDiagnostics.add(mainFrame == true ? 'page-http-error'
+              : mainFrame == false ? 'resource-http-error' : 'unclassified-http-error',
+            url: request.url.toString(), status: response.statusCode, method: request.method);
+          // A missing frame flag is not evidence of a top-level failure.
+          final currentUrl = mainFrame == null ? await controller.getUrl() : null;
+          if (mainFrame == true || (mainFrame == null && currentUrl == request.url)) {
             await _httpFailure(response.statusCode!);
           }
         },
