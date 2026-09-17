@@ -22,6 +22,8 @@ final attendanceSystemProvider = NotifierProvider<AttendanceSystemController, At
 );
 
 class AttendanceSnapshotNotifier extends AsyncNotifier<AttendanceSnapshot> {
+  Future<AttendanceSnapshot>? pending;
+
   @override
   Future<AttendanceSnapshot> build() async {
     final auth = ref.watch(authControllerProvider.select((s) => (s.initialized, s.user)));
@@ -54,14 +56,14 @@ class AttendanceSnapshotNotifier extends AsyncNotifier<AttendanceSnapshot> {
     }
     if (active && cached != null) state = AsyncData(cached);
     try {
-      final result = await session.readQueue.run(() {
+      final result = await (pending = session.readQueue.run(() {
         if (!active) throw StateError('Sync superseded');
         return repository.load(system);
       }).timeout(const Duration(seconds: 120), onTimeout: () {
         // Include time waiting behind other campus services in the UI limit.
         repository.cancel();
         throw TimeoutException('考勤同步超时，请稍后重试');
-      });
+      }));
       if (active) await store.write(key: key, value: jsonEncode(result.toJson()));
       return result;
     } catch (error) {
