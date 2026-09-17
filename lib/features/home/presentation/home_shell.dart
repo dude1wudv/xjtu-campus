@@ -41,29 +41,79 @@ class _HomeShellState extends State<HomeShell> {
         minimum: const EdgeInsets.fromLTRB(18, 0, 18, 10),
         child: GlassSurface(shadow: false, child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-          child: Row(children: [for (var i = 0; i < _tabs.length; i++) Expanded(
-            child: Semantics(selected: widget.navigationShell.currentIndex == i,
-              child: InkWell(splashFactory: NoSplash.splashFactory,
-                highlightColor: Colors.transparent, hoverColor: Colors.transparent,
-                borderRadius: BorderRadius.circular(22), onTap: () {
-                _lastBack = null;
-                widget.navigationShell.goBranch(i);
-              }, child: AnimatedContainer(duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                decoration: BoxDecoration(borderRadius: BorderRadius.circular(22),
-                  color: widget.navigationShell.currentIndex == i ? Colors.white.withValues(alpha: .85) : Colors.transparent),
-                child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(_tabs[i].$2, size: 22, color: widget.navigationShell.currentIndex == i
-                      ? const Color(0xFF007AFF) : const Color(0xFF747A87)),
-                  const SizedBox(height: 4),
-                  Text(_tabs[i].$1, style: TextStyle(fontSize: 11,
-                    fontWeight: widget.navigationShell.currentIndex == i ? FontWeight.w700 : FontWeight.w500)),
-                ]),
-              )),
-            ),
-          )]),
+          child: Stack(children: [
+            // Move one constant-color indicator. Fading separate containers
+            // from Colors.transparent (transparent black) to white makes both
+            // the outgoing and incoming tabs pass through a dark gray tint.
+            Positioned.fill(child: IgnorePointer(child: AnimatedAlign(
+              duration: MediaQuery.disableAnimationsOf(context)
+                  ? Duration.zero : const Duration(milliseconds: 180),
+              curve: Curves.easeOutCubic,
+              alignment: Alignment(-1 + 2 * widget.navigationShell.currentIndex / (_tabs.length - 1), 0),
+              child: FractionallySizedBox(widthFactor: 1 / _tabs.length, heightFactor: 1,
+                child: DecoratedBox(decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(22),
+                  color: Colors.white.withValues(alpha: .85),
+                )),
+              ),
+            ))),
+            RepaintBoundary(child: Row(children: [
+              for (var i = 0; i < _tabs.length; i++) Expanded(
+                child: _TabButton(
+                  label: _tabs[i].$1, icon: _tabs[i].$2,
+                  selected: widget.navigationShell.currentIndex == i,
+                  onTap: () {
+                    _lastBack = null;
+                    if (widget.navigationShell.currentIndex != i) {
+                      widget.navigationShell.goBranch(i);
+                    }
+                  },
+                ),
+              ),
+            ])),
+          ]),
         )),
       ),
     ),
   );
+}
+
+
+/// No Material ink overlay: keyboard and accessibility activation use the same
+/// callback as touch, without drawing a second highlight on either tab.
+class _TabButton extends StatelessWidget {
+  const _TabButton({required this.label, required this.icon,
+    required this.selected, required this.onTap});
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = selected ? const Color(0xFF007AFF) : const Color(0xFF747A87);
+    return Semantics(button: true, selected: selected, label: label, onTap: onTap,
+      child: FocusableActionDetector(
+        mouseCursor: SystemMouseCursors.click,
+        shortcuts: const {
+          SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
+          SingleActivator(LogicalKeyboardKey.space): ActivateIntent(),
+        },
+        actions: {ActivateIntent: CallbackAction<ActivateIntent>(onInvoke: (_) {
+          onTap(); return null;
+        })},
+        child: GestureDetector(behavior: HitTestBehavior.opaque,
+          excludeFromSemantics: true, onTap: onTap,
+          child: Padding(padding: const EdgeInsets.symmetric(vertical: 8),
+            child: ExcludeSemantics(child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Icon(icon, size: 22, color: color, shadows: const []),
+              const SizedBox(height: 4),
+              Text(label, style: TextStyle(fontSize: 11, color: color,
+                shadows: const [], fontWeight: selected ? FontWeight.w700 : FontWeight.w500)),
+            ])),
+          ),
+        ),
+      ),
+    );
+  }
 }
