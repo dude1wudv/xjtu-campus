@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:dio/dio.dart';
 
 import '../../../core/constants/campus_urls.dart';
 import '../../../core/network/campus_session.dart';
@@ -27,13 +28,25 @@ enum AttendanceSystem {
 class AttendanceRepository {
   AttendanceRepository(this.session);
   final CampusSession session;
+  final _cancelToken = CancelToken();
+
+  void cancel() => _cancelToken.cancel('Attendance sync stopped');
 
   Future<AttendanceSnapshot> load(AttendanceSystem system) async {
+    final timer = Timer(const Duration(seconds: 90), cancel);
+    try {
+      return await _load(system);
+    } finally {
+      timer.cancel();
+    }
+  }
+
+  Future<AttendanceSnapshot> _load(AttendanceSystem system) async {
     await session.restore();
     var token = await session.readAttendanceToken(system.host);
     for (var attempt = 0; attempt < 2; attempt++) {
       token ??= await _browserToken(system);
-      if (token == null) throw StateError('请打开官方考勤系统完成认证，或先连接 WebVPN');
+      if (token == null) throw const AttendanceAuthRequired();
       try {
         final term = await _post(system, token, '/global/getNearTerm', const {});
         if (term is! Map || term['bh'] == null || term['startdate'] == null) {
@@ -75,13 +88,13 @@ class AttendanceRepository {
         token = null;
       }
     }
-    throw StateError('考勤登录已过期，请打开官方考勤系统重新登录');
+    throw const AttendanceAuthRequired();
   }
 
   Future<Object?> _post(AttendanceSystem system, String token,
       String path, Map<String, dynamic> body) async {
     final response = await session.post('${system.origin}/attendance-student$path',
-      data: body, jsonBody: true,
+      data: body, jsonBody: true, cancelToken: _cancelToken,
       headers: {'Synjones-Auth': 'bearer $token', 'Referer': '${system.origin}/',
         'Accept': 'application/json'},
     );
@@ -95,13 +108,23 @@ class AttendanceRepository {
   }
 
   Future<String?> _browserToken(AttendanceSystem system) async {
+    if (_cancelToken.isCancelled) throw _cancelToken.cancelError!;
     final result = Completer<String?>();
+    _cancelToken.whenCancel.then((_) {
+      if (!result.isCompleted) result.complete(null);
+    });
     HeadlessInAppWebView? browser;
     final entry = session.useWebVpn
         ? WebVpnUrl.convert('http://${system.host}/') : system.loginUrl;
     try {
       await WebViewCookieBridge.seedOrigins(session: session,
-        origins: [CampusUrls.casLogin, entry, session.resolveUrl(system.origin)]);
+        origins: {
+          CampusUrls.casLogin,
+          entry,
+          system.loginUrl,
+          session.resolveUrl(system.loginUrl),
+          session.resolveUrl(system.origin),
+        });
       void capture(WebUri? url) {
         if (url == null || result.isCompleted) return;
         final uri = Uri.parse(url.toString());
@@ -121,12 +144,25 @@ class AttendanceRepository {
           if (request.isForMainFrame == true && !result.isCompleted) result.complete(null);
         },
       );
+      if (_cancelToken.isCancelled) throw _cancelToken.cancelError!;
       await browser.run();
       final token = await result.future.timeout(const Duration(seconds: 40), onTimeout: () => null);
-      if (token != null) await session.saveAttendanceToken(system.host, token);
+      if (_cancelToken.isCancelled) throw _cancelToken.cancelError!;
+      if (token != null) {
+        // The login redirects also establish service cookies. The HTTP client
+        // must receive these before it starts calling the attendance API.
+        await WebViewCookieBridge.importOrigins(session: session, origins: {
+          entry,
+          system.origin,
+          system.loginUrl,
+          session.resolveUrl('${system.origin}/attendance-student/'),
+        });
+        await session.saveAttendanceToken(system.host, token);
+      }
       return token;
     } catch (_) {
-      return null;
+      if (_cancelToken.isCancelled) throw _cancelToken.cancelError!;
+      rethrow;
     } finally {
       try { await browser?.dispose(); } catch (_) { /* Best-effort WebView teardown. */ }
     }
@@ -143,4 +179,11 @@ class AttendanceRepository {
 
 class _AttendanceAuthExpired implements Exception {
   const _AttendanceAuthExpired();
+}
+
+class AttendanceAuthRequired implements Exception {
+  const AttendanceAuthRequired();
+
+  @override
+  String toString() => '请打开官方考勤系统完成认证';
 }

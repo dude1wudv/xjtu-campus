@@ -317,12 +317,14 @@ class CampusSession {
     bool jsonBody = false,
     bool rewrite = true,
     ResponseType? responseType,
+    CancelToken? cancelToken,
   }) {
     final target = rewrite ? resolveUrl(url) : url;
     _assertAllowed(target);
     return _dio.post<dynamic>(
       target,
       data: data,
+      cancelToken: cancelToken,
       options: Options(
         headers: _resolveHeaders(headers, rewrite),
         responseType: responseType,

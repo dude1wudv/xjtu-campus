@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -32,6 +33,8 @@ class AttendanceSnapshotNotifier extends AsyncNotifier<AttendanceSnapshot> {
     ref.onDispose(() => active = false);
     final store = ref.read(credentialStoreProvider);
     final session = ref.read(campusSessionProvider);
+    final repository = AttendanceRepository(session);
+    ref.onDispose(repository.cancel);
     final key = 'attendance.snapshot.${auth.$2.studentId}.${system.name}';
     AttendanceSnapshot? cached;
     try {
@@ -42,7 +45,11 @@ class AttendanceSnapshotNotifier extends AsyncNotifier<AttendanceSnapshot> {
     try {
       final result = await (pending = session.readQueue.run(() {
         if (!active) throw StateError('Sync superseded');
-        return AttendanceRepository(session).load(system);
+        return repository.load(system);
+      }).timeout(const Duration(seconds: 120), onTimeout: () {
+        // Include time waiting behind other campus services in the UI limit.
+        repository.cancel();
+        throw TimeoutException('考勤同步超时，请稍后重试');
       }));
       if (active) await store.write(key: key, value: jsonEncode(result.toJson()));
       return result;
@@ -61,4 +68,7 @@ class AttendanceSnapshotNotifier extends AsyncNotifier<AttendanceSnapshot> {
 
 final attendanceSnapshotProvider = AsyncNotifierProvider<AttendanceSnapshotNotifier, AttendanceSnapshot>(
   AttendanceSnapshotNotifier.new,
+  // Authentication needs user interaction; automatic retries otherwise keep
+  // restarting hidden WebViews and show a loading bar over the previous error.
+  retry: (retryCount, error) => null,
 );

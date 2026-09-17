@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/di/core_providers.dart';
+import '../../../core/network/campus_connection.dart';
 import '../../../core/widgets/app_page_scaffold.dart';
 import '../../../core/widgets/app_surface_card.dart';
 import '../../../core/widgets/manual_refresh_button.dart';
@@ -45,6 +46,8 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
   Widget build(BuildContext context) {
     final system = ref.watch(attendanceSystemProvider);
     final value = ref.watch(attendanceSnapshotProvider);
+    ref.watch(campusConnectionRevisionProvider);
+    final useWebVpn = ref.read(campusSessionProvider).useWebVpn;
     final data = value.asData?.value;
     final records = (data?.records ?? const <AttendanceRecord>[]).where((record) {
       final matchDate = _range == null ||
@@ -103,12 +106,29 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
                 if (_range != null) ActionChip(label: const Text('清除日期'), onPressed: () => setState(() => _range = null)),
               ]),
               const SizedBox(height: 12),
-              if (value.isLoading) const LinearProgressIndicator(),
-              if (value.hasError) AppSurfaceCard(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                const Text('考勤暂未同步。请先连接 WebVPN，并在官方考勤系统完成认证。'),
+              if (value.isLoading) ...[
+                const LinearProgressIndicator(),
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Text('正在同步考勤，请稍候…'),
+                ),
+              ],
+              if (value.hasError && !value.isLoading) AppSurfaceCard(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                Text(value.error is AttendanceAuthRequired
+                    ? (useWebVpn
+                        ? 'WebVPN 已启用，考勤系统仍需单独认证。请打开官方考勤系统完成登录，返回后自动同步。'
+                        : '请打开官方考勤系统完成认证；校外访问可先连接 WebVPN。')
+                    : '考勤同步未完成，学校接口可能响应较慢。请稍后重试。'),
                 const SizedBox(height: 12),
-                FilledButton(onPressed: () => context.push('/webvpn'), child: const Text('连接 WebVPN')),
-                TextButton(onPressed: _openOfficial, child: const Text('打开官方考勤系统')),
+                if (value.error is AttendanceAuthRequired)
+                  FilledButton(onPressed: _openOfficial, child: const Text('打开官方考勤系统'))
+                else
+                  FilledButton(onPressed: () => ref.invalidate(attendanceSnapshotProvider),
+                      child: const Text('重新同步考勤')),
+                if (!useWebVpn)
+                  TextButton(onPressed: () => context.push('/webvpn'), child: const Text('连接 WebVPN')),
+                if (value.error is! AttendanceAuthRequired)
+                  TextButton(onPressed: _openOfficial, child: const Text('打开官方考勤系统')),
               ])),
               if (data != null && records.isEmpty)
                 const Padding(padding: EdgeInsets.all(24), child: Text('当前筛选范围暂无记录', textAlign: TextAlign.center)),
