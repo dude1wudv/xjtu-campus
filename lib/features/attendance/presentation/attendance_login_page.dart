@@ -26,6 +26,7 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
   InAppWebViewController? _controller;
   late final AttendanceSystem _system;
   Timer? _timer;
+  final _recovery = AttendanceLoginRecovery();
   bool _ready = false, _saving = false;
   String? _error;
   double _progress = 0;
@@ -133,6 +134,7 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
     setState(() { _progress = 1; _error = '认证页面返回 HTTP $status，登录尚未完成。可重试当前入口，或手动切换入口。'; });
   }
   Future<void> _retry() async {
+    _recovery.reset();
     setState(() { _error = null; _progress = 0; });
     if (!_ready) { await _prepare(); return; }
     _arm();
@@ -201,6 +203,7 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
           return NavigationActionPolicy.ALLOW;
         },
         onLoadStart: (_, url) {
+          _recovery.observe(url?.toString());
           AttendanceDiagnostics.add('navigation', url: url?.toString());
           _capture(url);
         },
@@ -228,7 +231,21 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
             url: request.url.toString(), status: response.statusCode, method: request.method);
           // A missing frame flag is not evidence of a top-level failure.
           final currentUrl = mainFrame == null ? await controller.getUrl() : null;
-          if (mainFrame == true || (mainFrame == null && currentUrl == request.url)) {
+          if (mainFrame == true || (mainFrame == null && currentUrl?.toString() == request.url.toString())) {
+            if (!mounted || _saving) return;
+            if (_recovery.claimRoot404(request.url.toString(), response.statusCode!, request.method)) {
+              AttendanceDiagnostics.add('cas-root-recovery', url: _system.loginUrl);
+              setState(() { _error = null; _progress = 0; });
+              _arm();
+              try {
+                // Keep the current WebView and cookies; do not resubmit the
+                // password or switch to a different WebVPN login flow.
+                await controller.loadUrl(urlRequest: URLRequest(url: WebUri(_system.loginUrl)));
+              } catch (_) {
+                if (mounted) setState(() => _error = '无法继续考勤授权，请点击重新发起授权');
+              }
+              return;
+            }
             await _httpFailure(response.statusCode!);
           }
         },
