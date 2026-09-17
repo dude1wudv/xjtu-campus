@@ -118,6 +118,9 @@ class _SchoolMonthCalendarState extends ConsumerState<SchoolMonthCalendar> {
             locale: 'zh_CN', firstDay: first, lastDay: last, focusedDay: _focused,
             headerVisible: false, startingDayOfWeek: StartingDayOfWeek.monday,
             calendarFormat: CalendarFormat.month,
+            // Reserve vertical drags for the surrounding page's ListView.
+            // This month-only calendar only needs horizontal month swipes.
+            availableGestures: AvailableGestures.horizontalSwipe,
             availableCalendarFormats: const {CalendarFormat.month: '月'},
             daysOfWeekHeight: largeText ? 36 : 28, rowHeight: largeText ? 70 : 54,
             selectedDayPredicate: (day) => isSameDay(day, _selected),
