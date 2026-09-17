@@ -6,9 +6,9 @@
 
 ## 当前正式版
 
-**v1.5.4**（GitHub Latest）。相对 v1.5.0：移动端 UI 统一、WebVPN 贯通校园服务、考勤、思源学堂作业中心；并含图书馆 Cookie / 校园卡能力。
+**v1.5.5**（GitHub Latest）。相对 v1.5.4：玻璃拟态 UI / 小组件、WebVPN 体验、本科考勤工作台与官方会话交接、作业按学期筛选等。
 
-## 下载与更新
+## 下载与更新## 下载与更新
 
 - 发布页：[GitHub Releases](https://github.com/dude1wudv/xjtu-campus/releases/latest)
 - 推荐安装包：`xjtu-campus-arm64-release.apk`（Android arm64）
@@ -79,6 +79,8 @@ flutter test
 - **加权绩点**：成绩页按学分加权 `Σ(绩点×学分)/Σ(学分)`，支持学期筛选。
 - **校园卡**：`ncard.xjtu.edu.cn` 余额 + 近 90 天流水（只读）。未登录为演示；已登录失败则报错重试，不静默用假余额。首次可能需「打开校园卡登录同步」。详见 `docs/ncard-campus-card.md`。
 - **图书馆座位**（需校园网）：查询区域空座、配置偏好座位与有限次回退尝试；登录态经共享 `CampusSession` 落盘，Cookie 保留 `http` + `:8086`/`:8010`。详见 `docs/library-seats.md`。
+- **考勤**：本科考勤工作台（官方入口 / 内外浏览器，会话交接）。
+- **作业中心**：思源学堂作业；按学期筛选、默认本学期课程。
 
 入口：首页「学业」「校历」「校园卡」「图书馆座位」等卡片。路由：`/academics`、`/grades`、`/exams`、`/calendar`、`/campus-card`、`/library-seats`。
 
@@ -157,7 +159,7 @@ lib/
 
 - 显示名：交大校园助手
 - 包名：`xjtu_campus`（Android/iOS：`cn.edu.xjtu.xjtu_campus`）
-- 正式版版本：见 `pubspec.yaml`（当前 **1.5.4+21**）
+- 正式版版本：见 `pubspec.yaml`（当前 **1.5.5+34**）
 
 ## 相关文档
 
