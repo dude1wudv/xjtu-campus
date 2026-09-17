@@ -320,6 +320,8 @@ class CampusSession {
     bool rewrite = true,
     ResponseType? responseType,
     CancelToken? cancelToken,
+    bool? followRedirects,
+    ValidateStatus? validateStatus,
   }) {
     final target = rewrite ? resolveUrl(url) : url;
     _assertAllowed(target);
@@ -330,6 +332,8 @@ class CampusSession {
       options: Options(
         headers: _resolveHeaders(headers, rewrite),
         responseType: responseType,
+        followRedirects: followRedirects,
+        validateStatus: validateStatus,
         contentType: jsonBody
             ? Headers.jsonContentType
             : Headers.formUrlEncodedContentType,
@@ -361,12 +365,30 @@ class CampusSession {
 
   Future<void> clearAttendanceToken(String host) => _store.delete('attendance.token.$host');
 
+  // The /sa undergraduate service uses X-Business-Token, not Synjones-Auth.
+  Future<void> saveUndergraduateAttendanceToken(String token) =>
+      _store.write(key: 'attendance.business_token.bk-kq.xjtu.edu.cn', value: token);
+
+  Future<String?> readUndergraduateAttendanceToken() =>
+      _store.read('attendance.business_token.bk-kq.xjtu.edu.cn');
+
+  Future<void> clearUndergraduateAttendanceToken() =>
+      _store.delete('attendance.business_token.bk-kq.xjtu.edu.cn');
+
+  Future<bool> undergraduateAttendanceUsesWebVpn() async =>
+      await _store.read('attendance.undergraduate.webvpn') == '1';
+
+  Future<void> setUndergraduateAttendanceWebVpn(bool enabled) =>
+      _store.write(key: 'attendance.undergraduate.webvpn', value: enabled ? '1' : '0');
+
   Future<void> clear() async {
     await _jar.deleteAll();
     ywtbIdToken = null;
     await _store.delete('session.ywtb_id_token');
     await clearNcardAccessToken();
     await clearAttendanceToken('bkkq.xjtu.edu.cn');
+    await clearAttendanceToken('bk-kq.xjtu.edu.cn');
+    await clearUndergraduateAttendanceToken();
     await clearAttendanceToken('yjskq.xjtu.edu.cn');
     AppLogger.info('已清除校园会话 Cookie');
   }
@@ -411,6 +433,8 @@ class CampusSession {
       'rg.lib.xjtu.edu.cn',
       'lib.xjtu.edu.cn',
       'bkkq.xjtu.edu.cn',
+      'bk-kq.xjtu.edu.cn',
+      'kq.xjtu.edu.cn',
       'yjskq.xjtu.edu.cn',
       'lms.xjtu.edu.cn',
     };

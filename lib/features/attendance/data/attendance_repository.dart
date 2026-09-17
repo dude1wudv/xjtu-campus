@@ -1,3 +1,5 @@
+import 'attendance_diagnostics.dart';
+import 'undergraduate_attendance_adapter.dart';
 import 'dart:async';
 
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -10,18 +12,44 @@ import '../../../core/network/webvpn_url.dart';
 import '../domain/attendance_record.dart';
 
 enum AttendanceSystem {
-  undergraduate('本科生', 'bkkq.xjtu.edu.cn', '1372'),
+  undergraduate('本科生', 'bk-kq.xjtu.edu.cn', ''),
   postgraduate('研究生', 'yjskq.xjtu.edu.cn', '1245');
   const AttendanceSystem(this.label, this.host, this.appId);
   final String label, host, appId;
   String get origin => 'https://$host';
+  bool get usesLegacyApi => this == AttendanceSystem.postgraduate;
+  String get workbenchUrl => usesLegacyApi ? '$origin/' : '$origin/studentpc/workbench';
 
   // The attendance HTTP port refuses connections. Keep interactive and
   // background authentication on the same HTTPS origin as the API.
-  String entryUrl({required bool useWebVpn}) => useWebVpn
-      ? WebVpnUrl.convert('$origin/') : loginUrl;
+  // The public OAuth gateway must retain its own origin and redirect chain.
+  // Proxy only the private attendance host, not the authorization gateway.
+  String entryUrl({required bool useWebVpn}) => usesLegacyApi
+      ? loginUrl : WebVpnUrl.maybeConvert(loginUrl, enabled: useWebVpn);
 
-  String get loginUrl => Uri.https('org.xjtu.edu.cn', '/openplatform/oauth/authorize', {
+  String navigationUrl(String raw, {required bool useWebVpn}) {
+    var url = raw;
+    final uri = Uri.tryParse(raw);
+    if (uri == null) return raw;
+    if (!usesLegacyApi) {
+      // The new entry and workbench form one authentication flow. Preserve
+      // server redirects, and only proxy these two hosts when explicitly chosen.
+      return {host, 'kq.xjtu.edu.cn'}.contains(uri.host)
+          ? WebVpnUrl.maybeConvert(raw, enabled: useWebVpn) : raw;
+    }
+    if (uri.host == host && uri.scheme == 'http') {
+      url = uri.replace(scheme: 'https', port: 443).toString();
+    } else if (WebVpnUrl.isWebVpn(raw)) {
+      final oldPrefix = WebVpnUrl.convert('http://$host/');
+      if (raw.startsWith(oldPrefix)) {
+        url = '${WebVpnUrl.convert('$origin/')}${raw.substring(oldPrefix.length)}';
+      }
+    }
+    return uri.host == host
+        ? WebVpnUrl.maybeConvert(url, enabled: useWebVpn) : url;
+  }
+
+  String get loginUrl => !usesLegacyApi ? 'https://kq.xjtu.edu.cn/studentpc/student/entry' : Uri.https('org.xjtu.edu.cn', '/openplatform/oauth/authorize', {
     'appId': appId,
     'redirectUri': '$origin/berserker-auth/auth/attendance-pc/casReturn',
     'responseType': 'code', 'scope': 'user_info', 'state': '1234',
@@ -39,15 +67,26 @@ class AttendanceRepository {
   void cancel() => _cancelToken.cancel('Attendance sync stopped');
 
   Future<AttendanceSnapshot> load(AttendanceSystem system) async {
-    final timer = Timer(const Duration(seconds: 90), cancel);
+    if (_cancelToken.isCancelled) throw _cancelToken.cancelError!;
+    var timedOut = false;
+    final timer = Timer(const Duration(seconds: 90), () {
+      timedOut = true;
+      cancel();
+    });
     try {
       return await _load(system);
+    } catch (_) {
+      if (timedOut) throw TimeoutException('考勤同步超时，请稍后重试');
+      rethrow;
     } finally {
       timer.cancel();
     }
   }
 
   Future<AttendanceSnapshot> _load(AttendanceSystem system) async {
+    if (!system.usesLegacyApi) {
+      return UndergraduateAttendanceAdapter(session, _cancelToken).load();
+    }
     await session.restore();
     var token = await session.readAttendanceToken(system.host);
     for (var attempt = 0; attempt < 2; attempt++) {
@@ -99,12 +138,16 @@ class AttendanceRepository {
 
   Future<Object?> _post(AttendanceSystem system, String token,
       String path, Map<String, dynamic> body) async {
-    final response = await session.post('${system.origin}/attendance-student$path',
+    final url = '${system.origin}/attendance-student$path';
+    AttendanceDiagnostics.add(session.useWebVpn ? 'api-request-vpn' : 'api-request-direct', url: url, method: 'POST');
+    final response = await session.post(url,
       data: body, jsonBody: true, cancelToken: _cancelToken,
       headers: {'Synjones-Auth': 'bearer $token', 'Referer': '${system.origin}/',
         'Accept': 'application/json'},
     );
     final json = session.tryJson(response);
+    AttendanceDiagnostics.add('api-response', url: response.realUri.toString(),
+      method: 'POST', status: response.statusCode, response: json ?? response.data);
     if (AttendanceConnectionFailed.isGatewayError('${response.data}')) {
       throw const AttendanceConnectionFailed();
     }
@@ -158,8 +201,23 @@ class AttendanceRepository {
         initialUrlRequest: URLRequest(url: WebUri(entry)),
         initialSettings: InAppWebViewSettings(javaScriptEnabled: true,
           domStorageEnabled: true, thirdPartyCookiesEnabled: true,
+          useShouldOverrideUrlLoading: true,
           userAgent: CampusUrls.userAgent),
-        onLoadStart: (_, url) => capture(url),
+        shouldOverrideUrlLoading: (controller, action) async {
+          final raw = action.request.url?.toString();
+          if (action.isForMainFrame != false && raw != null &&
+              (action.request.method ?? 'GET').toUpperCase() == 'GET') {
+            final target = system.navigationUrl(raw, useWebVpn: session.useWebVpn);
+            if (target != raw) {
+              await controller.loadUrl(urlRequest: URLRequest(url: WebUri(target)));
+              return NavigationActionPolicy.CANCEL;
+            }
+          }
+          return NavigationActionPolicy.ALLOW;
+        },
+        onLoadStart: (_, url) {
+          capture(url);
+        },
         onLoadStop: (controller, url) async {
           if (result.isCompleted) return;
           final uri = url == null ? null : Uri.tryParse(url.toString());
@@ -179,11 +237,13 @@ class AttendanceRepository {
         onReceivedError: (_, request, _) {
           if (request.isForMainFrame != false) fail(const AttendanceConnectionFailed());
         },
-        onReceivedHttpError: (_, request, response) {
-          if (request.isForMainFrame != false &&
-              (response.statusCode ?? 0) >= 500) {
-            fail(const AttendanceConnectionFailed());
-          }
+        onReceivedHttpError: (controller, request, response) async {
+          if (result.isCompleted || (response.statusCode ?? 0) < 400 ||
+              request.isForMainFrame == false) return;
+          if (request.isForMainFrame == null &&
+              (await controller.getUrl())?.toString() != request.url.toString()) return;
+          if (result.isCompleted) return;
+          fail(const AttendanceConnectionFailed());
         },
       );
       if (_cancelToken.isCancelled) throw _cancelToken.cancelError!;
@@ -247,4 +307,16 @@ class AttendanceConnectionFailed implements Exception {
 
   @override
   String toString() => '考勤系统暂时无法连接，请稍后重试';
+}
+
+class AttendanceProtocolChanged implements Exception {
+  const AttendanceProtocolChanged();
+  @override
+  String toString() => '学校考勤接口结构发生变化，请复制脱敏诊断反馈';
+}
+
+class AttendanceRequestFailed implements Exception {
+  const AttendanceRequestFailed();
+  @override
+  String toString() => '学校考勤接口未接受查询，请稍后重试';
 }

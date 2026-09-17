@@ -6,6 +6,8 @@ import 'core/l10n/app_strings.dart';
 import 'core/routing/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'core/sync/campus_preload.dart';
+import 'core/platform/campus_platform.dart';
+import 'features/settings/presentation/settings_page.dart';
 
 class CampusApp extends ConsumerWidget {
   const CampusApp({super.key});
@@ -25,7 +27,8 @@ class CampusApp extends ConsumerWidget {
         GlobalCupertinoLocalizations.delegate,
       ],
       routerConfig: router,
-      builder: (context, child) => CampusBackgroundSync(child: child ?? const SizedBox.shrink()),
+      builder: (context, child) => AgreementGate(child: CampusPlatformSync(
+        child: CampusBackgroundSync(child: child ?? const SizedBox.shrink()))),
     );
   }
 }

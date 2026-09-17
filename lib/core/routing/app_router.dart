@@ -1,9 +1,12 @@
+import '../../features/homework/domain/homework.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/academics/presentation/academics_page.dart';
 import '../../features/alarms/presentation/alarms_page.dart';
+import '../../features/settings/presentation/settings_page.dart';
+import '../../features/attendance/presentation/attendance_login_page.dart';
 import '../../features/attendance/presentation/attendance_page.dart';
 import '../../features/auth/presentation/cas_web_login_page.dart';
 import '../../features/auth/presentation/login_page.dart';
@@ -32,8 +35,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/homework', builder: (context, state) => const HomeworkPage()),
       GoRoute(path: '/homework/:id', builder: (context, state) {
         final id = int.tryParse(state.pathParameters['id'] ?? '');
-        return id == null ? const HomeworkPage() : HomeworkDetailPage(id: id);
+        return id == null ? const HomeworkPage() : HomeworkDetailPage(id: id, initialItem: state.extra is Homework ? state.extra as Homework : null);
       }),
+      GoRoute(path: '/attendance/login', builder: (context, state) => const AttendanceLoginPage()),
+      GoRoute(path: '/agreement', builder: (context, state) => const AgreementPage()),
+      GoRoute(path: '/alarms', builder: (context, state) => const AlarmsPage()),
       GoRoute(path: '/attendance', builder: (context, state) => const AttendancePage()),
       GoRoute(path: '/webvpn', builder: (context, state) => const WebVpnPage()),
       GoRoute(
@@ -159,9 +165,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: '/alarms',
+                path: '/settings',
                 pageBuilder: (context, state) => const NoTransitionPage(
-                  child: AlarmsPage(),
+                  child: SettingsPage(),
                 ),
               ),
             ],

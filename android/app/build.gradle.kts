@@ -1,13 +1,43 @@
+import java.io.File
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+private fun gitOutput(repositoryRoot: File, vararg arguments: String): String? = runCatching {
+    val process = ProcessBuilder(listOf("git") + arguments.toList())
+        .directory(repositoryRoot)
+        .redirectErrorStream(true)
+        .start()
+    val output = process.inputStream.bufferedReader().use { it.readText().trim() }
+    if (process.waitFor() == 0) output else null
+}.getOrNull()
+
+private fun buildConfigString(value: String): String =
+    "\"${value.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+
+val repositoryRoot = rootDir.parentFile
+val buildCommitSha = gitOutput(repositoryRoot, "rev-parse", "--verify", "HEAD") ?: "unknown"
+val buildBranch = gitOutput(repositoryRoot, "symbolic-ref", "--short", "-q", "HEAD")
+    ?.takeIf { it.isNotBlank() }
+    ?: "unknown"
+val workingTreeStatus = gitOutput(repositoryRoot, "status", "--porcelain", "--untracked-files=all")
+val buildDirty = when {
+    buildCommitSha == "unknown" || workingTreeStatus == null -> "unknown"
+    workingTreeStatus.isEmpty() -> "false"
+    else -> "true"
+}
+
 android {
     namespace = "cn.edu.xjtu.xjtu_campus"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
+
+    buildFeatures {
+        buildConfig = true
+    }
 
     compileOptions {
         isCoreLibraryDesugaringEnabled = true
@@ -28,6 +58,9 @@ android {
         // flag during build.
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        buildConfigField("String", "BUILD_COMMIT_SHA", buildConfigString(buildCommitSha))
+        buildConfigField("String", "BUILD_BRANCH", buildConfigString(buildBranch))
+        buildConfigField("String", "BUILD_DIRTY", buildConfigString(buildDirty))
     }
 
     buildTypes {

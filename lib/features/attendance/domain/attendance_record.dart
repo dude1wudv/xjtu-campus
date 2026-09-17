@@ -2,7 +2,8 @@ import '../../schedule/domain/course.dart';
 
 enum AttendanceStatus {
   normal('正常出勤'), late('迟到'), absent('缺勤'),
-  earlyLeave('早退'), leave('请假'), unknown('待确认');
+  earlyLeave('早退'), leave('请假'), unknown('待确认'),
+  pending('待考勤'), notRequired('不考勤');
   const AttendanceStatus(this.label);
   final String label;
 
@@ -10,6 +11,22 @@ enum AttendanceStatus {
     '1' => normal, '2' => late, '3' => absent, '4' => earlyLeave,
     '5' => leave, _ => unknown,
   };
+
+  /// Status values used by the undergraduate `/sa` application. Pending and
+  /// not-required are kept distinct from normal; unrecognized values remain
+  /// unknown and never prove normal attendance.
+  static AttendanceStatus fromUndergraduateValue(Object? value) {
+    final raw = value is String ? value.trim() : '${value ?? ''}'.trim();
+    return switch (raw.toUpperCase()) {
+      'NORMAL' => normal,
+      'LATE' => late,
+      'ABSENT' => absent,
+      'LEAVE' => leave,
+      'PENDING' => pending,
+      'NOT_REQUIRED' => notRequired,
+      _ => unknown,
+    };
+  }
 }
 
 class AttendanceRecord {
@@ -23,6 +40,7 @@ class AttendanceRecord {
   final AttendanceStatus status;
 
   bool matches(Course course, DateTime day) {
+    if (startPeriod < 1 || endPeriod < startPeriod) return false;
     if (date.year != day.year || date.month != day.month || date.day != day.day ||
         startPeriod != course.startPeriod || endPeriod != course.endPeriod) return false;
     String normalize(String value) => value.replaceAll(RegExp(r'[\s\-—·（）()]'), '').toLowerCase();
@@ -68,6 +86,96 @@ class AttendanceRecord {
       teacher: teacher is List ? teacher.join('、') : '${teacher ?? ''}',
       status: AttendanceStatus.fromCode(water['status']),
     );
+  }
+
+  /// Parse a row returned by the undergraduate `/sa` attendance service.
+  ///
+  /// This is intentionally separate from [fromResponse]: the graduate API
+  /// uses nested `*Bean` objects, while the undergraduate rows are flat.
+  factory AttendanceRecord.fromUndergraduateResponse(Map<String, dynamic> row) {
+    final id = _text(row['resultId']).isNotEmpty
+        ? _text(row['resultId'])
+        : _text(row['id']);
+    if (id.isEmpty) throw const FormatException('本科生考勤记录缺少记录标识');
+
+    final rawDate = _text(row['attendanceDate']);
+    final date = _parseDate(rawDate);
+    if (rawDate.isEmpty || date == null) {
+      throw const FormatException('本科生考勤记录日期无法解析');
+    }
+
+    var start = _integer(row['startSection']);
+    var end = _integer(row['endSection']);
+    if (start == null || end == null) {
+      final range = _periodRange(row['periodNo']);
+      if (range != null && (start == null || start == range.$1) &&
+          (end == null || end == range.$2)) {
+        start = range.$1;
+        end = range.$2;
+      }
+    }
+    if (start == null || end == null || start < 1 || end < start) {
+      // Keep the official row visible, but make it impossible to associate
+      // an unknown lesson with a timetable course.
+      start = 0;
+      end = 0;
+    }
+
+    final courseName = _text(row['courseName']).isNotEmpty
+        ? _text(row['courseName'])
+        : _text(row['courseCode']);
+    return AttendanceRecord(
+      id: id,
+      courseName: courseName,
+      date: date,
+      startPeriod: start,
+      endPeriod: end,
+      location: _text(row['classroomName']),
+      teacher: _textList(row['teacherName']),
+      status: AttendanceStatus.fromUndergraduateValue(row['attendanceStatus']),
+    );
+  }
+
+  static String _text(Object? value) => value is String
+      ? value.trim()
+      : value == null ? '' : '$value'.trim();
+
+  static String _textList(Object? value) {
+    if (value is List) return value.map(_text).where((v) => v.isNotEmpty).join('、');
+    return _text(value);
+  }
+
+  static int? _integer(Object? value) {
+    if (value is num && value.isFinite && value == value.roundToDouble()) {
+      return value.toInt();
+    }
+    return int.tryParse(_text(value));
+  }
+
+  static (int, int)? _periodRange(Object? value) {
+    final raw = _text(value);
+    if (raw.isEmpty) return null;
+    final match = RegExp(r'^第?\s*(\d{1,2})(?:\s*[-~—至到]\s*(\d{1,2}))?\s*节?$')
+        .firstMatch(raw);
+    if (match != null) {
+      final start = int.parse(match.group(1)!);
+      final end = int.tryParse(match.group(2) ?? '') ?? start;
+      return (start, end);
+    }
+    return null;
+  }
+
+  static DateTime? _parseDate(String raw) {
+    final match = RegExp(r'^(\d{4})-(\d{2})-(\d{2})(?:$|[T ])').firstMatch(raw);
+    if (match == null) return null;
+    final year = int.parse(match.group(1)!);
+    final month = int.parse(match.group(2)!);
+    final day = int.parse(match.group(3)!);
+    final date = DateTime.tryParse(raw);
+    if (date == null || date.year != year || date.month != month || date.day != day) {
+      return null;
+    }
+    return DateTime(year, month, day);
   }
 }
 
