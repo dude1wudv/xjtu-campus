@@ -5,10 +5,11 @@ import '../../features/settings/presentation/settings_provider.dart';
 
 /// Blur is reserved for navigation and hero surfaces, not every scrolling row.
 class GlassSurface extends ConsumerWidget {
-  const GlassSurface({super.key, required this.child, this.radius = 28, this.blur = true});
+  const GlassSurface({super.key, required this.child, this.radius = 28, this.blur = true, this.shadow = true});
   final Widget child;
   final double radius;
   final bool blur;
+  final bool shadow;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final enabled = blur && ref.watch(settingsProvider).glass && !MediaQuery.disableAnimationsOf(context);
@@ -21,9 +22,9 @@ class GlassSurface extends ConsumerWidget {
         border: Border.all(color: Colors.white.withValues(alpha: .85), width: 1.2),
       ), child: child);
     return Container(
-      decoration: BoxDecoration(borderRadius: BorderRadius.circular(radius), boxShadow: [
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(radius), boxShadow: shadow ? [
         BoxShadow(color: const Color(0xFF344C73).withValues(alpha: .07), blurRadius: 24, offset: const Offset(0, 8)),
-      ]),
+      ] : []),
       child: ClipRRect(borderRadius: BorderRadius.circular(radius),
         child: enabled ? BackdropFilter(filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16), child: surface) : surface),
     );

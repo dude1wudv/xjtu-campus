@@ -10,6 +10,9 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
 import android.widget.RemoteViews
+import android.graphics.Color
+import android.os.Bundle
+import android.view.View
 import org.json.JSONObject
 import java.security.KeyStore
 import javax.crypto.Cipher
@@ -45,6 +48,9 @@ object WidgetStore {
 }
 
 class CampusWidget : AppWidgetProvider() {
+    override fun onAppWidgetOptionsChanged(context: Context, manager: AppWidgetManager, id: Int, options: Bundle) {
+        onUpdate(context, manager, intArrayOf(id))
+    }
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
         val data = WidgetStore.read(context)
         for (id in ids) {
@@ -58,7 +64,25 @@ class CampusWidget : AppWidgetProvider() {
             views.setTextViewText(R.id.widget_updated, data.optString("updated", "点击打开校园助手"))
             val dayIds = intArrayOf(R.id.widget_day0, R.id.widget_day1, R.id.widget_day2, R.id.widget_day3, R.id.widget_day4, R.id.widget_day5, R.id.widget_day6)
             val labels = arrayOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
-            for (i in dayIds.indices) views.setTextViewText(dayIds[i], data.optString("day$i", "${labels[i]} · 暂未同步"))
+            val dateIds = intArrayOf(R.id.widget_date0, R.id.widget_date1, R.id.widget_date2, R.id.widget_date3, R.id.widget_date4, R.id.widget_date5, R.id.widget_date6)
+            val weekdayIds = intArrayOf(R.id.widget_weekday0, R.id.widget_weekday1, R.id.widget_weekday2, R.id.widget_weekday3, R.id.widget_weekday4, R.id.widget_weekday5, R.id.widget_weekday6)
+            val boxIds = intArrayOf(R.id.widget_date_box0, R.id.widget_date_box1, R.id.widget_date_box2, R.id.widget_date_box3, R.id.widget_date_box4, R.id.widget_date_box5, R.id.widget_date_box6)
+            val lessonIds = intArrayOf(R.id.widget_lesson0, R.id.widget_lesson1, R.id.widget_lesson2, R.id.widget_lesson3, R.id.widget_lesson4, R.id.widget_lesson5, R.id.widget_lesson6)
+            val taskIds = intArrayOf(R.id.widget_task0, R.id.widget_task1, R.id.widget_task2, R.id.widget_task3, R.id.widget_task4, R.id.widget_task5, R.id.widget_task6)
+            val height = manager.getAppWidgetOptions(id).getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 420)
+            for (i in dayIds.indices) {
+                val today = data.optString("today$i") == "1"
+                views.setTextViewText(weekdayIds[i], if (today) "今天" else data.optString("weekday$i", labels[i]))
+                views.setTextViewText(dateIds[i], data.optString("date$i", "—"))
+                views.setInt(boxIds[i], "setBackgroundResource", if (today) R.drawable.widget_today else R.drawable.widget_date)
+                views.setTextColor(weekdayIds[i], if (today) Color.WHITE else Color.parseColor("#6E7583"))
+                views.setTextColor(dateIds[i], if (today) Color.WHITE else Color.parseColor("#26364F"))
+                views.setTextViewText(lessonIds[i], data.optString("lessons$i", data.optString("day$i", "课程暂未同步")))
+                views.setInt(lessonIds[i], "setMaxLines", if (height >= 540) 6 else if (height >= 440) 4 else 2)
+                val tasks = data.optString("tasks$i", "")
+                views.setTextViewText(taskIds[i], tasks)
+                views.setViewVisibility(taskIds[i], if (tasks.isEmpty()) View.GONE else View.VISIBLE)
+            }
             val links = mutableMapOf(R.id.widget_week to "/calendar", R.id.widget_attendance to "/attendance",
                 R.id.widget_homework to "/homework", R.id.widget_card to "/campus-card",
                 R.id.widget_seat to "/library-seats", R.id.widget_title to "/home", R.id.widget_updated to "/settings")

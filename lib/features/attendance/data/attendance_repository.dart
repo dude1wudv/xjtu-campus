@@ -18,8 +18,9 @@ enum AttendanceSystem {
 
   // The attendance HTTP port refuses connections. Keep interactive and
   // background authentication on the same HTTPS origin as the API.
-  String entryUrl({required bool useWebVpn}) => useWebVpn
-      ? WebVpnUrl.convert(loginUrl) : loginUrl;
+  // The public OAuth gateway must retain its own origin and redirect chain.
+  // Proxy only the private attendance host, not the authorization gateway.
+  String entryUrl({required bool useWebVpn}) => loginUrl;
 
   String navigationUrl(String raw, {required bool useWebVpn}) {
     var url = raw;
@@ -33,7 +34,8 @@ enum AttendanceSystem {
         url = '${WebVpnUrl.convert('$origin/')}${raw.substring(oldPrefix.length)}';
       }
     }
-    return WebVpnUrl.maybeConvert(url, enabled: useWebVpn);
+    return uri.host == host
+        ? WebVpnUrl.maybeConvert(url, enabled: useWebVpn) : url;
   }
 
   String get loginUrl => Uri.https('org.xjtu.edu.cn', '/openplatform/oauth/authorize', {
@@ -177,7 +179,8 @@ class AttendanceRepository {
           userAgent: CampusUrls.userAgent),
         shouldOverrideUrlLoading: (controller, action) async {
           final raw = action.request.url?.toString();
-          if (action.isForMainFrame != false && raw != null) {
+          if (action.isForMainFrame != false && raw != null &&
+              (action.request.method ?? 'GET').toUpperCase() == 'GET') {
             final target = system.navigationUrl(raw, useWebVpn: session.useWebVpn);
             if (target != raw) {
               await controller.loadUrl(urlRequest: URLRequest(url: WebUri(target)));
@@ -208,7 +211,7 @@ class AttendanceRepository {
         },
         onReceivedHttpError: (_, request, response) {
           if (request.isForMainFrame != false &&
-              (response.statusCode ?? 0) >= 500) {
+              (response.statusCode ?? 0) >= 400) {
             fail(const AttendanceConnectionFailed());
           }
         },

@@ -1,6 +1,6 @@
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
-    android:minWidth="250dp" android:minHeight="300dp"
-    android:minResizeWidth="220dp" android:minResizeHeight="280dp"
+    android:minWidth="250dp" android:minHeight="420dp"
+    android:minResizeWidth="220dp" android:minResizeHeight="360dp"
     android:initialLayout="@layout/campus_widget" android:resizeMode="horizontal|vertical"
     android:updatePeriodMillis="1800000" android:widgetCategory="home_screen"
     android:description="@string/widget_description" />

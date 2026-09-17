@@ -143,6 +143,14 @@ class _CampusPlatformSyncState extends ConsumerState<CampusPlatformSync> with Wi
             return '${c.startPeriod}节 ${c.name}${record == null ? '' : ' · ${record.status.label}'}';
           }).join(' / ')}${due == 0 ? '' : ' · 作业截止 $due'}';
           data['day$i'] = row;
+          data['weekday$i'] = ['周一','周二','周三','周四','周五','周六','周日'][i];
+          data['date$i'] = '${day.month}/${day.day}';
+          data['today$i'] = day.year == now.year && day.month == now.month && day.day == now.day ? '1' : '0';
+          data['lessons$i'] = courses.isEmpty ? '无课程安排' : courses.map((c) {
+            final record = attendance?.forCourse(c, day);
+            return '${c.startPeriod}–${c.endPeriod}节  ${c.name}\n${c.location}${record == null ? ' · 考勤待同步' : ' · ${record.status.label}'}';
+          }).join('\n');
+          data['tasks$i'] = due == 0 ? '' : '$due 项作业截止';
         }
         data['week'] = '${monday.month}/${monday.day} 起 · ${schedule.fromCache ? '缓存课表' : '本周课程'}';
       }

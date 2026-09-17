@@ -26,6 +26,8 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
   bool _ready = false, _saving = false;
   String? _error;
   double _progress = 0;
+  bool _portal = false;
+  bool _fallbackUsed = false;
   @override
   void initState() {
     super.initState();
@@ -73,13 +75,28 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
       if (mounted) setState(() => _error = '登录凭据保存失败，请重试');
     }
   }
+  String _entry() {
+    final session = ref.read(campusSessionProvider);
+    return _portal ? session.resolveUrl('${_system.origin}/') : _system.loginUrl;
+  }
+  Future<void> _httpFailure(int status) async {
+    if (!mounted || _saving) return;
+    _timer?.cancel();
+    if (status == 404 && !_fallbackUsed) {
+      _fallbackUsed = true;
+      _portal = !_portal;
+      await _retry();
+      return;
+    }
+    setState(() { _progress = 1; _error = '学校认证页面返回 HTTP $status。可切换入口重新授权。'; });
+  }
   Future<void> _retry() async {
     setState(() { _error = null; _progress = 0; });
     if (!_ready) { await _prepare(); return; }
     _arm();
     final session = ref.read(campusSessionProvider);
     try {
-      await _controller?.loadUrl(urlRequest: URLRequest(url: WebUri(_system.entryUrl(useWebVpn: session.useWebVpn))));
+      await _controller?.loadUrl(urlRequest: URLRequest(url: WebUri(_entry())));
     } catch (_) { if (mounted) setState(() => _error = '无法打开认证页面，请检查网络后重试'); }
   }
   @override
@@ -97,16 +114,20 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
     ]), body: Column(children: [
       if (_progress < 1) LinearProgressIndicator(value: _progress == 0 ? null : _progress),
       if (_error != null) Padding(padding: const EdgeInsets.all(12), child: Column(children: [
-        Text(_error!), TextButton(onPressed: _retry, child: const Text('重新发起授权')),
+        Text(_error!),
+        TextButton(onPressed: _retry, child: const Text('重新发起授权')),
+        TextButton(onPressed: () { _portal = !_portal; _fallbackUsed = true; _retry(); },
+          child: Text(_portal ? '切换学校统一授权入口' : '切换考勤系统入口')),
       ])),
       Expanded(child: !_ready ? const Center(child: CircularProgressIndicator()) : InAppWebView(
-        initialUrlRequest: URLRequest(url: WebUri(_system.entryUrl(useWebVpn: session.useWebVpn))),
+        initialUrlRequest: URLRequest(url: WebUri(_entry())),
         initialSettings: InAppWebViewSettings(javaScriptEnabled: true, domStorageEnabled: true,
           thirdPartyCookiesEnabled: true, useShouldOverrideUrlLoading: true,
           userAgent: CampusUrls.userAgent),
         onWebViewCreated: (controller) => _controller = controller,
         shouldOverrideUrlLoading: (controller, action) async {
-          if (action.isForMainFrame != false && action.request.url != null) {
+          if (action.isForMainFrame != false && action.request.url != null &&
+              (action.request.method ?? 'GET').toUpperCase() == 'GET') {
             final raw = action.request.url.toString();
             final target = _system.navigationUrl(raw, useWebVpn: session.useWebVpn);
             if (target != raw) {
@@ -128,6 +149,11 @@ class _AttendanceLoginPageState extends ConsumerState<AttendanceLoginPage> {
               setState(() => _error = '学校认证服务暂时无法连接，请稍后重试');
             }
           } catch (_) {}
+        },
+        onReceivedHttpError: (_, request, response) async {
+          if (request.isForMainFrame != false && (response.statusCode ?? 0) >= 400) {
+            await _httpFailure(response.statusCode!);
+          }
         },
         onReceivedError: (_, request, _) {
           if (request.isForMainFrame != false && mounted) setState(() => _error = '认证页面连接失败，请重试');

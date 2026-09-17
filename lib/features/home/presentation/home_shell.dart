@@ -39,11 +39,13 @@ class _HomeShellState extends State<HomeShell> {
       body: widget.navigationShell,
       bottomNavigationBar: MediaQuery.viewInsetsOf(context).bottom > 0 ? null : SafeArea(
         minimum: const EdgeInsets.fromLTRB(18, 0, 18, 10),
-        child: GlassSurface(child: Padding(
+        child: GlassSurface(shadow: false, child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
           child: Row(children: [for (var i = 0; i < _tabs.length; i++) Expanded(
             child: Semantics(selected: widget.navigationShell.currentIndex == i,
-              child: InkWell(borderRadius: BorderRadius.circular(22), onTap: () {
+              child: InkWell(splashFactory: NoSplash.splashFactory,
+                highlightColor: Colors.transparent, hoverColor: Colors.transparent,
+                borderRadius: BorderRadius.circular(22), onTap: () {
                 _lastBack = null;
                 widget.navigationShell.goBranch(i);
               }, child: AnimatedContainer(duration: const Duration(milliseconds: 200),
