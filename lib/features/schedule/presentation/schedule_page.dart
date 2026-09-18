@@ -1,327 +1,374 @@
+import 'dart:async';
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
-import '../../../core/l10n/app_strings.dart';
-import '../../../core/theme/app_theme.dart';
-import '../../../core/theme/app_tokens.dart';
-import '../../../core/widgets/app_feedback.dart';
 import '../../../core/widgets/app_page_scaffold.dart';
-import '../../../core/widgets/app_surface_card.dart';
-import '../../../core/widgets/manual_refresh_button.dart';
-import '../../attendance/domain/attendance_record.dart';
-import '../../attendance/presentation/attendance_providers.dart';
-import '../../attendance/presentation/course_attendance_badge.dart';
 import '../domain/course.dart';
+import '../domain/schedule_repository.dart';
+import '../domain/timetable_logic.dart';
+import 'course_tile.dart';
 import 'schedule_providers.dart';
+import 'schedule_status.dart';
+import 'schedule_transfer.dart';
 
 class SchedulePage extends ConsumerStatefulWidget {
   const SchedulePage({super.key});
-
   @override
   ConsumerState<SchedulePage> createState() => _SchedulePageState();
 }
 
 class _SchedulePageState extends ConsumerState<SchedulePage> {
-  late int _weekday;
-  bool _weekView = false;
-
+  int offset = 0;
+  int weekday = DateTime.now().weekday;
+  bool weekView = true;
+  Timer? timer;
   @override
   void initState() {
     super.initState();
-    _weekday = DateTime.now().weekday;
+    timer = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    timer?.cancel();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final snapshot = ref.watch(scheduleSnapshotProvider);
-
+    final value = ref.watch(scheduleSnapshotProvider);
+    final data = value.asData?.value;
+    final now = DateTime.now();
+    final monday = mondayOf(now).add(Duration(days: offset * 7));
+    final week = data == null ? null : teachingWeek(data, monday, now);
+    final unavailableWeek =
+        data?.currentWeekOnly == true &&
+        monday != mondayOf(data!.sourceMonday ?? data.cachedAt ?? now);
     return AppPageScaffold(
       appBar: AppBar(
-        title: const Text(AppStrings.navSchedule),
+        title: const Text('一周课表'),
         actions: [
-          ManualRefreshButton(
-            onRefresh: () {
-              ref.invalidate(attendanceSnapshotProvider);
-              return ref.read(scheduleSnapshotProvider.notifier).refresh(force: true);
-            },
+          IconButton(
+            tooltip: '导入与导出课表',
+            onPressed: () => showScheduleTransfer(context, ref, data),
+            icon: const Icon(Icons.import_export),
           ),
           IconButton(
-            tooltip: _weekView ? AppStrings.listView : AppStrings.weekView,
-            onPressed: () => setState(() => _weekView = !_weekView),
-            icon: Icon(_weekView ? Icons.view_agenda_outlined : Icons.grid_view),
+            tooltip: '刷新课表',
+            onPressed: () async {
+              try {
+                await ref.read(scheduleSnapshotProvider.notifier).refresh();
+              } catch (_) {}
+            },
+            icon: const Icon(Icons.refresh),
           ),
         ],
       ),
-      body: AsyncBody(
-        value: snapshot,
-        onRetry: () =>
-            ref.read(scheduleSnapshotProvider.notifier).refresh(force: true),
-        builder: (data) {
-          final week = data.week;
-          final items = data.courses
-              .where(
-                (course) =>
-                    course.weeks.isEmpty || course.weeks.contains(week),
-              )
-              .toList();
-          return Column(
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(24, 12, 24, 110),
+        children: [
+          ScheduleStatus(value: value),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    DataSourceBanner(
-                      live: data.live,
-                      message: data.banner,
-                      fromCache: data.fromCache,
-                      cachedAt: data.cachedAt,
-                      fetchedAt: data.fetchedAt,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '${AppStrings.scheduleSubtitle} · ${AppStrings.weekPrefix}$week ${AppStrings.weekSuffix}',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                    const SizedBox(height: 12),
-                    _WeekdayStrip(
-                      selected: _weekday,
-                      onSelected: (day) => setState(() {
-                        _weekday = day;
-                        _weekView = false;
-                      }),
-                    ),
-                  ],
-                ),
+              Text(
+                week == null ? '本周安排' : '第 $week 教学周',
+                style: Theme.of(context).textTheme.headlineMedium,
               ),
-              const SizedBox(height: 8),
-              Expanded(
-                child: _weekView
-                    ? _WeekGrid(courses: items)
-                    : _DayList(
-                        day: DateTime.now().add(Duration(days: _weekday - DateTime.now().weekday)),
-                        courses: items
-                            .where((course) => course.weekday == _weekday)
-                            .toList(),
-                      ),
+              Text(
+                '${monday.month}.${monday.day} — ${monday.add(const Duration(days: 6)).month}.${monday.add(const Duration(days: 6)).day}',
+              ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    tooltip: '上一周',
+                    onPressed: offset > -52
+                        ? () => setState(() => offset--)
+                        : null,
+                    icon: const Icon(Icons.chevron_left),
+                  ),
+                  TextButton(
+                    onPressed: () => setState(() => offset = 0),
+                    child: const Text('回到本周'),
+                  ),
+                  IconButton(
+                    tooltip: '下一周',
+                    onPressed: offset < 52
+                        ? () => setState(() => offset++)
+                        : null,
+                    icon: const Icon(Icons.chevron_right),
+                  ),
+                ],
+              ),
+              SegmentedButton<bool>(
+                segments: const [
+                  ButtonSegment(
+                    value: true,
+                    label: Text('周视图'),
+                    icon: Icon(Icons.calendar_view_week),
+                  ),
+                  ButtonSegment(
+                    value: false,
+                    label: Text('日列表'),
+                    icon: Icon(Icons.view_agenda_outlined),
+                  ),
+                ],
+                selected: {weekView},
+                onSelectionChanged: (v) => setState(() => weekView = v.first),
               ),
             ],
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _WeekdayStrip extends StatelessWidget {
-  const _WeekdayStrip({required this.selected, required this.onSelected});
-
-  final int selected;
-  final ValueChanged<int> onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    final today = DateTime.now().weekday;
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          for (var day = 1; day <= 7; day++)
-            Padding(
-              padding: const EdgeInsets.only(right: 6),
-              child: ChoiceChip(
-                label: Text(AppStrings.weekdays[day - 1]),
-                selected: selected == day,
-                onSelected: (_) => onSelected(day),
-                selectedColor: AppColors.navy,
-                labelStyle: TextStyle(
-                  color: selected == day ? Colors.white : AppColors.navyDeep,
-                ),
-                avatar: today == day
-                    ? const Icon(Icons.circle, size: 8, color: AppColors.gold)
-                    : null,
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DayList extends StatelessWidget {
-  const _DayList({required this.courses, required this.day});
-
-  final DateTime day;
-
-  final List<Course> courses;
-
-  @override
-  Widget build(BuildContext context) {
-    if (courses.isEmpty) {
-      return const EmptyHint(
-        icon: Icons.event_busy,
-        text: AppStrings.emptySchedule,
-      );
-    }
-    final sorted = [...courses]
-      ..sort((a, b) => a.startPeriod.compareTo(b.startPeriod));
-    return ListView.separated(
-      padding: AppTokens.pagePadding,
-      itemCount: sorted.length,
-      separatorBuilder: (context, index) => const SizedBox(height: AppTokens.spaceMd),
-      itemBuilder: (context, index) => _CourseCard(course: sorted[index], day: day),
-    );
-  }
-}
-
-class _CourseCard extends StatelessWidget {
-  const _CourseCard({required this.course, required this.day});
-
-  final DateTime day;
-
-  final Course course;
-
-  @override
-  Widget build(BuildContext context) {
-    return AppSurfaceCard(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 52,
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            decoration: BoxDecoration(
-              color: AppColors.chip,
-              borderRadius: AppTokens.borderSm,
-            ),
-            child: Column(
-              children: [
-                Text('${course.startPeriod}',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(color: AppColors.navy)),
-                Text('至 ${course.endPeriod} 节',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodySmall),
-              ],
-            ),
           ),
-          const SizedBox(width: AppTokens.spaceMd),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(course.name, style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: AppTokens.spaceSm),
-                Text(course.periodLabelFor(day), style: Theme.of(context).textTheme.bodySmall),
-                const SizedBox(height: AppTokens.spaceSm),
-                Text(course.location),
-                const SizedBox(height: AppTokens.spaceXs),
-                Text('${course.teacher} · ${course.weeksLabel}',
-                    style: Theme.of(context).textTheme.bodySmall),
-                CourseAttendanceBadge(course: course, day: day),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _WeekGrid extends ConsumerWidget {
-  const _WeekGrid({required this.courses});
-
-  final List<Course> courses;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final attendance = ref.watch(attendanceSnapshotProvider).asData?.value;
-    final now = DateTime.now();
-    // Index once instead of scanning all courses for every timetable cell.
-    final cells = <(int, int), Course>{};
-    for (final course in courses) {
-      for (var period = course.startPeriod; period <= course.endPeriod; period++) {
-        cells.putIfAbsent((course.weekday, period), () => course);
-      }
-    }
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
-      child: SingleChildScrollView(
-        child: Table(
-          border: TableBorder.all(color: AppColors.navy.withValues(alpha: 0.08)),
-          defaultColumnWidth: const FixedColumnWidth(108),
-          children: [
-            TableRow(
-              children: [
-                const _HeadCell('节次'),
-                for (final label in AppStrings.weekdays) _HeadCell('周$label'),
-              ],
-            ),
-            for (final period in ClassPeriod.catalogFor(DateTime.now()))
-              TableRow(
+          const SizedBox(height: 20),
+          if (data == null && value.isLoading)
+            const ScheduleSkeleton()
+          else if (data != null && unavailableWeek)
+            const _Empty('当前数据源仅包含一次同步周的课程，所选周尚未获取。请同步最新课表或重新导入。')
+          else if (data != null &&
+              (data.failure == null || data.fromCache)) ...[
+            if (weekView)
+              _WeekGrid(data: data, monday: monday, now: now)
+            else ...[
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
                 children: [
-                  _HeadCell('${period.index}\n${period.formatClock()}'),
-                  for (var day = 1; day <= 7; day++)
-                    _Cell(
-                      course: cells[(day, period.index)],
-                      attendance: cells[(day, period.index)] == null ? null
-                          : attendance?.forCourse(cells[(day, period.index)]!,
-                              now.add(Duration(days: day - now.weekday))),
+                  for (var d = 1; d <= 7; d++)
+                    ChoiceChip(
+                      label: Text('周${'一二三四五六日'[d - 1]}'),
+                      selected: weekday == d,
+                      onSelected: (_) => setState(() => weekday = d),
                     ),
                 ],
               ),
+              const SizedBox(height: 16),
+              if (coursesForDay(
+                data,
+                monday.add(Duration(days: weekday - 1)),
+                now,
+              ).isEmpty)
+                const _Empty('这一天没有已知课程，留一点时间给自己。'),
+              for (final c in coursesForDay(
+                data,
+                monday.add(Duration(days: weekday - 1)),
+                now,
+              ))
+                CourseTile(
+                  course: c,
+                  day: monday.add(Duration(days: weekday - 1)),
+                ),
+            ],
+            const SizedBox(height: 16),
+            Text(
+              '${ClassPeriod.seasonLabel(monday)} · 点击课程查看详情；重叠课程并排显示。',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
           ],
-        ),
+        ],
       ),
     );
   }
 }
 
-class _HeadCell extends StatelessWidget {
-  const _HeadCell(this.text);
-
-  final String text;
-
+class _Empty extends StatelessWidget {
+  const _Empty(this.message);
+  final String message;
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 64,
-      color: AppColors.navy.withValues(alpha: 0.06),
-      padding: const EdgeInsets.all(6),
-      alignment: Alignment.center,
-      child: Text(
-        text,
-        textAlign: TextAlign.center,
-        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 48),
+    child: Center(child: Text(message, textAlign: TextAlign.center)),
+  );
 }
 
-class _Cell extends StatelessWidget {
-  const _Cell({required this.course, this.attendance});
-
-  final AttendanceRecord? attendance;
-
-  final Course? course;
-
+class _WeekGrid extends StatelessWidget {
+  const _WeekGrid({
+    required this.data,
+    required this.monday,
+    required this.now,
+  });
+  final ScheduleSnapshot data;
+  final DateTime monday;
+  final DateTime now;
+  static const rowHeight = 68.0;
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 88,
-      padding: const EdgeInsets.all(4),
-      color: course == null ? Colors.white : AppColors.navy.withValues(alpha: 0.08),
-      child: course == null
-          ? const SizedBox.shrink()
-          : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('${course!.name}\n${course!.room}', maxLines: 3,
-                  overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11)),
-              if (attendance != null) ...[
-                const SizedBox(height: 4),
-                Text(attendance!.status.label, maxLines: 1, overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 10, color: attendanceColor(attendance!.status))),
-              ],
-            ]),
-    );
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final width = math.max(constraints.maxWidth, 780.0);
+      final dayWidth = (width - 56) / 7;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (constraints.maxWidth < 780)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Text(
+                '左右滑动查看完整一周，或切换日列表',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: SizedBox(
+              width: width,
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      const SizedBox(width: 56),
+                      for (var i = 0; i < 7; i++)
+                        SizedBox(
+                          width: dayWidth,
+                          height: 64,
+                          child: Center(
+                            child: Text(
+                              '周${'一二三四五六日'[i]}\n${monday.add(Duration(days: i)).month}/${monday.add(Duration(days: i)).day}',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color:
+                                    DateUtils.isSameDay(
+                                      monday.add(Duration(days: i)),
+                                      now,
+                                    )
+                                    ? Theme.of(context).colorScheme.primary
+                                    : null,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  SizedBox(
+                    height: rowHeight * 11,
+                    child: Stack(
+                      children: [
+                        for (var p = 0; p < 11; p++)
+                          Positioned(
+                            left: 0,
+                            right: 0,
+                            top: p * rowHeight,
+                            height: rowHeight,
+                            child: Container(
+                              decoration: const BoxDecoration(
+                                border: Border(
+                                  top: BorderSide(color: Color(0xFFE3E8EE)),
+                                ),
+                              ),
+                            ),
+                          ),
+                        for (var p = 1; p <= 11; p++)
+                          Positioned(
+                            left: 0,
+                            top: (p - 1) * rowHeight + 10,
+                            width: 50,
+                            child: Text(
+                              '$p\n${ClassPeriod.byIndex(p, day: monday).formatClock().split('–').first}',
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ),
+                        for (var d = 0; d < 7; d++)
+                          ..._dayBlocks(context, d, dayWidth),
+                        if (mondayOf(now) == monday) ..._timeLine(dayWidth),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+    },
+  );
+  List<Widget> _dayBlocks(BuildContext context, int d, double dayWidth) {
+    final day = monday.add(Duration(days: d));
+    final lanes = courseLanes(coursesForDay(data, day, now));
+    return [
+      for (var lane = 0; lane < lanes.length; lane++)
+        for (final c in lanes[lane])
+          Positioned(
+            left: 56 + d * dayWidth + lane * dayWidth / lanes.length + 3,
+            top: (c.startPeriod - 1) * rowHeight + 3,
+            width: dayWidth / lanes.length - 6,
+            height: (c.endPeriod - c.startPeriod + 1) * rowHeight - 6,
+            child: Semantics(
+              button: true,
+              label: '${c.name}，${c.periodLabelFor(day)}，${c.location}',
+              child: Material(
+                color: courseColor(c).withValues(alpha: .1),
+                borderRadius: BorderRadius.circular(10),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: () => context.push(courseRoute(c, day)),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      border: Border(
+                        left: BorderSide(color: courseColor(c), width: 3),
+                      ),
+                    ),
+                    padding: const EdgeInsets.all(8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            c.name,
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: courseColor(c),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          c.room,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 11),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+    ];
+  }
+
+  List<Widget> _timeLine(double dayWidth) {
+    final minute = now.hour * 60 + now.minute;
+    for (final p in ClassPeriod.catalogFor(now)) {
+      if (minute >= p.start.inMinutes && minute <= p.end.inMinutes) {
+        final top =
+            (p.index -
+                1 +
+                (minute - p.start.inMinutes) /
+                    (p.end.inMinutes - p.start.inMinutes)) *
+            rowHeight;
+        return [
+          Positioned(
+            left: 56 + (now.weekday - 1) * dayWidth,
+            width: dayWidth,
+            top: top,
+            child: IgnorePointer(
+              child: Container(height: 2, color: const Color(0xFFB74747)),
+            ),
+          ),
+        ];
+      }
+    }
+    return [];
   }
 }
