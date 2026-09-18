@@ -50,16 +50,23 @@ class ExamsPage extends ConsumerWidget {
           padding: AppTokens.pagePadding,
           children: [
             snap.when(
-              data: (data) =>
-                  DataSourceBanner(
-                    live: data.live,
-                    message: data.banner,
-                    fromCache: data.fromCache,
-                    cachedAt: data.cachedAt,
-                    fetchedAt: data.fetchedAt,
-                  ),
-              loading: () => const MockDataBanner(),
-              error: (_, _) => const MockDataBanner(),
+              data: (data) => DataSourceBanner(
+                service: 'exams',
+                onRetry: () => ref.invalidate(examsSnapshotProvider),
+                live: data.live,
+                message: data.banner,
+                fromCache: data.fromCache,
+                cachedAt: data.cachedAt,
+                fetchedAt: data.fetchedAt,
+              ),
+              loading: () => DataSourceBanner(
+                service: 'exams',
+                onRetry: () => ref.invalidate(examsSnapshotProvider),
+              ),
+              error: (_, _) => DataSourceBanner(
+                service: 'exams',
+                onRetry: () => ref.invalidate(examsSnapshotProvider),
+              ),
             ),
             const SizedBox(height: AppTokens.spaceSm),
             Text(
@@ -84,12 +91,15 @@ class ExamsPage extends ConsumerWidget {
             const SizedBox(height: AppTokens.spaceMd),
             AsyncBody(
               value: snap,
-              onRetry: () => ref.read(examsSnapshotProvider.notifier).refresh(force: true),
+              onRetry: () =>
+                  ref.read(examsSnapshotProvider.notifier).refresh(force: true),
               builder: (data) {
                 if (data.exams.isEmpty) {
                   return const AppSurfaceCard(
                     child: Padding(
-                      padding: EdgeInsets.symmetric(vertical: AppTokens.spaceLg),
+                      padding: EdgeInsets.symmetric(
+                        vertical: AppTokens.spaceLg,
+                      ),
                       child: Center(
                         child: Text(
                           AppStrings.emptyExams,
