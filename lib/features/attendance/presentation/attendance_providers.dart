@@ -1,3 +1,6 @@
+import '../../../core/data/data_status.dart';
+import '../../../core/data/data_status_provider.dart';
+
 import 'dart:async';
 import 'dart:convert';
 
@@ -17,16 +20,21 @@ class AttendanceSystemController extends Notifier<AttendanceSystem> {
   void select(AttendanceSystem system) => state = system;
 }
 
-final attendanceSystemProvider = NotifierProvider<AttendanceSystemController, AttendanceSystem>(
-  AttendanceSystemController.new,
-);
+final attendanceSystemProvider =
+    NotifierProvider<AttendanceSystemController, AttendanceSystem>(
+      AttendanceSystemController.new,
+    );
 
 class AttendanceSnapshotNotifier extends AsyncNotifier<AttendanceSnapshot> {
   Future<AttendanceSnapshot>? pending;
 
   @override
   Future<AttendanceSnapshot> build() async {
-    final auth = ref.watch(authControllerProvider.select((s) => (s.initialized, s.user)));
+    final report = statusReporter(ref, 'attendance');
+    report(const DataStatus.loading());
+    final auth = ref.watch(
+      authControllerProvider.select((s) => (s.initialized, s.user)),
+    );
     final system = ref.watch(attendanceSystemProvider);
     ref.watch(campusConnectionRevisionProvider);
     final connecting = ref.watch(campusConnectionBusyProvider);
@@ -36,6 +44,13 @@ class AttendanceSnapshotNotifier extends AsyncNotifier<AttendanceSnapshot> {
     }
     if (!auth.$1 || auth.$2.isGuest || auth.$2.isDemo) {
       AttendanceDiagnostics.add('sync-auth');
+      if (auth.$1)
+        report(
+          const DataStatus(
+            phase: DataPhase.failed,
+            problem: DataProblem.loginRequired,
+          ),
+        );
       throw const AttendanceAccountRequired();
     }
     var active = true;
@@ -44,29 +59,71 @@ class AttendanceSnapshotNotifier extends AsyncNotifier<AttendanceSnapshot> {
     final session = ref.read(campusSessionProvider);
     final repository = AttendanceRepository(session);
     ref.onDispose(repository.cancel);
-    final key = 'attendance.snapshot.${auth.$2.studentId}.${system.name}.${system.host}';
+    final key =
+        'attendance.snapshot.${auth.$2.studentId}.${system.name}.${system.host}';
     AttendanceSnapshot? cached;
     try {
       final raw = await store.read(key);
-      if (raw != null) cached = AttendanceSnapshot.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+      if (raw != null)
+        cached = AttendanceSnapshot.fromJson(
+          jsonDecode(raw) as Map<String, dynamic>,
+        );
     } catch (error) {
       // A corrupt cache must never prevent a live refresh, but remains useful
       // diagnostic information without exporting the parser's raw message.
       AttendanceDiagnostics.add(attendanceDiagnosticPhase(error));
     }
-    if (active && cached != null) state = AsyncData(cached);
+    if (active && cached != null) {
+      state = AsyncData(cached);
+      report(
+        DataStatus.loading(
+          source: DataSource.cache,
+          updatedAt: cached.updatedAt,
+        ),
+      );
+    }
     try {
-      final result = await (pending = session.readQueue.run(() {
-        if (!active) throw StateError('Sync superseded');
-        return repository.load(system);
-      }).timeout(const Duration(seconds: 120), onTimeout: () {
-        // Include time waiting behind other campus services in the UI limit.
-        repository.cancel();
-        throw TimeoutException('考勤同步超时，请稍后重试');
-      }));
-      if (active) await store.write(key: key, value: jsonEncode(result.toJson()));
+      final result = await (pending = session.readQueue
+          .run(() {
+            if (!active) throw StateError('Sync superseded');
+            return repository.load(system);
+          })
+          .timeout(
+            const Duration(seconds: 120),
+            onTimeout: () {
+              // Include time waiting behind other campus services in the UI limit.
+              repository.cancel();
+              throw TimeoutException('考勤同步超时，请稍后重试');
+            },
+          ));
+      DataProblem? warning;
+      if (active) {
+        try {
+          await store.write(key: key, value: jsonEncode(result.toJson()));
+        } catch (_) {
+          warning = DataProblem.storage;
+        }
+      }
+      report(
+        DataStatus(
+          phase: DataPhase.ready,
+          source: DataSource.live,
+          updatedAt: result.updatedAt,
+          problem: warning,
+        ),
+      );
       return result;
     } catch (error) {
+      report(
+        DataStatus(
+          phase: DataPhase.failed,
+          source: cached == null ? DataSource.none : DataSource.cache,
+          updatedAt: cached?.updatedAt,
+          problem: error is AttendanceAuthRequired
+              ? DataProblem.loginRequired
+              : dataProblem(error),
+        ),
+      );
       AttendanceDiagnostics.add(attendanceDiagnosticPhase(error));
       if (cached != null) {
         return cachedAfterAttendanceFailure(
@@ -136,7 +193,8 @@ String attendanceErrorMessage(Object? error, {required bool useWebVpn}) {
         ? 'WebVPN 已启用，考勤系统仍需单独认证。请打开官方考勤系统完成登录，返回后自动同步。'
         : '请打开官方考勤系统完成认证；校外访问可先连接 WebVPN。';
   }
-  if (error is AttendanceConnectionFailed) return '考勤系统连接失败，请稍后重试，无需重复登录 WebVPN。';
+  if (error is AttendanceConnectionFailed)
+    return '考勤系统连接失败，请稍后重试，无需重复登录 WebVPN。';
   if (error is AttendanceRequestFailed) return '考勤请求失败，请稍后重试。';
   if (error is AttendanceProtocolChanged) return '学校考勤接口已变化，暂时无法解析，请打开接口诊断反馈。';
   if (error is FormatException) return '学校返回的数据结构无法解析，请打开接口诊断反馈。';
@@ -160,17 +218,19 @@ AttendanceSnapshot cachedAfterAttendanceFailure(
   Object error, {
   required bool useWebVpn,
 }) => AttendanceSnapshot(
-      records: cached.records,
-      term: cached.term,
-      updatedAt: cached.updatedAt,
-      fromCache: true,
-      message: '${attendanceErrorMessage(error, useWebVpn: useWebVpn)}'
-          '仍显示上次缓存，最新状态以学校系统为准。',
-    );
-
-final attendanceSnapshotProvider = AsyncNotifierProvider<AttendanceSnapshotNotifier, AttendanceSnapshot>(
-  AttendanceSnapshotNotifier.new,
-  // Authentication needs user interaction; automatic retries otherwise keep
-  // restarting hidden WebViews and show a loading bar over the previous error.
-  retry: (retryCount, error) => null,
+  records: cached.records,
+  term: cached.term,
+  updatedAt: cached.updatedAt,
+  fromCache: true,
+  message:
+      '${attendanceErrorMessage(error, useWebVpn: useWebVpn)}'
+      '仍显示上次缓存，最新状态以学校系统为准。',
 );
+
+final attendanceSnapshotProvider =
+    AsyncNotifierProvider<AttendanceSnapshotNotifier, AttendanceSnapshot>(
+      AttendanceSnapshotNotifier.new,
+      // Authentication needs user interaction; automatic retries otherwise keep
+      // restarting hidden WebViews and show a loading bar over the previous error.
+      retry: (retryCount, error) => null,
+    );
