@@ -1,43 +1,32 @@
 # 产品发布说明
 
 发布渠道：[GitHub Releases](https://github.com/dude1wudv/xjtu-campus/releases)。  
-应用内更新对照 **`/releases/latest`**（忽略 Pre-release 标签）。推荐资源名：`xjtu-campus-arm64-release.apk`。
+应用内更新对照 **`/releases/latest`**。推荐资源名：`xjtu-campus-arm64-release.apk`。
 
-## v1.5.5（正式版 · Latest）
+## v1.5.6（正式版 · Latest）
 
-**标签**：`v1.5.5` · **构建**：`1.5.5+34` · **分支合入**：`feat/mobile-ui-refresh` → `main`
+**标签**：`v1.5.6` · **构建**：`1.5.6+35` · **合入**：PR #1 `feat/campus-web-experience` + PR #2 `feat/unified-status-today-tasks` → `main`
 
 ### 用户可见能力
 
-- **移动端 UI**：玻璃拟态表面、统一主题、桌面小组件与背景设置
-- **WebVPN**：校外校园服务连通与连接卡片体验
-- **本科考勤**：新工作台 / 学生入口；官方会话交接；登录诊断与失败流保留
-- **作业中心**：按学期筛选，默认本学期课程
-- 继承 v1.5.4 / v1.5.0：校园卡、图书馆座位、应用内更新等
+- 首页突出正在进行/下一节课；宽屏双栏与侧边导航
+- 周课表增强与课程详情（作业/考勤匹配、本地笔记）
+- 响应式网页端（课表导入导出；无 CAS 密码登录）
+- 统一 DataStatus：加载/缓存/认证/失败提示一致
+- 今日任务中心：课程、作业、考试与个人待办
 
-### 安装
+### 修复
 
-1. 从 [Latest Release](https://github.com/dude1wudv/xjtu-campus/releases/latest) 下载 `xjtu-campus-arm64-release.apk`，或在应用内检查更新
-2. 覆盖安装可保留本地数据（同包名、同签名）
+- Widget 测试适配新导航与协议门；测试环境跳过 dean 通知 WebView
 
-### 文档
+## v1.5.5
 
-- `README.md`
-- `docs/ncard-campus-card.md` / `docs/library-seats.md`
-
-## v1.5.4
-
-移动端 UI 刷新、WebVPN、考勤与作业初版合入。见历史 Release。
-
-## v1.5.0
-
-校园卡、图书馆座位（Cookie http:8086 落盘修复）。
+玻璃 UI、本科考勤工作台、作业按学期筛选。
 
 ## 发版检查清单（维护者）
 
-1. `pubspec.yaml` 版本号（`x.y.z+build`，正式版勿带 `-dev` / `-card` 后缀）
+1. `pubspec.yaml` 正式版本号
 2. `flutter build apk --release --target-platform=android-arm64`
-3. 产物命名：`xjtu-campus-arm64-release.apk`
-4. `git tag vX.Y.Z` 并 `gh release create vX.Y.Z --latest`（不要 Pre-release）
-5. 确认 `releases/latest` API
-6. 更新本文件与 README，并合入 `main`
+3. 命名 `xjtu-campus-arm64-release.apk`
+4. `gh release create vX.Y.Z --latest`
+5. 更新本文件与 README，合入 `main`

@@ -6,7 +6,7 @@
 
 ## 当前正式版
 
-**v1.5.5**（GitHub Latest）。相对 v1.5.4：玻璃拟态 UI / 小组件、WebVPN 体验、本科考勤工作台与官方会话交接、作业按学期筛选等。
+**v1.5.6**（GitHub Latest）。相对 v1.5.5：首页/周课表与课程详情、响应式网页端、统一 DataStatus、今日任务中心。
 
 ## 下载与更新## 下载与更新
 
@@ -159,7 +159,7 @@ lib/
 
 - 显示名：交大校园助手
 - 包名：`xjtu_campus`（Android/iOS：`cn.edu.xjtu.xjtu_campus`）
-- 正式版版本：见 `pubspec.yaml`（当前 **1.5.5+34**）
+- 正式版版本：见 `pubspec.yaml`（当前 **1.5.6+35**）
 
 ## 相关文档
 

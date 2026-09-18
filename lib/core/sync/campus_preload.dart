@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -158,8 +159,12 @@ class CampusBackgroundSync extends ConsumerWidget {
     if (initialized && !connecting && notices.isFailed) {
       ref.watch(noticesFallbackProvider);
     }
+    // flutter_inappwebview has no test platform implementation.
+    final inTests = WidgetsBinding.instance.runtimeType
+        .toString()
+        .contains('Test');
     return Stack(fit: StackFit.expand, children: [
-      if (initialized && !connecting)
+      if (initialized && !connecting && !inTests)
         Positioned(
           left: 0, top: 0,
           child: ExcludeSemantics(

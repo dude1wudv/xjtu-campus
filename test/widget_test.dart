@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:xjtu_campus/app.dart';
 import 'package:xjtu_campus/core/di/core_providers.dart';
@@ -15,6 +16,10 @@ void main() {
     await initializeDateFormatting('zh_CN');
   });
 
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({'agreement.v1': true});
+  });
+
   Widget app() {
     return ProviderScope(
       overrides: [
@@ -24,25 +29,31 @@ void main() {
     );
   }
 
-  testWidgets('首页以中文底部导航启动并展示模拟课表入口', (tester) async {
+  Future<void> pumpSettled(WidgetTester tester) async {
     await tester.pumpWidget(app());
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
+    // settingsProvider loads SharedPreferences on a microtask
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pumpAndSettle(const Duration(seconds: 2));
+  }
 
-    expect(find.text(AppStrings.appName), findsWidgets);
-    expect(find.text(AppStrings.navSchedule), findsWidgets);
-    expect(find.text(AppStrings.navClassroom), findsWidgets);
-    expect(find.text(AppStrings.navNotices), findsWidgets);
-    expect(find.text(AppStrings.navAlarms), findsWidgets);
-    expect(find.text(AppStrings.mockBanner), findsWidgets);
+  testWidgets('首页以中文底部导航启动', (tester) async {
+    await pumpSettled(tester);
+
+    expect(find.text('今天'), findsWidgets);
+    expect(find.text('课表'), findsWidgets);
+    expect(find.text('自习'), findsWidgets);
+    expect(find.text('通知'), findsWidgets);
+    expect(find.text('设置'), findsWidgets);
   });
 
-  testWidgets('登录页提供统一认证与演示两条路径', (tester) async {
-    await tester.pumpWidget(app());
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
+  testWidgets('设置页可进入统一认证与演示登录', (tester) async {
+    await pumpSettled(tester);
 
-    await tester.tap(find.byTooltip(AppStrings.openLogin));
+    await tester.tap(find.byIcon(Icons.settings_outlined));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('登录校园账号'));
     await tester.pumpAndSettle();
 
     expect(find.text(AppStrings.loginAction), findsOneWidget);
@@ -56,19 +67,19 @@ void main() {
     expect(find.textContaining('同学 demo'), findsWidgets);
   });
 
-  testWidgets('闹钟页展示创建所选按钮与作息提示', (tester) async {
-    await tester.pumpWidget(app());
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
+  testWidgets('设置页提供课程闹钟入口', (tester) async {
+    await pumpSettled(tester);
 
-    await tester.tap(find.text(AppStrings.navAlarms));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.byIcon(Icons.settings_outlined));
+    await tester.pumpAndSettle();
 
-    expect(find.text(AppStrings.createSelectedAlarms), findsWidgets);
-    expect(find.text(AppStrings.alarmsTitle), findsWidgets);
-    expect(find.text(AppStrings.enableWakeAlarm), findsOneWidget);
-    expect(find.textContaining('作息'), findsWidgets);
+    expect(find.text('登录校园账号'), findsWidgets);
+    final alarms = find.text('课程闹钟');
+    await tester.scrollUntilVisible(
+      alarms,
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(alarms, findsOneWidget);
   });
 }
-
