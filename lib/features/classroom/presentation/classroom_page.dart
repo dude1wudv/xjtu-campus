@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/cache/cached_snapshot_loader.dart';
+import '../../../core/data/campus_snapshot_loader.dart';
 import '../../../core/cache/snapshot_cache.dart';
 import '../../../core/di/core_providers.dart';
 import '../../../core/l10n/app_strings.dart';
@@ -19,18 +19,23 @@ class ClassroomFilter extends Notifier<ClassroomQuery> {
   @override
   ClassroomQuery build() => const ClassroomQuery();
 
-  void setCampus(String? campus) =>
-      state = ClassroomQuery(campus: campus, building: null, period: state.period);
+  void setCampus(String? campus) => state = ClassroomQuery(
+    campus: campus,
+    building: null,
+    period: state.period,
+  );
 
-  void setBuilding(String? building) =>
-      state = ClassroomQuery(campus: state.campus, building: building, period: state.period);
+  void setBuilding(String? building) => state = ClassroomQuery(
+    campus: state.campus,
+    building: building,
+    period: state.period,
+  );
 
-  void setPeriod(int? period) =>
-      state = ClassroomQuery(
-        campus: state.campus,
-        building: state.building,
-        period: period,
-      );
+  void setPeriod(int? period) => state = ClassroomQuery(
+    campus: state.campus,
+    building: state.building,
+    period: period,
+  );
 }
 
 final classroomFilterProvider =
@@ -43,38 +48,50 @@ class FreeClassroomsNotifier extends AsyncNotifier<ClassroomPageData> {
     var active = true;
     ref.onDispose(() => active = false);
     ref.watch(campusConnectionRevisionProvider);
-    ref.watch(authControllerProvider.select((state) => '${state.user.studentId}|${state.user.sessionToken}'));
-    final campus =
-        ref.watch(classroomFilterProvider.select((query) => query.campus));
-    final building =
-        ref.watch(classroomFilterProvider.select((query) => query.building));
-    final result = await (pending = loadWithCache<ClassroomPageData>(
-      isCurrent: () => active,
-      cache: ref.watch(snapshotCacheProvider),
-      key: SnapshotCache.scoped(SnapshotCache.classroom,
-          ref.read(authControllerProvider).user.studentId, '${campus ?? ''}|${building ?? ''}'),
+    ref.watch(
+      authControllerProvider.select(
+        (state) =>
+            '${state.initialized}|${state.user.studentId}|${state.user.sessionToken}|${state.user.isDemo}',
+      ),
+    );
+    final campus = ref.watch(
+      classroomFilterProvider.select((query) => query.campus),
+    );
+    final building = ref.watch(
+      classroomFilterProvider.select((query) => query.building),
+    );
+    final result = await (pending = loadCampusSnapshot<ClassroomPageData>(
+      ref: ref,
+      service: 'classroom',
+      demo: () => ref
+          .read(mockClassroomRepositoryProvider)
+          .findFree(ClassroomQuery(campus: campus, building: building)),
+      key: SnapshotCache.scoped(
+        SnapshotCache.classroom,
+        ref.read(authControllerProvider).user.studentId,
+        '${campus ?? ''}|${building ?? ''}',
+      ),
       fromJson: ClassroomPageData.fromJson,
-      toJson: (s) => s.copyWith(
-        queryCampus: campus,
-        queryBuilding: building,
-      ).toJson(),
-      fetch: () => ref.read(campusSessionProvider).readQueue.run(() async {
+      toJson: (s) =>
+          s.copyWith(queryCampus: campus, queryBuilding: building).toJson(),
+      fetch: () async {
         if (!active) throw StateError('Sync superseded');
-        final data = await ref.read(classroomRepositoryProvider).findFree(
-              ClassroomQuery(campus: campus, building: building),
-            );
+        final data = await ref
+            .read(classroomRepositoryProvider)
+            .findFree(ClassroomQuery(campus: campus, building: building));
         return data.copyWith(queryCampus: campus, queryBuilding: building);
-      }),
+      },
       isLive: (s) => s.live,
       markCached: (s, t) => s.asCached(
         t,
-        banner: '${AppStrings.classroomCacheBanner} · ${AppStrings.updatedAtLabel(t)}',
+        banner:
+            '${AppStrings.classroomCacheBanner} · ${AppStrings.updatedAtLabel(t)}',
       ),
-      markRefreshFailed: (s, t) => s.asCached(
-        t,
-        banner: AppStrings.cacheRefreshFailed,
-      ),
-      emit: (s) { if (active) state = AsyncData(s); },
+      markRefreshFailed: (s, t) =>
+          s.asCached(t, banner: AppStrings.cacheRefreshFailed),
+      emit: (s) {
+        if (active) state = AsyncData(s);
+      },
     ));
     if (result.live && !result.fromCache) {
       return result.asFresh();
@@ -93,13 +110,20 @@ class FreeClassroomsNotifier extends AsyncNotifier<ClassroomPageData> {
 /// Campus/building changes refetch; period is applied locally after a full-day parse.
 final freeClassroomsProvider =
     AsyncNotifierProvider<FreeClassroomsNotifier, ClassroomPageData>(
-  FreeClassroomsNotifier.new,
-);
+      FreeClassroomsNotifier.new,
+    );
 
 class ClassroomPage extends ConsumerWidget {
   const ClassroomPage({super.key});
 
-  static const fallbackCampuses = ['兴庆校区', '雁塔校区', '创新港校区', '曲江校区', '苏州校区', '海南创新中心'];
+  static const fallbackCampuses = [
+    '兴庆校区',
+    '雁塔校区',
+    '创新港校区',
+    '曲江校区',
+    '苏州校区',
+    '海南创新中心',
+  ];
   static const fallbackBuildings = [
     '主楼A',
     '主楼B',
@@ -119,15 +143,20 @@ class ClassroomPage extends ConsumerWidget {
     final filter = ref.watch(classroomFilterProvider);
     final rooms = ref.watch(freeClassroomsProvider);
     final liveCampuses = rooms.asData?.value.campuses ?? const <String>[];
-    final liveBuildings = rooms.asData?.value.buildingsForCampus ?? const <String>[];
-    final campusItems =
-        liveCampuses.isNotEmpty ? liveCampuses : fallbackCampuses;
-    final buildingItems =
-        liveBuildings.isNotEmpty ? liveBuildings : fallbackBuildings;
-    final campusValue =
-        campusItems.contains(filter.campus) ? filter.campus : null;
-    final buildingValue =
-        buildingItems.contains(filter.building) ? filter.building : null;
+    final liveBuildings =
+        rooms.asData?.value.buildingsForCampus ?? const <String>[];
+    final campusItems = liveCampuses.isNotEmpty
+        ? liveCampuses
+        : fallbackCampuses;
+    final buildingItems = liveBuildings.isNotEmpty
+        ? liveBuildings
+        : fallbackBuildings;
+    final campusValue = campusItems.contains(filter.campus)
+        ? filter.campus
+        : null;
+    final buildingValue = buildingItems.contains(filter.building)
+        ? filter.building
+        : null;
 
     return AppPageScaffold(
       appBar: AppBar(
@@ -147,16 +176,23 @@ class ClassroomPage extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 rooms.when(
-                  data: (data) =>
-                      DataSourceBanner(
-                        live: data.live,
-                        message: data.banner,
-                        fromCache: data.fromCache,
-                        cachedAt: data.cachedAt,
-                        fetchedAt: data.fetchedAt,
-                      ),
-                  loading: () => const MockDataBanner(),
-                  error: (_, _) => const MockDataBanner(),
+                  data: (data) => DataSourceBanner(
+                    service: 'classroom',
+                    onRetry: () => ref.invalidate(freeClassroomsProvider),
+                    live: data.live,
+                    message: data.banner,
+                    fromCache: data.fromCache,
+                    cachedAt: data.cachedAt,
+                    fetchedAt: data.fetchedAt,
+                  ),
+                  loading: () => DataSourceBanner(
+                    service: 'classroom',
+                    onRetry: () => ref.invalidate(freeClassroomsProvider),
+                  ),
+                  error: (_, _) => DataSourceBanner(
+                    service: 'classroom',
+                    onRetry: () => ref.invalidate(freeClassroomsProvider),
+                  ),
                 ),
                 const SizedBox(height: 8),
                 const Text(AppStrings.classroomSubtitle),
@@ -223,66 +259,77 @@ class ClassroomPage extends ConsumerWidget {
           ),
           Expanded(
             child: RefreshIndicator(
-              onRefresh: () =>
-                  ref.read(freeClassroomsProvider.notifier).refresh(force: true),
+              onRefresh: () => ref
+                  .read(freeClassroomsProvider.notifier)
+                  .refresh(force: true),
               child: AsyncBody(
-              value: rooms,
-              onRetry: () => ref.read(freeClassroomsProvider.notifier).refresh(force: true),
-              builder: (data) {
-                final items = ClassroomQueryLogic.filterByPeriod(
-                  data.rooms,
-                  filter.period,
-                );
-                if (items.isEmpty) {
-                  return ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    children: const [
-                      SizedBox(height: 120),
-                      EmptyHint(
-                        icon: Icons.meeting_room_outlined,
-                        text: AppStrings.emptyClassrooms,
-                      ),
-                    ],
+                value: rooms,
+                onRetry: () => ref
+                    .read(freeClassroomsProvider.notifier)
+                    .refresh(force: true),
+                builder: (data) {
+                  final items = ClassroomQueryLogic.filterByPeriod(
+                    data.rooms,
+                    filter.period,
                   );
-                }
-                return ListView.separated(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: AppTokens.pagePadding,
-                  itemCount: items.length,
-                  separatorBuilder: (context, index) => const SizedBox(height: 8),
-                  itemBuilder: (context, index) {
-                    final room = items[index];
-                    return Card(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(4, 8, 8, 10),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            ListTile(
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                              ),
-                              leading: const Icon(Icons.door_front_door_outlined),
-                              title: Text('${room.building} ${room.room}'),
-                              subtitle: Text(
-                                '${room.campus} · ${AppStrings.seats} ${room.capacity} · ${room.periodText}',
-                              ),
-                              trailing: room.freePeriods.isNotEmpty
-                                  ? const Text(AppStrings.freeNow)
-                                  : const Text('占用'),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(16, 0, 12, 4),
-                              child: _PeriodStrip(room: room),
-                            ),
-                          ],
+                  if (items.isEmpty) {
+                    return ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: const [
+                        SizedBox(height: 120),
+                        EmptyHint(
+                          icon: Icons.meeting_room_outlined,
+                          text: AppStrings.emptyClassrooms,
                         ),
-                      ),
+                      ],
                     );
-                  },
-                );
-              },
-            ),
+                  }
+                  return ListView.separated(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: AppTokens.pagePadding,
+                    itemCount: items.length,
+                    separatorBuilder: (context, index) =>
+                        const SizedBox(height: 8),
+                    itemBuilder: (context, index) {
+                      final room = items[index];
+                      return Card(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(4, 8, 8, 10),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              ListTile(
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                ),
+                                leading: const Icon(
+                                  Icons.door_front_door_outlined,
+                                ),
+                                title: Text('${room.building} ${room.room}'),
+                                subtitle: Text(
+                                  '${room.campus} · ${AppStrings.seats} ${room.capacity} · ${room.periodText}',
+                                ),
+                                trailing: room.freePeriods.isNotEmpty
+                                    ? const Text(AppStrings.freeNow)
+                                    : const Text('占用'),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  16,
+                                  0,
+                                  12,
+                                  4,
+                                ),
+                                child: _PeriodStrip(room: room),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
             ),
           ),
         ],
@@ -303,10 +350,7 @@ class _PeriodStrip extends StatelessWidget {
       runSpacing: 4,
       children: [
         for (var period = 1; period <= ClassroomSlot.dayLastPeriod; period++)
-          _PeriodChip(
-            period: period,
-            free: room.freePeriods.contains(period),
-          ),
+          _PeriodChip(period: period, free: room.freePeriods.contains(period)),
       ],
     );
   }
@@ -332,11 +376,7 @@ class _PeriodChip extends StatelessWidget {
       ),
       child: Text(
         '$period',
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          color: fg,
-        ),
+        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: fg),
       ),
     );
   }
