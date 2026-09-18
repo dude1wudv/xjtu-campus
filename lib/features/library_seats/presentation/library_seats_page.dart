@@ -48,14 +48,12 @@ class _LibrarySeatsPageState extends ConsumerState<LibrarySeatsPage> {
     if (ok != true || !mounted) return;
     setState(() => _booking = true);
     try {
-      final result = await ref.read(librarySeatsRepositoryProvider).reserve(
-            seatId: seat.id,
-            areaCode: seat.areaCode,
-          );
+      final result = await ref
+          .read(librarySeatsRepositoryProvider)
+          .reserve(seatId: seat.id, areaCode: seat.areaCode);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result.message)),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(result.message)));
       await ref.read(librarySeatsSnapshotProvider.notifier).refresh();
     } finally {
       if (mounted) setState(() => _booking = false);
@@ -97,10 +95,7 @@ class _LibrarySeatsPageState extends ConsumerState<LibrarySeatsPage> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      '定时预约',
-                      style: Theme.of(ctx).textTheme.titleMedium,
-                    ),
+                    Text('定时预约', style: Theme.of(ctx).textTheme.titleMedium),
                     const SizedBox(height: 8),
                     const Text(
                       AppStrings.librarySeatsFairUse,
@@ -126,7 +121,10 @@ class _LibrarySeatsPageState extends ConsumerState<LibrarySeatsPage> {
                         for (final a in LibrarySeatAreas.all)
                           DropdownMenuItem(
                             value: a.code,
-                            child: Text(a.label, overflow: TextOverflow.ellipsis),
+                            child: Text(
+                              a.label,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                       ],
                       onChanged: (v) {
@@ -173,8 +171,7 @@ class _LibrarySeatsPageState extends ConsumerState<LibrarySeatsPage> {
                       max: 20,
                       divisions: 19,
                       label: '$maxAttempts',
-                      onChanged: (v) =>
-                          setModal(() => maxAttempts = v.round()),
+                      onChanged: (v) => setModal(() => maxAttempts = v.round()),
                     ),
                     Text('尝试间隔：${(delayMs / 1000).toStringAsFixed(1)} 秒'),
                     Slider(
@@ -194,7 +191,10 @@ class _LibrarySeatsPageState extends ConsumerState<LibrarySeatsPage> {
                       children: [
                         for (final a in LibrarySeatAreas.all)
                           FilterChip(
-                            label: Text(a.label, style: const TextStyle(fontSize: 11)),
+                            label: Text(
+                              a.label,
+                              style: const TextStyle(fontSize: 11),
+                            ),
                             selected: fallback.contains(a.code),
                             onSelected: (sel) {
                               setModal(() {
@@ -299,8 +299,8 @@ class _LibrarySeatsPageState extends ConsumerState<LibrarySeatsPage> {
           if (_booking) const LinearProgressIndicator(minHeight: 2),
           Expanded(
             child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              physics: const AlwaysScrollableScrollPhysics(),
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               padding: AppTokens.pagePadding,
               children: [
                 AppSurfaceCard(
@@ -317,10 +317,8 @@ class _LibrarySeatsPageState extends ConsumerState<LibrarySeatsPage> {
                       const SizedBox(height: AppTokens.spaceSm),
                       Text(
                         AppStrings.librarySeatsCampusNetHint,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: AppColors.inkSoft,
-                              height: 1.35,
-                            ),
+                        style: Theme.of(context).textTheme.bodySmall
+                            ?.copyWith(color: AppColors.inkSoft, height: 1.35),
                       ),
                     ],
                   ),
@@ -328,12 +326,19 @@ class _LibrarySeatsPageState extends ConsumerState<LibrarySeatsPage> {
                 const SizedBox(height: AppTokens.spaceMd),
                 snap.when(
                   data: (data) => DataSourceBanner(
+                    service: 'library',
+                    onRetry: () => ref.invalidate(librarySeatsSnapshotProvider),
                     live: data.live,
                     message: data.banner,
                     fetchedAt: data.fetchedAt,
                   ),
-                  loading: () => const MockDataBanner(),
+                  loading: () => DataSourceBanner(
+                    service: 'library',
+                    onRetry: () => ref.invalidate(librarySeatsSnapshotProvider),
+                  ),
                   error: (e, _) => DataSourceBanner(
+                    service: 'library',
+                    onRetry: () => ref.invalidate(librarySeatsSnapshotProvider),
                     live: false,
                     message: e.toString().contains('unreachable')
                         ? AppStrings.librarySeatsCampusNetHint
@@ -415,9 +420,8 @@ class _LibrarySeatsPageState extends ConsumerState<LibrarySeatsPage> {
                 const SizedBox(height: AppTokens.spaceMd),
                 AsyncBody(
                   value: snap,
-                  onRetry: () => ref
-                      .read(librarySeatsSnapshotProvider.notifier)
-                      .refresh(),
+                  onRetry: () =>
+                      ref.read(librarySeatsSnapshotProvider.notifier).refresh(),
                   builder: (data) {
                     if (!data.reachable) {
                       return const AppSurfaceCard(

@@ -1,3 +1,6 @@
+import '../../../core/data/data_status.dart';
+import '../../../core/data/data_status_provider.dart';
+
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,14 +16,10 @@ import '../data/live_library_seats_repository.dart';
 import '../domain/library_seat.dart';
 import '../domain/library_seats_repository.dart';
 
-final librarySeatsRepositoryProvider = Provider<LibrarySeatsRepository>(
-  (ref) {
-    final session = ref.watch(campusSessionProvider);
-    return LiveLibrarySeatsRepository(
-      api: LibrarySeatApi(session: session),
-    );
-  },
-);
+final librarySeatsRepositoryProvider = Provider<LibrarySeatsRepository>((ref) {
+  final session = ref.watch(campusSessionProvider);
+  return LiveLibrarySeatsRepository(api: LibrarySeatApi(session: session));
+});
 
 final librarySeatScheduleStoreProvider = Provider<LibrarySeatScheduleStore>(
   (ref) => LibrarySeatScheduleStore(),
@@ -35,24 +34,44 @@ class LibrarySeatAreaController extends Notifier<String> {
 
 final librarySeatAreaProvider =
     NotifierProvider<LibrarySeatAreaController, String>(
-  LibrarySeatAreaController.new,
-);
+      LibrarySeatAreaController.new,
+    );
 
 class LibrarySeatsNotifier extends AsyncNotifier<LibrarySeatsSnapshot> {
   @override
   Future<LibrarySeatsSnapshot> build() async {
+    final report = statusReporter(ref, 'library');
+    report(const DataStatus.loading());
     var active = true;
     ref.onDispose(() => active = false);
     ref.watch(campusConnectionRevisionProvider);
     ref.watch(authControllerProvider.select((s) => s.user));
     await ref.read(campusSessionProvider).restore();
     final area = ref.watch(librarySeatAreaProvider);
-    return ref.read(campusSessionProvider).readQueue.run(
-      () {
+    try {
+      final result = await ref.read(campusSessionProvider).readQueue.run(() {
         if (!active) throw StateError('Sync superseded');
         return ref.read(librarySeatsRepositoryProvider).listSeats(area);
-      },
-    );
+      });
+      report(
+        DataStatus(
+          phase: result.live ? DataPhase.ready : DataPhase.failed,
+          source: result.live ? DataSource.live : DataSource.none,
+          updatedAt: result.fetchedAt,
+          problem: result.needsAuth
+              ? DataProblem.loginRequired
+              : !result.reachable
+              ? DataProblem.network
+              : !result.live
+              ? DataProblem.unavailable
+              : null,
+        ),
+      );
+      return result;
+    } catch (error) {
+      report(DataStatus(phase: DataPhase.failed, problem: dataProblem(error)));
+      rethrow;
+    }
   }
 
   Future<void> refresh({bool force = true}) async {
@@ -63,11 +82,12 @@ class LibrarySeatsNotifier extends AsyncNotifier<LibrarySeatsSnapshot> {
 
 final librarySeatsSnapshotProvider =
     AsyncNotifierProvider<LibrarySeatsNotifier, LibrarySeatsSnapshot>(
-  LibrarySeatsNotifier.new,
-);
+      LibrarySeatsNotifier.new,
+    );
 
-final librarySeatScheduleProvider =
-    FutureProvider<LibrarySeatScheduleConfig?>((ref) {
+final librarySeatScheduleProvider = FutureProvider<LibrarySeatScheduleConfig?>((
+  ref,
+) {
   return ref.watch(librarySeatScheduleStoreProvider).load();
 });
 
@@ -127,20 +147,18 @@ class LibrarySeatScheduleRunner extends Notifier<String?> {
   Future<BookSeatResult> runConfigured() async {
     final config = await ref.read(librarySeatScheduleStoreProvider).load();
     if (config == null || !config.enabled) {
-      return const BookSeatResult(
-        success: false,
-        message: '没有已配置的定时预约',
-      );
+      return const BookSeatResult(success: false, message: '没有已配置的定时预约');
     }
     state = '正在按配置预约…';
-    final result =
-        await ref.read(librarySeatsRepositoryProvider).reserveWithFallback(
-              preferredSeatId: config.preferredSeatId,
-              preferredAreaCode: config.preferredAreaCode,
-              fallbackAreaCodes: config.fallbackAreaCodes,
-              maxAttempts: config.maxAttempts,
-              delayMs: config.delayMs,
-            );
+    final result = await ref
+        .read(librarySeatsRepositoryProvider)
+        .reserveWithFallback(
+          preferredSeatId: config.preferredSeatId,
+          preferredAreaCode: config.preferredAreaCode,
+          fallbackAreaCodes: config.fallbackAreaCodes,
+          maxAttempts: config.maxAttempts,
+          delayMs: config.delayMs,
+        );
     state = result.message;
     ref.invalidate(librarySeatsSnapshotProvider);
     return result;
@@ -149,7 +167,7 @@ class LibrarySeatScheduleRunner extends Notifier<String?> {
 
 final librarySeatScheduleRunnerProvider =
     NotifierProvider<LibrarySeatScheduleRunner, String?>(
-  LibrarySeatScheduleRunner.new,
-);
+      LibrarySeatScheduleRunner.new,
+    );
 
 List<LibraryArea> get libraryAreas => LibrarySeatAreas.all;
