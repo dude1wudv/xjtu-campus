@@ -18,41 +18,47 @@ class AppPageScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
-      decoration: const BoxDecoration(gradient: LinearGradient(
-        begin: Alignment.topLeft, end: Alignment.bottomRight,
-        colors: [Color(0xFFE8F0FF), Color(0xFFF7F6FB), Color(0xFFEAF5F2)],
-      )),
-      child: Scaffold(backgroundColor: Colors.transparent,
-      appBar: appBar,
-      body: SafeArea(
-        top: appBar == null,
-        bottom: bottomNavigationBar == null,
-        child: Align(
-          alignment: Alignment.topCenter,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: AppTokens.contentWidth),
-            child: SizedBox(width: double.infinity, child: body),
-          ),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFF5F7F8), Color(0xFFF5F7F8), Color(0xFFF5F7F8)],
         ),
       ),
-      bottomNavigationBar: bottomNavigationBar == null
-          ? null
-          : ColoredBox(
-              color: Theme.of(context).colorScheme.surface,
-              child: SafeArea(
-                top: false,
-                child: Align(
-                  heightFactor: 1,
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(
-                      maxWidth: AppTokens.contentWidth,
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: appBar,
+        body: SafeArea(
+          top: appBar == null,
+          bottom: bottomNavigationBar == null,
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(
+                maxWidth: AppTokens.contentWidth,
+              ),
+              child: SizedBox(width: double.infinity, child: body),
+            ),
+          ),
+        ),
+        bottomNavigationBar: bottomNavigationBar == null
+            ? null
+            : ColoredBox(
+                color: Theme.of(context).colorScheme.surface,
+                child: SafeArea(
+                  top: false,
+                  child: Align(
+                    heightFactor: 1,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        maxWidth: AppTokens.contentWidth,
+                      ),
+                      child: bottomNavigationBar,
                     ),
-                    child: bottomNavigationBar,
                   ),
                 ),
               ),
-            ),
-    ),
+      ),
     );
   }
 }
