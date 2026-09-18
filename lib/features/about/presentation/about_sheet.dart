@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'package:flutter/foundation.dart';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -57,9 +57,8 @@ class _AboutSheetBodyState extends State<_AboutSheetBody> {
     final uri = Uri.parse(AppConstants.githubRepoUrl);
     final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!ok && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('无法打开 GitHub 链接')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('无法打开 GitHub 链接')));
     }
   }
 
@@ -72,14 +71,12 @@ class _AboutSheetBodyState extends State<_AboutSheetBody> {
       if (!mounted) return;
       switch (result) {
         case UpdateUpToDate():
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('已是最新版本')),
-          );
+          ScaffoldMessenger.of(context)
+              .showSnackBar(const SnackBar(content: Text('已是最新版本')));
           Navigator.of(context).maybePop();
         case UpdateCheckFailed(:final message):
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(message)),
-          );
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text(message)));
         case UpdateAvailable():
           Navigator.of(context).maybePop();
           if (!mounted) return;
@@ -102,22 +99,22 @@ class _AboutSheetBodyState extends State<_AboutSheetBody> {
           children: [
             Text(
               '关于 ${AppStrings.appName}',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+              style: Theme.of(context).textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 4),
             Text(
               '当前版本 $_versionLabel',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.inkSoft,
-                  ),
+              style: Theme.of(context).textTheme.bodySmall
+                  ?.copyWith(color: AppColors.inkSoft),
             ),
             const SizedBox(height: 12),
             ListTile(
               contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.system_update_alt_rounded,
-                  color: AppColors.navy),
+              leading: const Icon(
+                Icons.system_update_alt_rounded,
+                color: AppColors.navy,
+              ),
               title: const Text('检查更新'),
               subtitle: const Text('应用内下载并安装（同包名同签名可覆盖保留数据）'),
               trailing: _checking
@@ -139,8 +136,10 @@ class _AboutSheetBodyState extends State<_AboutSheetBody> {
             ),
             ListTile(
               contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.cleaning_services_outlined,
-                  color: AppColors.navy),
+              leading: const Icon(
+                Icons.cleaning_services_outlined,
+                color: AppColors.navy,
+              ),
               title: const Text(AppStrings.clearCache),
               subtitle: const Text(AppStrings.clearCacheSubtitle),
               trailing: const Icon(Icons.chevron_right_rounded),
@@ -266,11 +265,13 @@ Future<void> downloadAndInstallUpdate(
   UpdateAvailable update,
 ) async {
   final downloadUri = Uri.tryParse(update.downloadUrl);
-  final looksLikeApk = downloadUri != null &&
+  final looksLikeApk =
+      downloadUri != null &&
       (update.downloadUrl.toLowerCase().contains('.apk') ||
           update.downloadUrl != update.htmlUrl);
 
-  if (!looksLikeApk || !Platform.isAndroid) {
+  if (!looksLikeApk ||
+      !(!kIsWeb && defaultTargetPlatform == TargetPlatform.android)) {
     await _openReleasePage(context, update.htmlUrl);
     return;
   }
@@ -303,7 +304,10 @@ Future<void> downloadAndInstallUpdate(
                     pct == null
                         ? '连接中…'
                         : '已下载 ${(pct * 100).toStringAsFixed(0)}%',
-                    style: const TextStyle(fontSize: 13, color: AppColors.inkSoft),
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: AppColors.inkSoft,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   const Text(
@@ -374,9 +378,8 @@ Future<void> downloadAndInstallUpdate(
         closed = true;
         Navigator.of(context, rootNavigator: true).maybePop();
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('下载或安装失败：$e')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('下载或安装失败：$e')));
       await _offerReleaseFallback(context, update.htmlUrl);
     }
   } finally {
@@ -389,9 +392,7 @@ Future<void> _offerReleaseFallback(BuildContext context, String htmlUrl) async {
     context: context,
     builder: (ctx) => AlertDialog(
       title: const Text('无法打开安装器'),
-      content: const Text(
-        '可前往 GitHub Release 页面手动下载安装。覆盖安装保留本地数据（同包名同签名）。',
-      ),
+      content: const Text('可前往 GitHub Release 页面手动下载安装。覆盖安装保留本地数据（同包名同签名）。'),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(ctx).pop(false),
@@ -414,9 +415,8 @@ Future<void> _openReleasePage(BuildContext context, String htmlUrl) async {
   if (uri == null) return;
   final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
   if (!ok && context.mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('无法打开发布页')),
-    );
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('无法打开发布页')));
   }
 }
 
