@@ -59,11 +59,8 @@ class _CampusCardPageState extends ConsumerState<CampusCardPage> {
         orElse: () => true,
       );
       if (stillFailed) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('同步标记成功但拉取失败，请再点重试'),
-          ),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('同步标记成功但拉取失败，请再点重试')));
       }
     }
   }
@@ -87,9 +84,7 @@ class _CampusCardPageState extends ConsumerState<CampusCardPage> {
             }
           },
         ),
-        actions: [
-          ManualRefreshButton(onRefresh: () => _reload(force: true)),
-        ],
+        actions: [ManualRefreshButton(onRefresh: () => _reload(force: true))],
       ),
       body: RefreshIndicator(
         onRefresh: _reload,
@@ -100,6 +95,9 @@ class _CampusCardPageState extends ConsumerState<CampusCardPage> {
           children: [
             if (demo != null)
               DataSourceBanner(
+                service: 'campusCard',
+                loginRoute: '/campus-card/sync',
+                onRetry: () => ref.invalidate(campusCardSnapshotProvider),
                 live: false,
                 message: demo.banner,
                 fetchedAt: demo.fetchedAt ?? DateTime.now(),
@@ -107,14 +105,24 @@ class _CampusCardPageState extends ConsumerState<CampusCardPage> {
             else
               snap.when(
                 data: (data) => DataSourceBanner(
+                  service: 'campusCard',
+                  loginRoute: '/campus-card/sync',
+                  onRetry: () => ref.invalidate(campusCardSnapshotProvider),
                   live: data.live,
                   message: data.banner,
                   fromCache: data.fromCache,
                   cachedAt: data.cachedAt,
                   fetchedAt: data.fetchedAt,
                 ),
-                loading: () => const MockDataBanner(),
-                error: (_, _) => const DataSourceBanner(
+                loading: () => DataSourceBanner(
+                  service: 'campusCard',
+                  loginRoute: '/campus-card/sync',
+                  onRetry: () => ref.invalidate(campusCardSnapshotProvider),
+                ),
+                error: (_, _) => DataSourceBanner(
+                  service: 'campusCard',
+                  loginRoute: '/campus-card/sync',
+                  onRetry: () => ref.invalidate(campusCardSnapshotProvider),
                   live: false,
                   message: AppStrings.campusCardSyncFailedBanner,
                 ),
@@ -243,9 +251,7 @@ class _SnapshotBody extends StatelessWidget {
         ),
         const SizedBox(height: AppTokens.spaceSm),
         if (data.transactions.isEmpty)
-          const AppSurfaceCard(
-            child: Text(AppStrings.emptyCampusCardTurnover),
-          )
+          const AppSurfaceCard(child: Text(AppStrings.emptyCampusCardTurnover))
         else
           for (final tx in data.transactions) ...[
             _TurnoverTile(tx: tx),
@@ -384,7 +390,8 @@ class _BalanceHero extends StatelessWidget {
               Wrap(
                 spacing: AppTokens.spaceSm,
                 children: [
-                  if (card.lost) const _StatusChip(label: AppStrings.campusCardLost),
+                  if (card.lost)
+                    const _StatusChip(label: AppStrings.campusCardLost),
                   if (card.frozen)
                     const _StatusChip(label: AppStrings.campusCardFrozen),
                 ],
@@ -451,9 +458,7 @@ class _TurnoverTile extends StatelessWidget {
               shape: BoxShape.circle,
             ),
             child: Icon(
-              tx.isIncome
-                  ? Icons.south_west_rounded
-                  : Icons.north_east_rounded,
+              tx.isIncome ? Icons.south_west_rounded : Icons.north_east_rounded,
               size: 18,
               color: color,
             ),
