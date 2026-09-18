@@ -5,7 +5,7 @@ import 'app_theme.dart';
 /// Named design tokens — radii, spacing, elevation, motion.
 /// Shared by root tabs, detail pages, and modal surfaces.
 abstract final class AppTokens {
-  static const double contentWidth = 840;
+  static const double contentWidth = 1240;
 
   // —— Radii ——
   static const double radiusSm = 12;
@@ -40,12 +40,12 @@ abstract final class AppTokens {
 
   // —— Elevation / shadows ——
   static List<BoxShadow> get softCardShadow => [
-        BoxShadow(
-          color: AppColors.ink.withValues(alpha: 0.04),
-          blurRadius: 12,
-          offset: const Offset(0, 4),
-        ),
-      ];
+    BoxShadow(
+      color: AppColors.ink.withValues(alpha: 0.04),
+      blurRadius: 12,
+      offset: const Offset(0, 4),
+    ),
+  ];
 
   // —— Durations ——
   static const Duration durationFast = Duration(milliseconds: 150);

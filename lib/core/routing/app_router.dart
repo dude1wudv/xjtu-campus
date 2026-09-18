@@ -1,4 +1,9 @@
+import 'package:flutter/foundation.dart';
+
+import '../../features/web/presentation/web_info_page.dart';
+import '../../features/schedule/presentation/course_detail_page.dart';
 import '../../features/homework/domain/homework.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -31,16 +36,63 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: '/home',
+    redirect: (context, state) =>
+        kIsWeb &&
+            !{
+              '/home',
+              '/schedule',
+              '/course',
+              '/settings',
+              '/agreement',
+              '/web-info',
+            }.contains(state.uri.path)
+        ? '/web-info'
+        : null,
     routes: [
-      GoRoute(path: '/homework', builder: (context, state) => const HomeworkPage()),
-      GoRoute(path: '/homework/:id', builder: (context, state) {
-        final id = int.tryParse(state.pathParameters['id'] ?? '');
-        return id == null ? const HomeworkPage() : HomeworkDetailPage(id: id, initialItem: state.extra is Homework ? state.extra as Homework : null);
-      }),
-      GoRoute(path: '/attendance/login', builder: (context, state) => const AttendanceLoginPage()),
-      GoRoute(path: '/agreement', builder: (context, state) => const AgreementPage()),
+      GoRoute(
+        path: '/web-info',
+        builder: (context, state) => const WebInfoPage(),
+      ),
+      GoRoute(
+        path: '/course',
+        builder: (context, state) => CourseDetailPage(
+          id: state.uri.queryParameters['id'] ?? '',
+          day:
+              DateTime.tryParse(state.uri.queryParameters['day'] ?? '') ??
+              DateTime.now(),
+        ),
+      ),
+      GoRoute(
+        path: '/homework',
+        builder: (context, state) => const HomeworkPage(),
+      ),
+      GoRoute(
+        path: '/homework/:id',
+        builder: (context, state) {
+          final id = int.tryParse(state.pathParameters['id'] ?? '');
+          return id == null
+              ? const HomeworkPage()
+              : HomeworkDetailPage(
+                  id: id,
+                  initialItem: state.extra is Homework
+                      ? state.extra as Homework
+                      : null,
+                );
+        },
+      ),
+      GoRoute(
+        path: '/attendance/login',
+        builder: (context, state) => const AttendanceLoginPage(),
+      ),
+      GoRoute(
+        path: '/agreement',
+        builder: (context, state) => const AgreementPage(),
+      ),
       GoRoute(path: '/alarms', builder: (context, state) => const AlarmsPage()),
-      GoRoute(path: '/attendance', builder: (context, state) => const AttendancePage()),
+      GoRoute(
+        path: '/attendance',
+        builder: (context, state) => const AttendancePage(),
+      ),
       GoRoute(path: '/webvpn', builder: (context, state) => const WebVpnPage()),
       GoRoute(
         path: '/login',
@@ -68,18 +120,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             if (rawUrl != null) urlFromExtra = rawUrl.toString();
             if (rawTitle != null) titleFromExtra = rawTitle.toString();
           }
-          final url = urlFromExtra ??
+          final url =
+              urlFromExtra ??
               (state.uri.queryParameters['url'] == null
                   ? null
                   : Uri.decodeComponent(state.uri.queryParameters['url']!));
-          final title = titleFromExtra ??
+          final title =
+              titleFromExtra ??
               (state.uri.queryParameters['title'] == null
                   ? null
                   : Uri.decodeComponent(state.uri.queryParameters['title']!));
-          return InAppBrowserPage(
-            initialUrl: url ?? '',
-            title: title,
-          );
+          return InAppBrowserPage(initialUrl: url ?? '', title: title);
         },
       ),
       GoRoute(
@@ -126,9 +177,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: '/home',
-                pageBuilder: (context, state) => const NoTransitionPage(
-                  child: HomeDashboard(),
-                ),
+                pageBuilder: (context, state) =>
+                    const NoTransitionPage(child: HomeDashboard()),
               ),
             ],
           ),
@@ -136,9 +186,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: '/schedule',
-                pageBuilder: (context, state) => const NoTransitionPage(
-                  child: SchedulePage(),
-                ),
+                pageBuilder: (context, state) =>
+                    const NoTransitionPage(child: SchedulePage()),
               ),
             ],
           ),
@@ -146,9 +195,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: '/classroom',
-                pageBuilder: (context, state) => const NoTransitionPage(
-                  child: ClassroomPage(),
-                ),
+                pageBuilder: (context, state) =>
+                    const NoTransitionPage(child: ClassroomPage()),
               ),
             ],
           ),
@@ -156,9 +204,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: '/notices',
-                pageBuilder: (context, state) => const NoTransitionPage(
-                  child: NotificationsPage(),
-                ),
+                pageBuilder: (context, state) =>
+                    const NoTransitionPage(child: NotificationsPage()),
               ),
             ],
           ),
@@ -167,7 +214,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/settings',
                 pageBuilder: (context, state) => const NoTransitionPage(
-                  child: SettingsPage(),
+                  child: kIsWeb ? WebInfoPage(settings: true) : SettingsPage(),
                 ),
               ),
             ],

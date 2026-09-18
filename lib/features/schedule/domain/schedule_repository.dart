@@ -1,5 +1,7 @@
 import 'course.dart';
 
+enum ScheduleFailure { unavailable, sessionExpired }
+
 class ScheduleSnapshot {
   const ScheduleSnapshot({
     required this.courses,
@@ -7,11 +9,21 @@ class ScheduleSnapshot {
     required this.live,
     required this.banner,
     this.termStart,
+    this.failure,
+    this.imported = false,
+    this.currentWeekOnly = false,
+    this.sourceMonday,
     this.fromCache = false,
     this.cachedAt,
     this.fetchedAt,
   });
 
+  final ScheduleFailure? failure;
+  final bool imported;
+
+  /// Workflow responses may contain only the requested calendar week.
+  final bool currentWeekOnly;
+  final DateTime? sourceMonday;
   final List<Course> courses;
   final int week;
   final bool live;
@@ -29,6 +41,10 @@ class ScheduleSnapshot {
 
   ScheduleSnapshot copyWith({
     List<Course>? courses,
+    ScheduleFailure? failure,
+    bool? imported,
+    bool? currentWeekOnly,
+    DateTime? sourceMonday,
     int? week,
     bool? live,
     String? banner,
@@ -42,6 +58,10 @@ class ScheduleSnapshot {
   }) {
     return ScheduleSnapshot(
       courses: courses ?? this.courses,
+      failure: failure ?? this.failure,
+      imported: imported ?? this.imported,
+      currentWeekOnly: currentWeekOnly ?? this.currentWeekOnly,
+      sourceMonday: sourceMonday ?? this.sourceMonday,
       week: week ?? this.week,
       live: live ?? this.live,
       banner: banner ?? this.banner,
@@ -61,19 +81,21 @@ class ScheduleSnapshot {
       );
 
   ScheduleSnapshot asFresh({required String banner}) => copyWith(
-        fromCache: false,
-        fetchedAt: DateTime.now(),
-        banner: banner,
-        clearCachedAt: true,
-      );
+    fromCache: false,
+    fetchedAt: DateTime.now(),
+    banner: banner,
+    clearCachedAt: true,
+  );
 
   Map<String, dynamic> toJson() => {
-        'courses': courses.map((c) => c.toJson()).toList(),
-        'week': week,
-        'live': live,
-        'banner': banner,
-        if (termStart != null) 'termStart': termStart!.toIso8601String(),
-      };
+    'courses': courses.map((c) => c.toJson()).toList(),
+    'week': week,
+    'currentWeekOnly': currentWeekOnly,
+    'sourceMonday': sourceMonday?.toIso8601String(),
+    'live': live,
+    'banner': banner,
+    if (termStart != null) 'termStart': termStart!.toIso8601String(),
+  };
 
   factory ScheduleSnapshot.fromJson(Map<String, dynamic> json) {
     final coursesRaw = json['courses'];
@@ -87,6 +109,8 @@ class ScheduleSnapshot {
     }
     return ScheduleSnapshot(
       courses: courses,
+      currentWeekOnly: json['currentWeekOnly'] as bool? ?? false,
+      sourceMonday: DateTime.tryParse(json['sourceMonday']?.toString() ?? ''),
       week: (json['week'] as num?)?.toInt() ?? 1,
       live: json['live'] as bool? ?? true,
       banner: json['banner'] as String? ?? '',

@@ -1,9 +1,10 @@
-import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../../core/platform/campus_platform.dart';
 import '../../../core/widgets/app_page_scaffold.dart';
 import '../../../core/widgets/app_surface_card.dart';
@@ -16,63 +17,173 @@ class SettingsPage extends ConsumerStatefulWidget {
   @override
   ConsumerState<SettingsPage> createState() => _SettingsPageState();
 }
+
 class _SettingsPageState extends ConsumerState<SettingsPage> {
   bool _busy = false;
   void _message(String value) {
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
+    if (mounted)
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(value)));
   }
+
   @override
   Widget build(BuildContext context) {
     final settings = ref.watch(settingsProvider);
     final running = ref.watch(backgroundRunningProvider);
     final user = ref.watch(authControllerProvider).user;
-    return AppPageScaffold(appBar: AppBar(title: const Text('设置')),
-      body: ListView(padding: const EdgeInsets.fromLTRB(20, 8, 20, 112), children: [
-        AppSurfaceCard(onTap: () => context.push('/login'), child: Row(children: [
-          const Icon(CupertinoIcons.person_crop_circle_fill, size: 44, color: Color(0xFF007AFF)),
-          const SizedBox(width: 16), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(user.isGuest ? '登录校园账号' : user.displayName, style: Theme.of(context).textTheme.titleMedium),
-            const Text('账号与校园认证'),
-          ])), const Icon(CupertinoIcons.chevron_right, size: 16),
-        ])),
-        const SizedBox(height: 24), const Text('外观与操作'), const SizedBox(height: 10),
-        AppSurfaceCard(padding: EdgeInsets.zero, child: Column(children: [
-          SwitchListTile.adaptive(title: const Text('液态玻璃效果'), subtitle: const Text('关闭后使用清晰的实色面板，减少图形开销'),
-            value: settings.glass, onChanged: settings.loaded ? (v) => ref.read(settingsProvider.notifier).save(glass: v) : null),
-        ])),
-        const SizedBox(height: 24), const Text('桌面与后台'), const SizedBox(height: 10),
-        AppSurfaceCard(padding: EdgeInsets.zero, child: Column(children: [
-          SwitchListTile.adaptive(title: const Text('桌面小组件显示个人信息'),
-            subtitle: const Text('在桌面显示课程、考勤、作业、余额和预约摘要。其他能查看桌面的人也能看到。'),
-            value: settings.widgets, onChanged: Platform.isAndroid && settings.loaded
-              ? (v) => ref.read(settingsProvider.notifier).save(widgets: v) : null),
-          ListTile(title: const Text('添加「校园一周」小组件'), trailing: const Icon(CupertinoIcons.add_circled),
-            onTap: Platform.isAndroid ? () async {
-              try {
-                final pinned = await campusPlatform.invokeMethod<bool>('pinWidget') ?? false;
-                if (!pinned) _message('请长按桌面，在小组件列表中选择「校园一周」');
-              } catch (_) { _message('请通过桌面的小组件列表添加'); }
-            } : null),
-          SwitchListTile.adaptive(title: const Text('保持后台刷新'),
-            subtitle: const Text('本次运行中约每 15 分钟刷新，显示常驻通知。可能增加耗电和流量；系统限制、强制停止或认证过期会中断。'),
-            value: running, onChanged: !Platform.isAndroid || _busy || user.isGuest || user.isDemo ? null : (v) async {
-              setState(() => _busy = true);
-              try {
-                final enabled = await ref.read(backgroundRunningProvider.notifier).toggle(v);
-                if (v && !enabled) _message('未能开启，请允许通知权限后重试');
-              } catch (_) { _message('系统暂不允许后台刷新，请稍后重试'); }
-              finally { if (mounted) setState(() => _busy = false); }
-            }),
-        ])),
-        const SizedBox(height: 24), const Text('关于与服务'), const SizedBox(height: 10),
-        AppSurfaceCard(padding: EdgeInsets.zero, child: Column(children: [
-          ListTile(title: const Text('用户协议与隐私说明'), trailing: const Icon(CupertinoIcons.chevron_right, size: 16),
-            onTap: () => context.push('/agreement')),
-          ListTile(title: const Text('课程闹钟'), trailing: const Icon(CupertinoIcons.alarm), onTap: () => context.push('/alarms')),
-          ListTile(title: const Text('检查更新与版本'), trailing: const Icon(CupertinoIcons.arrow_down_circle), onTap: () => showAboutSheet(context)),
-          const ListTile(title: Text('交大校园助手'), subtitle: Text('独立开发的校园工具，非学校官方客户端')),
-        ])),
-      ]));
+    return AppPageScaffold(
+      appBar: AppBar(title: const Text('设置')),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 112),
+        children: [
+          AppSurfaceCard(
+            onTap: () => context.push('/login'),
+            child: Row(
+              children: [
+                const Icon(
+                  CupertinoIcons.person_crop_circle_fill,
+                  size: 44,
+                  color: Color(0xFF007AFF),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        user.isGuest ? '登录校园账号' : user.displayName,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const Text('账号与校园认证'),
+                    ],
+                  ),
+                ),
+                const Icon(CupertinoIcons.chevron_right, size: 16),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Text('外观与操作'),
+          const SizedBox(height: 10),
+          AppSurfaceCard(
+            padding: EdgeInsets.zero,
+            child: Column(
+              children: [
+                SwitchListTile.adaptive(
+                  title: const Text('液态玻璃效果'),
+                  subtitle: const Text('关闭后使用清晰的实色面板，减少图形开销'),
+                  value: settings.glass,
+                  onChanged: settings.loaded
+                      ? (v) =>
+                            ref.read(settingsProvider.notifier).save(glass: v)
+                      : null,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Text('桌面与后台'),
+          const SizedBox(height: 10),
+          AppSurfaceCard(
+            padding: EdgeInsets.zero,
+            child: Column(
+              children: [
+                SwitchListTile.adaptive(
+                  title: const Text('桌面小组件显示个人信息'),
+                  subtitle: const Text('在桌面显示课程、考勤、作业、余额和预约摘要。其他能查看桌面的人也能看到。'),
+                  value: settings.widgets,
+                  onChanged:
+                      (!kIsWeb &&
+                              defaultTargetPlatform ==
+                                  TargetPlatform.android) &&
+                          settings.loaded
+                      ? (v) =>
+                            ref.read(settingsProvider.notifier).save(widgets: v)
+                      : null,
+                ),
+                ListTile(
+                  title: const Text('添加「校园一周」小组件'),
+                  trailing: const Icon(CupertinoIcons.add_circled),
+                  onTap:
+                      (!kIsWeb &&
+                          defaultTargetPlatform == TargetPlatform.android)
+                      ? () async {
+                          try {
+                            final pinned =
+                                await campusPlatform.invokeMethod<bool>(
+                                  'pinWidget',
+                                ) ??
+                                false;
+                            if (!pinned) _message('请长按桌面，在小组件列表中选择「校园一周」');
+                          } catch (_) {
+                            _message('请通过桌面的小组件列表添加');
+                          }
+                        }
+                      : null,
+                ),
+                SwitchListTile.adaptive(
+                  title: const Text('保持后台刷新'),
+                  subtitle: const Text(
+                    '本次运行中约每 15 分钟刷新，显示常驻通知。可能增加耗电和流量；系统限制、强制停止或认证过期会中断。',
+                  ),
+                  value: running,
+                  onChanged:
+                      !(!kIsWeb &&
+                              defaultTargetPlatform ==
+                                  TargetPlatform.android) ||
+                          _busy ||
+                          user.isGuest ||
+                          user.isDemo
+                      ? null
+                      : (v) async {
+                          setState(() => _busy = true);
+                          try {
+                            final enabled = await ref
+                                .read(backgroundRunningProvider.notifier)
+                                .toggle(v);
+                            if (v && !enabled) _message('未能开启，请允许通知权限后重试');
+                          } catch (_) {
+                            _message('系统暂不允许后台刷新，请稍后重试');
+                          } finally {
+                            if (mounted) setState(() => _busy = false);
+                          }
+                        },
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Text('关于与服务'),
+          const SizedBox(height: 10),
+          AppSurfaceCard(
+            padding: EdgeInsets.zero,
+            child: Column(
+              children: [
+                ListTile(
+                  title: const Text('用户协议与隐私说明'),
+                  trailing: const Icon(CupertinoIcons.chevron_right, size: 16),
+                  onTap: () => context.push('/agreement'),
+                ),
+                ListTile(
+                  title: const Text('课程闹钟'),
+                  trailing: const Icon(CupertinoIcons.alarm),
+                  onTap: () => context.push('/alarms'),
+                ),
+                ListTile(
+                  title: const Text('检查更新与版本'),
+                  trailing: const Icon(CupertinoIcons.arrow_down_circle),
+                  onTap: () => showAboutSheet(context),
+                ),
+                const ListTile(
+                  title: Text('交大校园助手'),
+                  subtitle: Text('独立开发的校园工具，非学校官方客户端'),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -102,21 +213,55 @@ class AgreementPage extends ConsumerWidget {
   final bool acceptMode;
   @override
   Widget build(BuildContext context, WidgetRef ref) => AppPageScaffold(
-    appBar: AppBar(title: const Text('用户协议与隐私说明'), automaticallyImplyLeading: !acceptMode),
-    body: ListView(padding: const EdgeInsets.all(24), children: const [SelectableText(agreementText)]),
-    bottomNavigationBar: !acceptMode ? null : Padding(padding: const EdgeInsets.all(16),
-      child: Row(children: [TextButton(onPressed: SystemNavigator.pop, child: const Text('不同意并退出')),
-        const SizedBox(width: 12), Expanded(child: FilledButton(onPressed: () =>
-          ref.read(settingsProvider.notifier).save(agreement: true), child: const Text('同意并继续')))])),
+    appBar: AppBar(
+      title: const Text('用户协议与隐私说明'),
+      automaticallyImplyLeading: !acceptMode,
+    ),
+    body: ListView(
+      padding: const EdgeInsets.all(24),
+      children: const [SelectableText(agreementText)],
+    ),
+    bottomNavigationBar: !acceptMode
+        ? null
+        : Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                TextButton(
+                  onPressed: () {
+                    if (kIsWeb) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('可关闭此标签页以退出')),
+                      );
+                    } else {
+                      SystemNavigator.pop();
+                    }
+                  },
+                  child: const Text('不同意并退出'),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: () => ref
+                        .read(settingsProvider.notifier)
+                        .save(agreement: true),
+                    child: const Text('同意并继续'),
+                  ),
+                ),
+              ],
+            ),
+          ),
   );
 }
+
 class AgreementGate extends ConsumerWidget {
   const AgreementGate({super.key, required this.child});
   final Widget child;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(settingsProvider);
-    if (!settings.loaded) return const Material(child: Center(child: CircularProgressIndicator()));
+    if (!settings.loaded)
+      return const Material(child: Center(child: CircularProgressIndicator()));
     return settings.agreement ? child : const AgreementPage(acceptMode: true);
   }
 }

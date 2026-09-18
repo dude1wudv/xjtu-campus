@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import 'dart:async';
 import 'dart:typed_data';
 
@@ -101,6 +103,12 @@ class AuthController extends Notifier<AuthState> {
   AuthRepository get _repo => ref.read(authRepositoryProvider);
 
   Future<void> restore() async {
+    if (kIsWeb) {
+      await Future<void>.delayed(Duration.zero);
+      if (ref.mounted)
+        state = const AuthState(initialized: true, user: AuthUser.guest);
+      return;
+    }
     try {
       final user = await _repo.restoreSession().timeout(
         const Duration(seconds: 4),

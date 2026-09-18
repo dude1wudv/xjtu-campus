@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -10,8 +12,9 @@ import '../logging/app_logger.dart';
 class ApkUpdater {
   ApkUpdater({Dio? dio}) : _dio = dio ?? Dio();
 
-  static const MethodChannel _channel =
-      MethodChannel('cn.edu.xjtu.xjtu_campus/apk_installer');
+  static const MethodChannel _channel = MethodChannel(
+    'cn.edu.xjtu.xjtu_campus/apk_installer',
+  );
 
   static const preferredApkName = 'xjtu-campus-arm64-release.apk';
 
@@ -51,7 +54,8 @@ class ApkUpdater {
         followRedirects: true,
         receiveTimeout: const Duration(minutes: 10),
         sendTimeout: const Duration(minutes: 2),
-        validateStatus: (status) => status != null && status >= 200 && status < 400,
+        validateStatus: (status) =>
+            status != null && status >= 200 && status < 400,
       ),
     );
 
@@ -62,10 +66,10 @@ class ApkUpdater {
   }
 
   Future<bool> canRequestPackageInstalls() async {
-    if (!Platform.isAndroid) return false;
+    if (!(!kIsWeb && defaultTargetPlatform == TargetPlatform.android))
+      return false;
     try {
-      final ok =
-          await _channel.invokeMethod<bool>('canRequestPackageInstalls');
+      final ok = await _channel.invokeMethod<bool>('canRequestPackageInstalls');
       return ok ?? false;
     } on PlatformException catch (e) {
       AppLogger.warn('canRequestPackageInstalls: $e');
@@ -74,7 +78,7 @@ class ApkUpdater {
   }
 
   Future<void> openUnknownAppSourcesSettings() async {
-    if (!Platform.isAndroid) return;
+    if (!(!kIsWeb && defaultTargetPlatform == TargetPlatform.android)) return;
     try {
       await _channel.invokeMethod<bool>('openUnknownAppSourcesSettings');
     } on PlatformException catch (e) {
@@ -84,7 +88,8 @@ class ApkUpdater {
 
   /// Opens the system installer for [file]. Returns false if the intent failed.
   Future<bool> install(File file) async {
-    if (!Platform.isAndroid) return false;
+    if (!(!kIsWeb && defaultTargetPlatform == TargetPlatform.android))
+      return false;
     try {
       final allowed = await canRequestPackageInstalls();
       if (!allowed) {

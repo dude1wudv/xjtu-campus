@@ -1,46 +1,42 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 <head>
-  <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
-
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
-
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
-
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
-  -->
   <base href="$FLUTTER_BASE_HREF">
-
   <meta charset="UTF-8">
-  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="西安交通大学校园助手">
-
-  <!-- iOS meta tags & icons -->
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#234D60">
+  <meta name="description" content="交大校园助手：今日安排、周课表与课程笔记。">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="交大校园助手">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
-
-  <!-- Favicon -->
-  <link rel="icon" type="image/png" href="favicon.png"/>
-
-  <title>交大校园助手</title>
+  <link rel="icon" type="image/png" href="favicon.png">
   <link rel="manifest" href="manifest.json">
+  <title>交大校园助手 · 今天与这一周</title>
+  <style>
+    body { margin: 0; background: #f5f7f8; color: #234d60; font-family: system-ui, sans-serif; }
+    #boot { min-height: 100vh; display: grid; place-content: center; padding: 24px; box-sizing: border-box; text-align: center; }
+    #boot h1 { font-size: 28px; letter-spacing: 2px; }
+    #boot p { color: #687b85; line-height: 1.8; }
+    #boot button { padding: 12px 24px; border: 0; border-radius: 12px; color: white; background: #234d60; cursor: pointer; }
+  </style>
 </head>
 <body>
-  <!--
-    You can customize the "flutter_bootstrap.js" script.
-    This is useful to provide a custom configuration to the Flutter loader
-    or to give the user feedback during the initialization process.
-
-    For more details:
-    * https://docs.flutter.dev/platform-integration/web/initialization
-  -->
+  <div id="boot" role="status" aria-live="polite">
+    <h1>交大校园助手</h1>
+    <p id="boot-message">正在打开你的校园一天…</p>
+    <button id="boot-retry" hidden onclick="location.reload()">重新加载</button>
+    <noscript>请启用 JavaScript 后使用课表与课程笔记。</noscript>
+  </div>
+  <script>
+    window.addEventListener('flutter-first-frame', function () { document.getElementById('boot')?.remove(); });
+    window.setTimeout(function () {
+      var message = document.getElementById('boot-message');
+      if (message) {
+        message.textContent = '加载时间较长，请检查网络连接后重试。';
+        document.getElementById('boot-retry').hidden = false;
+      }
+    }, 25000);
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

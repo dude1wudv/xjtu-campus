@@ -8,11 +8,11 @@ import 'app_tokens.dart';
 abstract final class AppColors {
   static const Color ink = Color(0xFF1C1C1E);
   static const Color inkSoft = Color(0xFF6E7583);
-  static const Color navy = Color(0xFF007AFF);
+  static const Color navy = Color(0xFF234D60);
   static const Color navyDeep = Color(0xFF18335E);
-  static const Color accent = Color(0xFF5856D6);
+  static const Color accent = Color(0xFF8E515C);
   static const Color gold = Color(0xFF966510);
-  static const Color cream = Color(0xFFF2F4FA);
+  static const Color cream = Color(0xFFF5F7F8);
   static const Color surface = Color(0xFFF6F8FC);
   static const Color card = Color(0xFFFFFFFF);
   static const Color line = Color(0xFFE7EBF3);
@@ -74,11 +74,17 @@ abstract final class AppTheme {
 
     return ThemeData(
       useMaterial3: true,
-      pageTransitionsTheme: const PageTransitionsTheme(builders: {
-        TargetPlatform.android: CupertinoPageTransitionsBuilder(),
-        TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
-      }),
-      fontFamilyFallback: const ['SF Pro Display', 'PingFang SC', 'Noto Sans CJK SC'],
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+        },
+      ),
+      fontFamilyFallback: const [
+        'SF Pro Display',
+        'PingFang SC',
+        'Noto Sans CJK SC',
+      ],
       colorScheme: colorScheme,
       scaffoldBackgroundColor: AppColors.cream,
       textTheme: textTheme,

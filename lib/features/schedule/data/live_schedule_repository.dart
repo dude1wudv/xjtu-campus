@@ -1,13 +1,11 @@
 import 'dart:convert';
 
 import '../../../core/constants/campus_urls.dart';
-import '../../../core/l10n/app_strings.dart';
 import '../../../core/logging/app_logger.dart';
 import '../../../core/network/campus_session.dart';
 import '../domain/course.dart';
 import '../domain/schedule_repository.dart';
 import 'jwxt_course_mapper.dart';
-import 'mock_schedule_data.dart';
 import 'mock_schedule_repository.dart';
 import 'workflow_kebiao_mapper.dart';
 import 'workflow_webview_schedule_fetcher.dart';
@@ -17,7 +15,8 @@ class LiveScheduleRepository implements ScheduleRepository {
     required this._session,
     required this._mock,
     WorkflowWebViewScheduleFetcher? webViewFetcher,
-  }) : _webViewFetcher = webViewFetcher ?? WorkflowWebViewScheduleFetcher(session: _session);
+  }) : _webViewFetcher =
+           webViewFetcher ?? WorkflowWebViewScheduleFetcher(session: _session);
 
   final CampusSession _session;
   final MockScheduleRepository _mock;
@@ -32,8 +31,11 @@ class LiveScheduleRepository implements ScheduleRepository {
   @override
   Future<List<Course>> fetchCourses() async => (await load()).courses;
 
+  bool _sawLogin = false;
+
   @override
   Future<ScheduleSnapshot> load({DateTime? now}) async {
+    _sawLogin = false;
     var loggedIn = false;
     try {
       loggedIn = await _session.hasCasCookie();
@@ -41,18 +43,26 @@ class LiveScheduleRepository implements ScheduleRepository {
       loggedIn = false;
     }
     if (!loggedIn) {
-      return _demo(AppStrings.mockBanner);
+      return _failure(ScheduleFailure.sessionExpired);
     }
     try {
       final live = await _fetchLive(now ?? DateTime.now());
       if (live.courses.isEmpty) {
-        AppLogger.warn('已登录但实时课表为空，回退演示数据：课表接口未同步成功，请重新网页登录；校外请开启 WebVPN');
-        return await _demo(AppStrings.liveSyncFailedBanner);
+        AppLogger.warn('课表未同步成功');
+        return _failure(
+          _sawLogin
+              ? ScheduleFailure.sessionExpired
+              : ScheduleFailure.unavailable,
+        );
       }
       return live;
     } on Object catch (error) {
-      AppLogger.warn('实时课表失败，回退演示数据（课表接口未同步/校外请 WebVPN）: $error');
-      return await _demo(AppStrings.liveSyncFailedBanner);
+      AppLogger.warn('实时课表同步失败');
+      return _failure(
+        _sawLogin
+            ? ScheduleFailure.sessionExpired
+            : ScheduleFailure.unavailable,
+      );
     }
   }
 
@@ -178,6 +188,7 @@ class LiveScheduleRepository implements ScheduleRepository {
     required String pathLabel,
   }) {
     if (_looksLikeLoginHtml(raw)) {
+      _sawLogin = true;
       AppLogger.warn(
         'getUndergraduateKebiao ($pathLabel) 返回登录页/HTML，而非 JSON；'
         '课表会话未同步，请重新网页登录或开启 WebVPN',
@@ -219,6 +230,8 @@ class LiveScheduleRepository implements ScheduleRepository {
       week: weekFromCourses ?? 1,
       live: true,
       banner: term == null ? '实时课表 · workflow' : '实时课表 · $term',
+      currentWeekOnly: true,
+      sourceMonday: _weekRangeMonSun(DateTime.now()).$1,
     );
   }
 
@@ -289,6 +302,7 @@ class LiveScheduleRepository implements ScheduleRepository {
       }
       if (_looksLikeLoginHtml(raw) ||
           response.realUri.toString().contains('/cas/login')) {
+        _sawLogin = true;
         AppLogger.warn(
           'getUndergraduateKebiao ($pathLabel) 返回登录页/HTML，而非 JSON；'
           '课表会话未同步，请重新网页登录或开启 WebVPN',
@@ -373,15 +387,14 @@ class LiveScheduleRepository implements ScheduleRepository {
     return (days ~/ 7) + 1;
   }
 
-  Future<ScheduleSnapshot> _demo(String banner) async {
-    final courses = await _mock.fetchCourses();
-    final week = await _mock.currentWeek();
-    return ScheduleSnapshot(
-      courses: courses,
-      week: week,
-      live: false,
-      banner: banner,
-      termStart: DateTime.tryParse(MockScheduleData.termStart),
-    );
-  }
+  Future<ScheduleSnapshot> _failure(ScheduleFailure failure) async =>
+      ScheduleSnapshot(
+        courses: const [],
+        week: await _mock.currentWeek(),
+        live: false,
+        banner: failure == ScheduleFailure.sessionExpired
+            ? '登录已过期'
+            : '暂时无法连接校园服务',
+        failure: failure,
+      );
 }
