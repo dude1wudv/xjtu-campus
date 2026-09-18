@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/cache/cached_snapshot_loader.dart';
+import '../../../core/data/campus_snapshot_loader.dart';
 import '../../../core/cache/snapshot_cache.dart';
 import '../../../core/di/core_providers.dart';
 import '../../../core/l10n/app_strings.dart';
@@ -17,26 +17,28 @@ class GradesSnapshotNotifier extends AsyncNotifier<GradesSnapshot> {
     ref.watch(campusConnectionRevisionProvider);
     ref.watch(
       authControllerProvider.select(
-        (state) => '${state.user.studentId}|${state.user.sessionToken}|${state.user.isDemo}',
+        (state) =>
+            '${state.initialized}|${state.user.studentId}|${state.user.sessionToken}|${state.user.isDemo}',
       ),
     );
-    final result = await (pending = loadWithCache<GradesSnapshot>(
-      isCurrent: () => active,
-      cache: ref.watch(snapshotCacheProvider),
-      key: SnapshotCache.scoped(SnapshotCache.grades, ref.read(authControllerProvider).user.studentId),
+    final result = await (pending = loadCampusSnapshot<GradesSnapshot>(
+      ref: ref,
+      service: 'grades',
+      demo: () => ref.read(mockGradesRepositoryProvider).load(),
+      key: SnapshotCache.scoped(
+        SnapshotCache.grades,
+        ref.read(authControllerProvider).user.studentId,
+      ),
       fromJson: GradesSnapshot.fromJson,
       toJson: (s) => s.toJson(),
-      fetch: () => ref.read(campusSessionProvider).readQueue.run(() {
-        if (!active) throw StateError('Sync superseded');
-        return ref.read(gradesRepositoryProvider).load();
-      }),
+      fetch: () => ref.read(gradesRepositoryProvider).load(),
       isLive: (s) => s.live,
       markCached: (s, t) => s.asCached(t, banner: AppStrings.cacheBanner(t)),
-      markRefreshFailed: (s, t) => s.asCached(
-        t,
-        banner: AppStrings.cacheRefreshFailed,
-      ),
-      emit: (s) { if (active) state = AsyncData(s); },
+      markRefreshFailed: (s, t) =>
+          s.asCached(t, banner: AppStrings.cacheRefreshFailed),
+      emit: (s) {
+        if (active) state = AsyncData(s);
+      },
     ));
     if (result.live && !result.fromCache) {
       return result.asFresh();
@@ -52,8 +54,8 @@ class GradesSnapshotNotifier extends AsyncNotifier<GradesSnapshot> {
   }
 }
 
-
 final gradesSnapshotProvider =
     AsyncNotifierProvider<GradesSnapshotNotifier, GradesSnapshot>(
-  GradesSnapshotNotifier.new,
-);
+      GradesSnapshotNotifier.new,
+      retry: (count, error) => null,
+    );

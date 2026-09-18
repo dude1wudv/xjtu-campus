@@ -1,3 +1,4 @@
+import '../../../core/data/data_status.dart';
 import '../../../core/constants/campus_urls.dart';
 import '../../../core/l10n/app_strings.dart';
 import '../../../core/logging/app_logger.dart';
@@ -15,7 +16,8 @@ class LiveExamsRepository implements ExamsRepository {
     required this._session,
     required this._mock,
     ExamsWebViewFetcher? webViewFetcher,
-  }) : _webViewFetcher = webViewFetcher ?? ExamsWebViewFetcher(session: _session);
+  }) : _webViewFetcher =
+           webViewFetcher ?? ExamsWebViewFetcher(session: _session);
 
   final CampusSession _session;
   final MockExamsRepository _mock;
@@ -36,12 +38,7 @@ class LiveExamsRepository implements ExamsRepository {
       final term = termCode ?? await _resolveTerm();
       if (term == null || term.isEmpty) {
         AppLogger.warn('考试安排：未能解析当前学期（不展示演示假考试）');
-        return ExamsSnapshot(
-          exams: const [],
-          live: true,
-          banner: AppStrings.examsTermUnknownBanner,
-          termCode: termCode,
-        );
+        throw const CampusDataException(DataProblem.unavailable);
       }
       final json = await _fetchLiveJson(term);
       if (json == null) {
@@ -59,8 +56,10 @@ class LiveExamsRepository implements ExamsRepository {
         banner: banner,
         termCode: term,
       );
+    } on CampusDataException {
+      rethrow;
     } on Object catch (error) {
-      AppLogger.warn('实时考试安排失败，回退演示数据: $error');
+      AppLogger.warn('实时考试安排失败');
       return _demo(AppStrings.examsSyncFailedBanner, termCode);
     }
   }
@@ -99,8 +98,8 @@ class LiveExamsRepository implements ExamsRepository {
               },
             ),
           );
-          final term =
-              json?['datas']?['dqxnxq']?['rows']?[0]?['DM']?.toString();
+          final term = json?['datas']?['dqxnxq']?['rows']?[0]?['DM']
+              ?.toString();
           if (term != null && term.isNotEmpty) return term;
         } on Object catch (error) {
           AppLogger.warn('解析当前学期失败 ($url rewrite=$rewrite): $error');
@@ -112,8 +111,7 @@ class LiveExamsRepository implements ExamsRepository {
 
   Future<Map<String, dynamic>?> _fetchLiveJson(String term) async {
     try {
-      final viaWebView =
-          await _webViewFetcher.fetchExamsJson(termCode: term);
+      final viaWebView = await _webViewFetcher.fetchExamsJson(termCode: term);
       if (viaWebView != null && _looksOk(viaWebView)) {
         AppLogger.info('考试安排路径成功: HeadlessInAppWebView');
         return viaWebView;
@@ -128,10 +126,7 @@ class LiveExamsRepository implements ExamsRepository {
         await _softWarm(rewrite: rewrite, includeTermModule: false);
         final response = await _session.post(
           CampusUrls.jwxtExams,
-          data: {
-            'XNXQDM': term,
-            '*order': '-KSRQ,-KSSJMS',
-          },
+          data: {'XNXQDM': term, '*order': '-KSRQ,-KSSJMS'},
           rewrite: rewrite,
           headers: {
             'Accept': 'application/json, text/javascript, */*; q=0.01',
@@ -139,6 +134,10 @@ class LiveExamsRepository implements ExamsRepository {
             'Referer': CampusUrls.jwxtWdksapIndex,
           },
         );
+        if (response.statusCode == 401 ||
+            response.realUri.path.contains('/cas/login')) {
+          throw const CampusDataException(DataProblem.loginRequired);
+        }
         final json = _session.tryJson(response);
         if (json != null && _looksOk(json)) {
           AppLogger.info('考试安排路径成功: Dio rewrite=$rewrite');
@@ -185,8 +184,7 @@ class LiveExamsRepository implements ExamsRepository {
           url,
           rewrite: rewrite,
           headers: {
-            'Accept':
-                'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             'Referer': CampusUrls.ywtbMain,
           },
         );

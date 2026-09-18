@@ -1,12 +1,8 @@
+import '../data/data_status.dart';
 import 'snapshot_cache.dart';
 
-/// Stale-while-revalidate helper for AsyncNotifier.build().
-///
-/// 1. If [forceRefresh] is false and [emit] is provided and cache hits, emit
-///    cached value immediately.
-/// 2. Await [fetch].
-/// 3. On live success → write cache and return fresh.
-/// 4. On non-live / failure → keep cache with soft-fail banner when present.
+/// Preserve the last successful snapshot on refresh failure; never discard it
+/// merely because a refresh was forced. Demo data is an explicit caller choice.
 Future<T> loadWithCache<T>({
   required SnapshotCache cache,
   required String key,
@@ -17,34 +13,75 @@ Future<T> loadWithCache<T>({
   required T Function(T cached, DateTime savedAt) markCached,
   required T Function(T cached, DateTime savedAt) markRefreshFailed,
   void Function(T value)? emit,
+  void Function(DataStatus status)? onStatus,
+  bool allowDemo = true,
   bool forceRefresh = false,
   bool Function()? isCurrent,
 }) async {
-  final CachedEnvelope<T>? cached;
-  if (forceRefresh) {
-    await cache.remove(key);
-    cached = null;
-  } else {
-    cached = await cache.readEnvelope(key, fromJson);
-    if (cached != null && emit != null && (isCurrent?.call() ?? true)) {
-      emit(markCached(cached.payload, cached.savedAt));
-    }
+  void report(DataStatus status) {
+    if (isCurrent?.call() ?? true) onStatus?.call(status);
   }
 
+  report(const DataStatus.loading());
+  CachedEnvelope<T>? cached;
+  try {
+    cached = await cache.readEnvelope(key, fromJson);
+  } catch (_) {
+    /* Fetch still works if storage is unavailable. */
+  }
+  if (cached != null && !forceRefresh && (isCurrent?.call() ?? true)) {
+    emit?.call(markCached(cached.payload, cached.savedAt));
+    report(
+      DataStatus.loading(source: DataSource.cache, updatedAt: cached.savedAt),
+    );
+  }
   try {
     final fresh = await fetch();
     if (isLive(fresh)) {
-      if (isCurrent?.call() ?? true) await cache.write(key, toJson(fresh));
+      DataProblem? warning;
+      if (isCurrent?.call() ?? true) {
+        try {
+          await cache.write(key, toJson(fresh));
+        } catch (_) {
+          warning = DataProblem.storage;
+        }
+      }
+      report(
+        DataStatus(
+          phase: DataPhase.ready,
+          source: DataSource.live,
+          updatedAt: DateTime.now(),
+          problem: warning,
+        ),
+      );
       return fresh;
     }
+    if (!allowDemo) throw const CampusDataException(DataProblem.unavailable);
     if (cached != null) {
+      report(
+        DataStatus(
+          phase: DataPhase.failed,
+          source: DataSource.cache,
+          updatedAt: cached.savedAt,
+          problem: DataProblem.unavailable,
+        ),
+      );
       return markRefreshFailed(cached.payload, cached.savedAt);
     }
+    report(const DataStatus(phase: DataPhase.ready, source: DataSource.demo));
     return fresh;
-  } on Object {
-    if (cached != null) {
+  } catch (error) {
+    report(
+      DataStatus(
+        phase: DataPhase.failed,
+        source: cached == null ? DataSource.none : DataSource.cache,
+        updatedAt: cached?.savedAt,
+        problem: dataProblem(error),
+      ),
+    );
+    if (cached != null)
       return markRefreshFailed(cached.payload, cached.savedAt);
-    }
-    rethrow;
+    if (error is CampusDataException) rethrow;
+    throw CampusDataException(dataProblem(error));
   }
 }

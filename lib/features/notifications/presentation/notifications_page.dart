@@ -1,9 +1,11 @@
+import '../../../core/data/data_status.dart';
+import '../../../core/widgets/data_status_banner.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
-import '../../../core/cache/snapshot_cache.dart';
 import '../../../core/di/core_providers.dart';
 import '../../../core/l10n/app_strings.dart';
 import '../../../core/network/campus_connection.dart';
@@ -41,9 +43,6 @@ class NotificationsPage extends ConsumerWidget {
   const NotificationsPage({super.key});
 
   Future<void> _refresh(WidgetRef ref, {bool force = true}) async {
-    if (force) {
-      await ref.read(snapshotCacheProvider).remove(SnapshotCache.notices);
-    }
     ref.read(liveDeanNoticesProvider.notifier).markLoading();
     ref.read(deanNoticesReloadTickProvider.notifier).bump();
     // Clear stale Dio fallback so a later failure reloads.
@@ -67,11 +66,12 @@ class NotificationsPage extends ConsumerWidget {
     return NoticesSnapshot(
       notices: filtered,
       live: live,
-      banner: banner ??
+      banner:
+          banner ??
           (fromCache
               ? (cachedAt != null
-                  ? AppStrings.cacheBanner(cachedAt)
-                  : AppStrings.classroomCacheBanner)
+                    ? AppStrings.cacheBanner(cachedAt)
+                    : AppStrings.classroomCacheBanner)
               : AppStrings.noticesLiveBanner),
       fromCache: fromCache,
       cachedAt: cachedAt,
@@ -108,8 +108,8 @@ class NotificationsPage extends ConsumerWidget {
           banner: live.isFailed
               ? AppStrings.cacheRefreshFailed
               : (live.cachedAt != null
-                  ? AppStrings.cacheBanner(live.cachedAt!)
-                  : null),
+                    ? AppStrings.cacheBanner(live.cachedAt!)
+                    : null),
         ),
       );
     } else if (live.isFailed) {
@@ -134,19 +134,34 @@ class NotificationsPage extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    snapshot.when(
-                      skipLoadingOnReload: true,
-                      data: (data) => DataSourceBanner(
-                        live: data.live,
-                        message: data.banner,
-                        fromCache: data.fromCache,
-                        cachedAt: data.cachedAt,
-                        fetchedAt: data.fetchedAt,
+                    DataStatusBanner(
+                      status: DataStatus(
+                        phase:
+                            snapshot.hasError ||
+                                (snapshot.asData?.value.live == false) ||
+                                (live.isFailed &&
+                                    snapshot.asData?.value.fromCache == true)
+                            ? DataPhase.failed
+                            : snapshot.isLoading || live.isLoading
+                            ? DataPhase.loading
+                            : DataPhase.ready,
+                        source: snapshot.asData?.value.fromCache == true
+                            ? DataSource.cache
+                            : snapshot.asData?.value.live == true
+                            ? DataSource.live
+                            : DataSource.none,
+                        updatedAt:
+                            snapshot.asData?.value.cachedAt ??
+                            snapshot.asData?.value.fetchedAt,
+                        problem:
+                            snapshot.hasError ||
+                                snapshot.asData?.value.live == false ||
+                                (live.isFailed &&
+                                    snapshot.asData?.value.fromCache == true)
+                            ? DataProblem.unavailable
+                            : null,
                       ),
-                      loading: () => const DataSourceBanner(
-                        message: '正在通过浏览器加载教务通知…',
-                      ),
-                      error: (_, _) => const DataSourceBanner(),
+                      onRetry: () => _refresh(ref),
                     ),
                     const SizedBox(height: 12),
                     Text(
@@ -212,8 +227,15 @@ class NotificationsPage extends ConsumerWidget {
               Expanded(
                 child: AsyncBody(
                   value: snapshot,
-                  onRetry: () { _refresh(ref, force: true); },
+                  onRetry: () {
+                    _refresh(ref, force: true);
+                  },
                   builder: (data) {
+                    if (!data.live && !data.fromCache)
+                      return const EmptyHint(
+                        icon: Icons.cloud_off_outlined,
+                        text: '通知尚未同步，请重试',
+                      );
                     final items = data.notices;
                     if (items.isEmpty) {
                       return RefreshIndicator(
@@ -271,10 +293,7 @@ class _NoticeCard extends StatelessWidget {
             : () {
                 context.push(
                   '/browser',
-                  extra: {
-                    'url': notice.url!,
-                    'title': notice.title,
-                  },
+                  extra: {'url': notice.url!, 'title': notice.title},
                 );
               },
         child: Padding(
