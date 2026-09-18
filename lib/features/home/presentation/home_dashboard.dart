@@ -9,8 +9,8 @@ import 'package:intl/intl.dart';
 import '../../../core/widgets/app_page_scaffold.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../../campus_card/presentation/campus_card_providers.dart';
-import '../../homework/presentation/homework_providers.dart';
-import '../../homework/presentation/homework_widgets.dart';
+import '../../tasks/presentation/tasks_page.dart';
+import '../../tasks/presentation/task_providers.dart';
 import '../../schedule/domain/timetable_logic.dart';
 import '../../schedule/presentation/course_tile.dart';
 import '../../schedule/presentation/schedule_providers.dart';
@@ -51,20 +51,8 @@ class _HomeDashboardState extends ConsumerState<HomeDashboard> {
       } catch (_) {}
     }
 
-    final tasks = <Future<void>>[
-      safe(ref.read(scheduleSnapshotProvider.notifier).refresh()),
-    ];
+    final tasks = <Future<void>>[safe(refreshTaskSources(ref))];
     if (!kIsWeb && auth.isLoggedIn && !auth.user.isDemo) {
-      ref.invalidate(homeworkProvider);
-      tasks.add(
-        safe(
-          ref
-              .read(homeworkProvider.future)
-              .then(
-                (_) async => await ref.read(homeworkProvider.notifier).pending,
-              ),
-        ),
-      );
       tasks.add(safe(ref.read(campusCardSnapshotProvider.notifier).refresh()));
     }
     await Future.wait(tasks);
@@ -147,6 +135,9 @@ class _HomeDashboardState extends ConsumerState<HomeDashboard> {
             ),
             const SizedBox(height: 24),
             ScheduleStatus(value: value),
+            const SizedBox(height: 16),
+            const TodayTaskSummary(),
+            const SizedBox(height: 24),
             LayoutBuilder(
               builder: (context, size) {
                 final main = Column(
@@ -312,7 +303,6 @@ class _HomeDashboardState extends ConsumerState<HomeDashboard> {
                           onTap: () => context.push('/campus-card'),
                         ),
                       ),
-                    if (actual) const HomeworkHomeCard(),
                   ],
                 );
                 if (size.maxWidth < 850)
