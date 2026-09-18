@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -27,8 +28,15 @@ class CampusApp extends ConsumerWidget {
         GlobalCupertinoLocalizations.delegate,
       ],
       routerConfig: router,
-      builder: (context, child) => AgreementGate(child: CampusPlatformSync(
-        child: CampusBackgroundSync(child: child ?? const SizedBox.shrink()))),
+      builder: (context, child) => AgreementGate(
+        child: kIsWeb
+            ? (child ?? const SizedBox.shrink())
+            : CampusPlatformSync(
+                child: CampusBackgroundSync(
+                  child: child ?? const SizedBox.shrink(),
+                ),
+              ),
+      ),
     );
   }
 }
