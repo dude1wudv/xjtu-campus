@@ -52,10 +52,13 @@ class _GradesPageState extends ConsumerState<GradesPage> {
       ),
       body: AsyncBody(
         value: snap,
-        onRetry: () => ref.read(gradesSnapshotProvider.notifier).refresh(force: true),
+        onRetry: () =>
+            ref.read(gradesSnapshotProvider.notifier).refresh(force: true),
         builder: (data) {
           final grouped = data.effectiveGrouped;
-          final selected = grouped.containsKey(_selectedTerm) ? _selectedTerm : null;
+          final selected = grouped.containsKey(_selectedTerm)
+              ? _selectedTerm
+              : null;
           final visible = selected == null
               ? data.records
               : grouped[selected] ?? const <GradeRecord>[];
@@ -71,18 +74,23 @@ class _GradesPageState extends ConsumerState<GradesPage> {
             ],
           ];
           return RefreshIndicator(
-            onRefresh: () => ref.read(gradesSnapshotProvider.notifier).refresh(force: true),
+            onRefresh: () =>
+                ref.read(gradesSnapshotProvider.notifier).refresh(force: true),
             child: CustomScrollView(
               key: PageStorageKey('grades-${selected ?? 'all'}'),
               physics: const AlwaysScrollableScrollPhysics(),
               slivers: [
                 SliverPadding(
-                  padding: AppTokens.pagePadding.copyWith(bottom: AppTokens.spaceMd),
+                  padding: AppTokens.pagePadding.copyWith(
+                    bottom: AppTokens.spaceMd,
+                  ),
                   sliver: SliverToBoxAdapter(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         DataSourceBanner(
+                          service: 'grades',
+                          onRetry: () => ref.invalidate(gradesSnapshotProvider),
                           live: data.live,
                           message: data.banner,
                           fromCache: data.fromCache,
@@ -111,7 +119,8 @@ class _GradesPageState extends ConsumerState<GradesPage> {
                           filterGpa: GradeStats.weightedGpa(visible),
                           filterCredits: GradeStats.countedCredits(visible),
                           overallGpa: selected == null
-                              ? null : GradeStats.weightedGpa(data.records),
+                              ? null
+                              : GradeStats.weightedGpa(data.records),
                         ),
                         const SizedBox(height: AppTokens.spaceMd),
                         SingleChildScrollView(
@@ -121,21 +130,26 @@ class _GradesPageState extends ConsumerState<GradesPage> {
                               FilterChip(
                                 label: const Text(AppStrings.gradesFilterAll),
                                 selected: selected == null,
-                                onSelected: (_) => setState(() => _selectedTerm = null),
+                                onSelected: (_) =>
+                                    setState(() => _selectedTerm = null),
                               ),
                               for (final term in grouped.keys) ...[
                                 const SizedBox(width: AppTokens.spaceSm),
                                 FilterChip(
                                   label: Text(term),
                                   selected: selected == term,
-                                  onSelected: (_) => setState(() => _selectedTerm = term),
+                                  onSelected: (_) =>
+                                      setState(() => _selectedTerm = term),
                                 ),
                               ],
                             ],
                           ),
                         ),
                         if (data.records.isEmpty)
-                          const EmptyHint(icon: Icons.grade_outlined, text: AppStrings.emptyGrades),
+                          const EmptyHint(
+                            icon: Icons.grade_outlined,
+                            text: AppStrings.emptyGrades,
+                          ),
                       ],
                     ),
                   ),
@@ -143,18 +157,17 @@ class _GradesPageState extends ConsumerState<GradesPage> {
                 SliverPadding(
                   padding: AppTokens.pagePadding.copyWith(top: 0),
                   sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        final row = rows[index];
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: AppTokens.spaceMd),
-                          child: row.record == null
-                              ? _TermHeader(term: row.term!, count: row.count)
-                              : _GradeTile(record: row.record!),
-                        );
-                      },
-                      childCount: rows.length,
-                    ),
+                    delegate: SliverChildBuilderDelegate((context, index) {
+                      final row = rows[index];
+                      return Padding(
+                        padding: const EdgeInsets.only(
+                          bottom: AppTokens.spaceMd,
+                        ),
+                        child: row.record == null
+                            ? _TermHeader(term: row.term!, count: row.count)
+                            : _GradeTile(record: row.record!),
+                      );
+                    }, childCount: rows.length),
                   ),
                 ),
               ],
@@ -221,10 +234,7 @@ class _GpaSummaryCard extends StatelessWidget {
             Text(
               '${AppStrings.gradesFilterAll}${AppStrings.gradesWeightedGpa} '
               '${overallGpa!.toStringAsFixed(2)}',
-              style: const TextStyle(
-                fontSize: 12.5,
-                color: AppColors.inkSoft,
-              ),
+              style: const TextStyle(fontSize: 12.5, color: AppColors.inkSoft),
             ),
           ],
         ],
