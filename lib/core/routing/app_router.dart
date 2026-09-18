@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import '../../features/tasks/presentation/tasks_page.dart';
+
 import '../../features/web/presentation/web_info_page.dart';
 import '../../features/schedule/presentation/course_detail_page.dart';
 import '../../features/homework/domain/homework.dart';
@@ -40,6 +42,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         kIsWeb &&
             !{
               '/home',
+              '/tasks',
               '/schedule',
               '/course',
               '/settings',
@@ -49,6 +52,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         ? '/web-info'
         : null,
     routes: [
+      GoRoute(path: '/tasks', builder: (context, state) => const TasksPage()),
       GoRoute(
         path: '/web-info',
         builder: (context, state) => const WebInfoPage(),
