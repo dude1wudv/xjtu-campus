@@ -1,3 +1,4 @@
+import '../../../core/data/data_status.dart';
 import '../../../core/constants/campus_urls.dart';
 import '../../../core/l10n/app_strings.dart';
 import '../../../core/logging/app_logger.dart';
@@ -14,7 +15,8 @@ class LiveGradesRepository implements GradesRepository {
     required this._session,
     required this._mock,
     GradesWebViewFetcher? webViewFetcher,
-  }) : _webViewFetcher = webViewFetcher ?? GradesWebViewFetcher(session: _session);
+  }) : _webViewFetcher =
+           webViewFetcher ?? GradesWebViewFetcher(session: _session);
 
   final CampusSession _session;
   final MockGradesRepository _mock;
@@ -45,8 +47,10 @@ class LiveGradesRepository implements GradesRepository {
         banner: AppStrings.liveBanner,
         groupedByTerm: snap.groupedByTerm,
       );
+    } on CampusDataException {
+      rethrow;
     } on Object catch (error) {
-      AppLogger.warn('实时成绩失败，回退演示数据: $error');
+      AppLogger.warn('实时成绩失败');
       return _demo(AppStrings.gradesSyncFailedBanner);
     }
   }
@@ -78,10 +82,7 @@ class LiveGradesRepository implements GradesRepository {
         await _softWarm(rewrite: rewrite);
         final response = await _session.post(
           CampusUrls.jwxtGrades,
-          data: {
-            'pageSize': 500,
-            'pageNumber': 1,
-          },
+          data: {'pageSize': 500, 'pageNumber': 1},
           rewrite: rewrite,
           headers: {
             'Accept': 'application/json, text/javascript, */*; q=0.01',
@@ -89,6 +90,10 @@ class LiveGradesRepository implements GradesRepository {
             'Referer': CampusUrls.jwxtCjcxIndex,
           },
         );
+        if (response.statusCode == 401 ||
+            response.realUri.path.contains('/cas/login')) {
+          throw const CampusDataException(DataProblem.loginRequired);
+        }
         final json = _session.tryJson(response);
         if (json != null && _looksOk(json)) {
           AppLogger.info('成绩路径成功: Dio rewrite=$rewrite');
@@ -120,17 +125,13 @@ class LiveGradesRepository implements GradesRepository {
 
   Future<void> _softWarm({required bool rewrite}) async {
     if (rewrite) await _session.ensureWebVpnSession();
-    for (final url in [
-      CampusUrls.jwxtHome,
-      CampusUrls.jwxtCjcxIndex,
-    ]) {
+    for (final url in [CampusUrls.jwxtHome, CampusUrls.jwxtCjcxIndex]) {
       try {
         await _session.get(
           url,
           rewrite: rewrite,
           headers: {
-            'Accept':
-                'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             'Referer': CampusUrls.ywtbMain,
           },
         );
