@@ -44,7 +44,7 @@ class CalendarPage extends ConsumerWidget {
           ManualRefreshButton(
             onRefresh: () async {
               ref.invalidate(attendanceSnapshotProvider);
-          ref.invalidate(homeworkProvider);
+              ref.invalidate(homeworkProvider);
               await ref
                   .read(scheduleSnapshotProvider.notifier)
                   .refresh(force: true);
@@ -72,8 +72,12 @@ class CalendarPage extends ConsumerWidget {
         onRefresh: () async {
           ref.invalidate(attendanceSnapshotProvider);
           ref.invalidate(homeworkProvider);
-          await ref.read(scheduleSnapshotProvider.notifier).refresh(force: true);
-          await ref.read(calendarSnapshotProvider.notifier).refresh(force: true);
+          await ref
+              .read(scheduleSnapshotProvider.notifier)
+              .refresh(force: true);
+          await ref
+              .read(calendarSnapshotProvider.notifier)
+              .refresh(force: true);
         },
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -81,24 +85,34 @@ class CalendarPage extends ConsumerWidget {
           padding: AppTokens.pagePadding,
           children: [
             snap.when(
-              data: (data) =>
-                  DataSourceBanner(
-                    live: data.live,
-                    message: data.banner,
-                    fromCache: data.fromCache,
-                    cachedAt: data.cachedAt,
-                    fetchedAt: data.fetchedAt,
-                  ),
-              loading: () => const MockDataBanner(),
-              error: (_, _) => const MockDataBanner(),
+              data: (data) => DataSourceBanner(
+                service: 'calendar',
+                onRetry: () => ref.invalidate(calendarSnapshotProvider),
+                live: data.live,
+                message: data.banner,
+                fromCache: data.fromCache,
+                cachedAt: data.cachedAt,
+                fetchedAt: data.fetchedAt,
+              ),
+              loading: () => DataSourceBanner(
+                service: 'calendar',
+                onRetry: () => ref.invalidate(calendarSnapshotProvider),
+              ),
+              error: (_, _) => DataSourceBanner(
+                service: 'calendar',
+                onRetry: () => ref.invalidate(calendarSnapshotProvider),
+              ),
             ),
             const SizedBox(height: AppTokens.spaceMd),
             AsyncBody(
               value: snap,
-              onRetry: () => ref.read(calendarSnapshotProvider.notifier).refresh(force: true),
+              onRetry: () => ref
+                  .read(calendarSnapshotProvider.notifier)
+                  .refresh(force: true),
               builder: (data) {
                 final term = data.currentTerm;
-                final courses = schedule.asData?.value.courses ?? const <Course>[];
+                final courses =
+                    schedule.asData?.value.courses ?? const <Course>[];
                 final scheduleWeek = schedule.asData?.value.week;
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -157,30 +171,56 @@ class _CompactWeekHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final fmt = DateFormat('M月d日');
     return AppSurfaceCard(
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(color: AppColors.chip, borderRadius: AppTokens.borderMd),
-          child: Column(children: [
-            Text('$week', style: const TextStyle(fontSize: 28,
-                color: AppColors.navy, fontWeight: FontWeight.w800)),
-            const Text('教学周', style: TextStyle(fontSize: 12, color: AppColors.navy)),
-          ]),
-        ),
-        const SizedBox(width: 16),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(termLabel, style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 6),
-          if (term != null)
-            Text('${fmt.format(term!.startDate)} — ${fmt.format(term!.endDate)}',
-                style: Theme.of(context).textTheme.bodySmall),
-          if (synced) ...[
-            const SizedBox(height: 6),
-            Text(AppStrings.calendarWeekSyncedShort,
-                style: Theme.of(context).textTheme.bodySmall),
-          ],
-        ])),
-      ]),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: AppColors.chip,
+              borderRadius: AppTokens.borderMd,
+            ),
+            child: Column(
+              children: [
+                Text(
+                  '$week',
+                  style: const TextStyle(
+                    fontSize: 28,
+                    color: AppColors.navy,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const Text(
+                  '教学周',
+                  style: TextStyle(fontSize: 12, color: AppColors.navy),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(termLabel, style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 6),
+                if (term != null)
+                  Text(
+                    '${fmt.format(term!.startDate)} — ${fmt.format(term!.endDate)}',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                if (synced) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    AppStrings.calendarWeekSyncedShort,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -202,10 +242,7 @@ class _EventTile extends StatelessWidget {
         children: [
           Text(
             event.name,
-            style: const TextStyle(
-              fontWeight: FontWeight.w700,
-              fontSize: 15,
-            ),
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
           ),
           const SizedBox(height: AppTokens.spaceXs),
           Text(
